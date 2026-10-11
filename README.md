@@ -40,6 +40,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | Click, double click | Select, go to |
 | G, L, C | Go to, land on, look at the selection |
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time |
+| 0 to 9 | Sun, Mercury ... Pluto |
 | Tab | System browser |
 | O, N | Orbits, labels |
 | `[` `]` | Exposure |

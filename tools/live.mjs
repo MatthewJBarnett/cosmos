@@ -10,7 +10,7 @@ await new Promise(r => setTimeout(r, 12000));
 await page.mouse.move(320, 180); await page.mouse.down(); await page.mouse.move(360, 200, { steps: 4 }); await page.mouse.up();
 await page.mouse.wheel({ deltaY: -200 });
 await page.keyboard.down('w'); await new Promise(r => setTimeout(r, 3000)); await page.keyboard.up('w');
-await page.keyboard.press('Tab'); await page.keyboard.press('h');
+await page.keyboard.press('Tab'); await page.keyboard.press('h'); await page.keyboard.press('h'); await page.keyboard.press('6'); await new Promise(r => setTimeout(r, 6000)); await page.keyboard.press('c'); await page.keyboard.press('l');
 await page.mouse.click(100, 300);
 await new Promise(r => setTimeout(r, 4000));
 const st = await page.evaluate(() => JSON.stringify({ fps: cosmos.ui.fps, stats: cosmos.renderer.stats, level: cosmos.nav.level, sel: cosmos.nav.selected && cosmos.nav.selected.type }));

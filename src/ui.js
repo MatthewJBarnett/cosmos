@@ -67,7 +67,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N</td><td>Toggle orbits, labels</td></tr>
+      <tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N</td><td>Toggle orbits, labels</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2</td><td>Hide interface</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table><p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
@@ -132,6 +132,7 @@ export class UI {
       if (k === 'tab') { e.preventDefault(); this.toggle(this.sysPanel); }
       else if (k === 'g') nav.goTo(nav.selected);
       else if (k === 'c') nav.lookTarget = nav.selected;
+      else if (k >= '0' && k <= '9' && !e.ctrlKey && !e.altKey) this.search(['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'][+k]);
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
       else if (k === ' ') { e.preventDefault(); nav.paused = !nav.paused; }
       else if (k === '.') this.stepRate(1); else if (k === ',') this.stepRate(-1);
