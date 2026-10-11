@@ -100,7 +100,8 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     n = mix(n, big, 0.35);
     d = clamp((d - n*0.8*(1.05 - cov*0.6)) * 2.2, 0., 1.);
   } else d = clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
-  return d;
+  // optical thickness spans thin veils to dense towers
+  return d*d*(0.35 + 1.4*wm.g);
 }
 void main(){
   vec4 scene = texture(uScene, vUV);

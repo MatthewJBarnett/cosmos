@@ -243,7 +243,7 @@ const BEAM_VS = `layout(location=0) in vec2 aPos; uniform mat4 uViewProj; unifor
 void main(){ float t = aPos.y*0.5 + 0.5; vec3 c = uRel + uAxis*(t*uLen); vec3 side = normalize(cross(uAxis, normalize(c)));
   vP = vec2(aPos.x, t); vec3 w = c + side*aPos.x*mix(uW0, uW1, t); gl_Position = uViewProj*vec4(w, 1.); logDepth(); }`;
 const BEAM_FS = `in vec2 vP; out vec4 o; uniform vec3 uCol; uniform float uI, uFall, uExposure; ${LOGDEPTH_FS}
-void main(){ logDepth(); float a = exp(-vP.x*vP.x*5.)*pow(1. - vP.y, uFall)*smoothstep(0., 0.02, vP.y + 0.02); o = vec4(uCol*a*uI*uExposure, 0.); }`;
+void main(){ logDepth(); float w = 1. - vP.x*vP.x; float a = exp(-vP.x*vP.x*7.)*w*w*pow(1. - vP.y, uFall)*smoothstep(0., 0.04, vP.y); o = vec4(uCol*a*uI*uExposure, 0.); }`;
 let pBeam;
 function beam(o, rel, axis, len, w0, w1, col, I, fall) {
   if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
@@ -263,9 +263,9 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
       const vel = V.norm(V.cross(Q.rot(sys.worldQ, [0, 1, 0]), away));
       const dust = V.norm(V.addm(away, vel, -0.35));
       const L = 0.25 * C.AU * Math.sqrt(act);
-      beam(o, b.rel, away, L * 1.6, b.radius * 30, L * 0.05, [0.35, 0.6, 1.0], 2.5e-7 * E * act, 1.6);
-      beam(o, b.rel, dust, L, b.radius * 40, L * 0.22, [1.0, 0.9, 0.7], 5e-7 * E * act, 2.2);
-      beam(o, V.addm(b.rel, away, -b.radius * 60), away, b.radius * 400, b.radius * 150, b.radius * 400, [0.6, 1.0, 0.8], 4e-6 * E * act, 3);
+      beam(o, b.rel, away, L * 1.6, b.radius * 30, L * 0.05, [0.35, 0.6, 1.0], 1.2e-8 * E * act, 1.4);
+      beam(o, b.rel, dust, L, b.radius * 40, L * 0.22, [1.0, 0.9, 0.7], 2.5e-8 * E * act, 1.8);
+      beam(o, V.addm(b.rel, away, -b.radius * 60), away, b.radius * 400, b.radius * 150, b.radius * 400, [0.6, 1.0, 0.8], 2e-7 * E * act, 3);
     }
     if (b.neutron && b.pulsar && b.pxRadius > 0.02) {
       // lighthouse beams along the (tilted) magnetic axis

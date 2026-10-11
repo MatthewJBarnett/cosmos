@@ -194,8 +194,8 @@ void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
     if (detail > 0.) c2 = pow(0.5 + 0.5*cos(ph*2.3 + 1.7 + wob*0.8), 4.) * (1.3 - frag);
     float inner = smoothstep(max(g.bar*0.8,0.04), max(g.bar*1.3,0.14), R);
     float s = g.armStr * inner * frag;
-    armOld = mix(1., 0.5 + 1.2*c*c, min(s, 1.)*0.7);
-    armYoung = mix(0.25, 4.2*pow(c, 3.5) + 1.4*c2, min(s, 1.));
+    armOld = mix(1., 0.6 + 1.1*c*c, min(s, 1.)*0.7);
+    armYoung = mix(0.25, 3.6*pow(c, 2.6) + 1.4*c2, min(s, 1.));
     armDust = mix(0.4, 3.4*pow(cd, 2.5) + 1.2*c2, min(s, 1.));
     if (detail > 0.) {
       float n = gfbm(p*vec3(9.,9.,9.) + g.seed*2., 4);
