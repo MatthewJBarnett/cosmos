@@ -70,6 +70,8 @@ export class UI {
       <tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N</td><td>Toggle orbits, labels</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2</td><td>Hide interface</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table><p class="dim">Press H or ? to close.</p>`;
+    this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
+    setTimeout(() => this.hint.classList.add('fade'), 9000);
     this.buildSettings();
     this.bind();
     this.lastInfoKey = null; this.labelPool = []; this.sysKey = null;
@@ -87,6 +89,7 @@ export class UI {
       <label><input type="checkbox" id="sLabels" checked> Labels</label>
       <label><input type="checkbox" id="sAuto" checked> Auto exposure</label>
       <label><input type="checkbox" id="sFxaa" checked> Anti-aliasing</label>
+      <label><input type="checkbox" id="sFlare" checked> Lens flare</label>
       <label><input type="checkbox" id="sAutoScale" ${rcfg.autoScale ? 'checked' : ''}> Dynamic resolution</label>
       <label>Quality <select id="sQual"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim">(reloads)</span></label>`;
     const q = (id) => s.querySelector('#' + id);
@@ -99,6 +102,7 @@ export class UI {
     q('sLabels').onchange = (e) => { this.showLabels = e.target.checked; };
     q('sAuto').onchange = (e) => { rcfg.autoExposure = e.target.checked; rcfg.manualExposure = this.r.exposure; };
     q('sFxaa').onchange = (e) => { rcfg.fxaa = e.target.checked; };
+    q('sFlare').onchange = (e) => { rcfg.flare = e.target.checked; };
     q('sAutoScale').onchange = (e) => { rcfg.autoScale = e.target.checked; };
     q('sQual').value = rcfg.quality || 'high';
     q('sQual').onchange = (e) => { const u = new URL(location.href); u.searchParams.set('q', e.target.value); location.href = u.toString(); };

@@ -9,7 +9,7 @@ import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg } from './sky.js
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-6, fxaa: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-6, fxaa: true, flare: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -28,7 +28,7 @@ void main(){
   s += texture(uTex, vUV + uTexel*vec2(-1,-1)).rgb + texture(uTex, vUV + uTexel*vec2(1,-1)).rgb + texture(uTex, vUV + uTexel*vec2(-1,1)).rgb + texture(uTex, vUV + uTexel*vec2(1,1)).rgb;
   o = vec4(mix(texture(uBase, vUV).rgb, s/16., uMix), 1.);
 }`;
-const TONE_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uHDR, uBloom; uniform float uBloomAmt, uFrame; uniform vec2 uRes;
+const TONE_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uHDR, uBloom; uniform float uBloomAmt, uFrame, uGhost; uniform vec2 uRes;
 vec3 aces(vec3 c){
   const mat3 A = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
   const mat3 B = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
@@ -39,6 +39,13 @@ float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 
 void main(){
   vec3 hdr = texture(uHDR, vUV).rgb, bl = texture(uBloom, vUV).rgb;
   vec3 c = mix(hdr, bl, uBloomAmt);
+  // lens ghosts from very bright sources (sun in frame)
+  vec2 gv = vec2(0.5) - vUV;
+  vec3 gh = vec3(0.);
+  gh += max(texture(uBloom, vec2(0.5) + gv*0.6).rgb - 6., 0.)*vec3(0.9, 0.6, 0.3);
+  gh += max(texture(uBloom, vec2(0.5) + gv*1.4).rgb - 6., 0.)*vec3(0.3, 0.6, 0.9)*0.7;
+  gh += max(texture(uBloom, vec2(0.5) - gv*0.35).rgb - 6., 0.)*vec3(0.5, 0.9, 0.5)*0.5;
+  c += gh*uGhost*smoothstep(0.75, 0.2, length(gv));
   // subtle vignette
   vec2 q = vUV - 0.5; c *= 1. - dot(q, q)*0.35;
   c = aces(c*1.25);
@@ -336,7 +343,7 @@ export class Renderer {
     }
     const useFxaa = rcfg.fxaa;
     gl.bindFramebuffer(gl.FRAMEBUFFER, useFxaa ? this.ldrFBO : null); gl.viewport(0, 0, w, h);
-    this.pTone.use().set({ uHDR: this.hdrTex, uBloom: acc, uBloomAmt: rcfg.bloom, uFrame: this.frameNo % 97, uRes: [w, h] }); drawFS();
+    this.pTone.use().set({ uHDR: this.hdrTex, uBloom: acc, uBloomAmt: rcfg.bloom, uGhost: rcfg.flare ? 0.0012 : 0, uFrame: this.frameNo % 97, uRes: [w, h] }); drawFS();
     if (useFxaa) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); this.pFxaa.use().set({ uTex: this.ldrTex, uTexel: [1 / w, 1 / h] }); drawFS(); }
 
     T('post');

@@ -297,7 +297,7 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
     float lat = abs(P.y);
     float belt = exp(-pow((lat - 0.3)/0.2, 2.));
     float s = fbm(3, min(uOMax, 9), 38u, d, 0.55)*0.6 + gn(2, 39u, d).x*0.4;
-    float th = 0.78 - 0.3*uSpots*belt;
+    float th = 0.62 - 0.22*uSpots*belt;
     float umbra = smoothstep(th + 0.05, th + 0.11, s), pen = smoothstep(th, th + 0.05, s);
     float fib = uOMax >= 9 ? gn(min(uOMax, 10), 40u, d).x*0.15 : 0.;
     bright = mix(bright, 0.42 + fib, pen); bright = mix(bright, 0.1, umbra);
