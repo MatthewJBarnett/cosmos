@@ -6,7 +6,7 @@ import { GLSL_GALAXY, GLEVELS, galaxyCell, REAL_GALAXIES, galUniforms } from './
 import { GLSL_BB } from './stars.js';
 import { CUBE_FACES } from './atmosphere.js';
 
-export const skyCfg = { cubeSize: 1024, galBoost: 9, galSteps: 72, starBoost: 1.0, galRange: 1 };
+export const skyCfg = { cubeSize: 1024, galBoost: 22, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
 export const SUN_MAG = -26.74;
 
@@ -98,16 +98,17 @@ void main(){
   int N = int(clamp(vPx*0.6, 10., float(uMaxSteps)));
   float detail = vPx > 400. ? 2. : (vPx > 28. ? 1. : 0.);
   float dt = (t1 - t0)/float(N), jit = ign(gl_FragCoord.xy);
-  vec3 L = vec3(0.); float T = 1.;
+  vec3 L = vec3(0.); vec3 T = vec3(1.);
   for (int i = 0; i < N; i++) {
     vec3 p = ro + rd*(t0 + (float(i) + jit)*dt);
     vec3 e; float k; galSample(g, p, detail, e, k);
-    float st = exp(-k*dt);
-    L += T*e*(k > 1e-4 ? (1. - st)/k : dt);
+    vec3 kk = k*vec3(0.72, 1.0, 1.4);
+    vec3 st = exp(-kk*dt);
+    L += T*e*(k > 1e-4 ? (1. - st)/kk : vec3(dt));
     T *= st;
-    if (T < 0.01) break;
+    if (T.g < 0.01) break;
   }
-  o = vec4(L*g.lum*uScale, T);
+  o = vec4(L*g.lum*uScale, T.g);
 }`;
 
 const CUBE_FS = `
@@ -126,7 +127,7 @@ void main(){
   if (t1 <= t0) { o = vec4(0., 0., 0., 1.); return; }
   float len = t1 - t0; const float K = 5.5; float eK = exp(K) - 1.;
   float jit = ign(gl_FragCoord.xy);
-  vec3 L = vec3(0.); float T = 1.; float prev = 0.;
+  vec3 L = vec3(0.); vec3 T = vec3(1.); float prev = 0.;
   float ylim = g.type < 0.5 ? 2. : (g.type > 3.5 ? g.hz*30. : max(g.hz*9., g.rb*3.5));
   for (int i = 0; i < uSteps; i++) {
     float f1 = (exp(K*float(i + 1)/float(uSteps)) - 1.)/eK;
@@ -134,12 +135,13 @@ void main(){
     vec3 p = ro + rd*t;
     if (abs(p.y) > ylim) { if (p.y*rd.y > 0.) break; continue; }
     vec3 e; float k; galSample(g, p, t < 0.25 ? 2. : 1., e, k);
-    float st = exp(-k*dt);
-    L += T*e*(k > 1e-4 ? (1. - st)/k : dt);
+    vec3 kk = k*vec3(0.72, 1.0, 1.4);
+    vec3 st = exp(-kk*dt);
+    L += T*e*(k > 1e-4 ? (1. - st)/kk : vec3(dt));
     T *= st;
-    if (T < 0.005) break;
+    if (T.g < 0.005) break;
   }
-  o = vec4(L*g.lum, T);
+  o = vec4(L*g.lum, T.g);
 }`;
 const CUBEDRAW_FS = `
 in vec2 vUV; out vec4 o;

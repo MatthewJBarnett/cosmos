@@ -2,7 +2,8 @@
 // object following, level transitions and picking.
 import { V, Q, C, clamp } from './math.js';
 import { gl, makeVAO } from './gl.js';
-import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS } from './universe.js';
+import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS, galDir } from './universe.js';
+import { visibleNebulae, REAL_NEBULAE } from './exotic.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
@@ -11,15 +12,27 @@ import { visibleGalaxyCells } from './sky.js';
 const PC = C.PC, MPC = C.PC * 1e6;
 const fields = new Map(), systems = new Map();
 
+function addFixed(f, desc, MV, T) {
+  f.fixed.push({ pos: desc.pos, MV, desc });
+  const data = new Float32Array([0, 0, 0, MV, T]);
+  f.cells.set('fixed:' + desc.key, { fixedCell: true, origin: desc.pos, n: 1, data, last: Infinity, vao: makeVAO([{ data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+}
 function fieldFor(g) {
   let f = fields.get(g.id);
   if (f) return f;
   f = new StarField(g);
   if (g === MILKY_WAY) {
-    const desc = sunDescriptor(g);
-    f.fixed.push({ pos: desc.pos, MV: 4.83, desc });
-    const data = new Float32Array([0, 0, 0, 4.83, 5772]);
-    f.cells.set('fixed:sol', { fixedCell: true, origin: desc.pos, n: 1, data, last: Infinity, vao: makeVAO([{ data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+    addFixed(f, sunDescriptor(g), 4.83, 5772);
+    // Cygnus X-1: stellar black hole with a blue supergiant companion
+    const d = galDir(71.33, 3.07);
+    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 } }, 12, 20000);
+  }
+  // central supermassive black hole
+  {
+    const mass = (g === MILKY_WAY ? 4.3e6 : Math.max(1e5, g.mass * 2e-4 * (g.bulge || 1) / 5)) * C.Msun;
+    const desc = { galaxy: g, seed: (g.seed ^ 0x5b1) >>> 0, pos: [0, 0, 0], key: g.id + '/smbh', name: g === MILKY_WAY ? 'Sagittarius A*' : galaxyName(g) + ' central black hole',
+      star: { kind: 5, MV: 9, T: 0, mass, radius: 2 * C.G * mass / (C.c * C.c), lum: 0, cls: 'Supermassive black hole', accretion: 0.8 } };
+    addFixed(f, desc, 9, 6000);
   }
   fields.set(g.id, f);
   if (fields.size > 3) { const k = fields.keys().next().value; fields.get(k).dispose(); fields.delete(k); }
@@ -39,6 +52,7 @@ export function targetName(t) {
   if (!t) return '';
   if (t.type === 'body') return t.body.name;
   if (t.type === 'star') return starName(t.desc);
+  if (t.type === 'nebula') return t.neb.name;
   return galaxyName(t.galaxy);
 }
 
@@ -83,10 +97,11 @@ export class Nav {
       return r;
     }
     if (t.type === 'star') { const g = t.desc.galaxy; return this.relGalactic(g, Q.rot(g.quat, t.desc.pos)); }
+    if (t.type === 'nebula') return this.relGalactic(t.galaxy, Q.rot(t.galaxy.quat, t.neb.pos));
     const cu = this.camU(), g = t.galaxy;
     return [(g.posU[0] - cu[0]) * MPC, (g.posU[1] - cu[1]) * MPC, (g.posU[2] - cu[2]) * MPC];
   }
-  targetRadius(t) { return t.type === 'body' ? (t.body.radius || 1e9) : t.type === 'star' ? t.desc.star.radius : t.galaxy.radius * PC; }
+  targetRadius(t) { return t.type === 'body' ? (t.body.radius || 1e9) : t.type === 'star' ? t.desc.star.radius : t.type === 'nebula' ? t.neb.radius * PC : t.galaxy.radius * PC; }
 
   move(dm) {
     if (this.level === 'system') this.S = V.add(this.S, dm);
@@ -129,23 +144,37 @@ export class Nav {
   // ----- go-to -----
   goTo(t, opt = {}) {
     if (!t) return;
-    const d1n = (tt) => opt.dist || (tt.type === 'body' ? tt.body.radius * (tt.body.kind === 'star' ? (tt.body.blackHole ? 40 : 7) : tt.body.rings ? 5.5 : 3.3) || 1e10 : tt.type === 'star' ? tt.desc.star.radius * 7 + 1e7 : tt.galaxy.radius * PC * 2.3);
+    const d1n = (tt) => opt.dist || (tt.type === 'body' ? tt.body.radius * (tt.body.kind === 'star' ? (tt.body.blackHole ? 40 : 7) : tt.body.rings ? 5.5 : 3.3) || 1e10 : tt.type === 'star' ? tt.desc.star.radius * 7 + 1e7 : tt.type === 'nebula' ? tt.neb.radius * PC * 2.6 : tt.galaxy.radius * PC * 2.3);
     const d = V.len(this.relTo(t));
     const d1 = d1n(t);
     const dur = opt.dur || clamp(2.5 + Math.abs(Math.log10(d / d1)) * 0.75, 2.5, 11);
     this.goto = { target: t, t: 0, dur, d0: d, d1, d1n, e: 0, land: opt.land };
     this.selected = t.offset ? { type: 'body', body: t.body } : t;
   }
-  land(body) {
+  land(body, opt = {}) {
     if (!body || !body.surface) return;
     const sys = body.system; const rel = this.relTo({ type: 'body', body });
     const toCam = V.norm(V.mul(rel, -1));
     let dir = toCam;
     if (sys.stars.length && body.kind !== 'star') { const toStar = V.norm(V.sub(sys.stars[0].wpos, body.wpos)); dir = V.norm(V.add(V.mul(toCam, 0.6), toStar)); if (V.dot(dir, toStar) < 0.25) dir = V.norm(V.add(dir, V.mul(toStar, 0.6))); }
     let h = 0;
-    if (body.surface.gen === 'terra') h = planetState(body).queryHeight(Q.rot(Q.conj(body.wrot), dir));
+    if (body.surface.gen === 'terra') {
+      const st = planetState(body), inv = Q.conj(body.wrot), sea = body.surface.ocean > 0.5 ? body.surface.sea : -1e9;
+      h = st.queryHeight(Q.rot(inv, dir));
+      if (opt.dir) { dir = V.norm(opt.dir); h = st.queryHeight(Q.rot(inv, dir)); }
+      else if (h <= sea + 20) {
+        // prefer dry land: probe nearby directions
+        let a = V.norm(V.cross(dir, [0.31, 0.77, 0.55])), b2 = V.cross(dir, a);
+        search: for (let ring = 1; ring <= 6; ring++) for (let k = 0; k < 10; k++) {
+          const ang = ring * 0.09, az = k / 10 * 6.2832 + ring;
+          const d2 = V.norm(V.add(V.mul(dir, Math.cos(ang)), V.add(V.mul(a, Math.sin(ang) * Math.cos(az)), V.mul(b2, Math.sin(ang) * Math.sin(az)))));
+          const h2 = st.queryHeight(Q.rot(inv, d2));
+          if (h2 > sea + 60) { dir = d2; h = h2; break search; }
+        }
+      }
+    }
     const off = V.mul(dir, body.radius + h + (body.surface.gen === 'terra' ? 1200 : body.radius * 0.02));
-    this.goTo({ type: 'body', body, offset: off }, { dist: 1, land: { dir } });
+    this.goTo({ type: 'body', body, offset: off }, Object.assign({ dist: 1, land: { dir } }, opt));
   }
   stepGoto(dt) {
     const g = this.goto; if (!g) return;
@@ -160,14 +189,14 @@ export class Nav {
     if (!g.land || x < 0.75) {
       const up = Q.rot(this.q, [0, 1, 0]);
       const tq = Q.look(g.target.offset ? V.sub(rel, V.mul(g.target.offset, 0.999)) : rel, up);
-      this.q = Q.slerp(this.q, tq, 1 - Math.exp(-dt * 4));
+      this.q = Q.slerp(this.q, tq, g.dur < 0.1 ? 1 : 1 - Math.exp(-dt * 4));
     } else {
       // level out for landing: look along the horizon towards the sun
       const upv = g.land.dir, b = g.target.body, st = b.system.stars[0];
       let f = st ? V.sub(st.wpos, b.wpos) : Q.rot(this.q, [0, 0, -1]);
       f = V.norm(V.sub(f, V.mul(upv, V.dot(f, upv))));
       f = V.norm(V.add(f, V.mul(upv, -0.06)));
-      this.q = Q.slerp(this.q, Q.look(f, upv), 1 - Math.exp(-dt * 3));
+      this.q = Q.slerp(this.q, Q.look(f, upv), g.dur < 0.1 ? 1 : 1 - Math.exp(-dt * 3));
     }
     if (x >= 1) {
       this.goto = null;
@@ -263,7 +292,7 @@ export class Nav {
       this.altitude = d - anchor.radius - h;
     }
     this.transitions();
-    if (this.field && this.level !== 'universe') this.field.update(this.camLocal());
+    if (this.field && this.level !== 'universe') this.field.update(this.camLocal(), this.sync ? 400 : 5);
   }
 
   // ----- picking: ray direction in world axes, pixel angular size -----
@@ -280,6 +309,9 @@ export class Nav {
         if (score < bs) { bs = score; best = b; }
       }
       if (best) return { type: 'body', body: best };
+    }
+    if (this.galaxy && this.level !== 'universe') {
+      for (const v of visibleNebulae) { const sep = Math.acos(clamp(V.dot(v.rel, dir) / v.d, -1, 1)); if (v.d > v.nb.radius && sep < Math.atan(v.nb.radius / v.d) * 0.6 && v.px > 12) return { type: 'nebula', neb: v.nb, galaxy: this.galaxy }; }
     }
     if (this.field && this.level !== 'universe') {
       const s = this.field.pick(this.camLocal(), Q.rot(Q.conj(this.galaxy.quat), dir), 9 * pxRad);
@@ -307,6 +339,10 @@ export function findByName(nav, name) {
   if (nav.system) { const b = nav.system.bodies.find(b => b.name.toLowerCase() === n) || nav.system.bodies.find(b => b.name.toLowerCase().startsWith(n)); if (b) return { type: 'body', body: b }; }
   const sol = solSystem(); const b = sol.bodies.find(b => b.name.toLowerCase() === n) || (n.length > 2 && sol.bodies.find(b => b.name.toLowerCase().startsWith(n)));
   if (b) return { type: 'body', body: b };
+  const mwf = fieldFor(MILKY_WAY).fixed.find(f => f.desc.name && f.desc.name.toLowerCase().includes(n));
+  if (mwf) return { type: 'star', desc: mwf.desc };
+  const nb = REAL_NEBULAE.find(x => x.name.toLowerCase().includes(n));
+  if (nb) return { type: 'nebula', neb: nb, galaxy: MILKY_WAY };
   const g = REAL_GALAXIES.find(g => g.name.toLowerCase().includes(n));
   if (g) return { type: 'galaxy', galaxy: g };
   return null;
@@ -316,5 +352,7 @@ export function searchList(nav) {
   if (nav.system) for (const b of nav.system.bodies) if (b.kind !== 'barycenter') out.push(b.name);
   for (const b of solSystem().bodies) if (!out.includes(b.name)) out.push(b.name);
   for (const g of REAL_GALAXIES) out.push(g.name);
+  for (const x of REAL_NEBULAE) out.push(x.name);
+  out.push('Sagittarius A*', 'Cygnus X-1');
   return out;
 }

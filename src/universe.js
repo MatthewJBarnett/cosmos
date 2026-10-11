@@ -146,7 +146,7 @@ const float G_RD = 0.2;
 void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
   emis = vec3(0.); ext = 0.;
   float R = length(p.xz);
-  vec3 colOld = vec3(1.0, 0.80, 0.55), colYoung = vec3(0.55, 0.72, 1.0), colH2 = vec3(1.0, 0.25, 0.35);
+  vec3 colOld = vec3(1.0, 0.78, 0.5), colYoung = vec3(0.42, 0.62, 1.0), colH2 = vec3(1.0, 0.22, 0.34);
   if (g.type < 0.5) {
     float r = length(p * vec3(1., 1./g.flatn, 1./mix(g.flatn,1.,.5)));
     float d = pow(1. + (r*r)/(g.rb*g.rb), -1.5) * smoothstep(1.0, 0.5, r);
@@ -180,33 +180,39 @@ void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
   float barD = 0.;
   if (g.bar > 0.) { float bx = abs(p.x)/g.bar, bz = length(p.yz)/(g.bar*0.28); barD = exp(-bx*bx*bx - bz*bz) * g.bulge * 0.35; }
   // spiral arms: logarithmic spiral with noise perturbation
-  float armOld = 1., armYoung = 0.3, armDust = 0.4, clump = 1., h2 = 0.;
+  float armOld = 1., armYoung = 0.3, armDust = 0.4, clump = 1., h2 = 0., knots = 0.;
   if (g.armStr > 0.) {
     float Rs = max(R, 0.03);
-    float wob = 0.; vec3 np = vec3(p.x, 0., p.z);
-    if (detail > 0.) wob = (gfbm(np*3.0 + g.seed, 3) - 0.47) * 3.0;
+    float wob = 0., frag = 1., c2 = 0.; vec3 np = vec3(p.x, 0., p.z);
+    if (detail > 0.) {
+      wob = (gfbm(np*2.3 + g.seed, 3) - 0.47)*3.2 + (gnoise(np*0.8 + g.seed*0.37) - 0.5)*3.0;
+      frag = 0.35 + 0.95*smoothstep(0.3, 0.62, gnoise(np*1.9 + g.seed*1.9));
+    }
     float ph = g.arms * (th - log(Rs/max(g.bar,0.06))/g.pitch) + wob;
     float c = 0.5 + 0.5*cos(ph);
-    float cd = 0.5 + 0.5*cos(ph + 0.9);
+    float cd = 0.5 + 0.5*cos(ph + 0.75);
+    if (detail > 0.) c2 = pow(0.5 + 0.5*cos(ph*2.3 + 1.7 + wob*0.8), 4.) * (1.3 - frag);
     float inner = smoothstep(max(g.bar*0.8,0.04), max(g.bar*1.3,0.14), R);
-    float s = g.armStr * inner;
-    armOld = mix(1., 0.55 + 1.3*c*c, s*0.7);
-    armYoung = mix(0.3, 3.5*pow(c, 3.), s);
-    armDust = mix(0.4, 3.2*pow(cd, 2.5), s);
+    float s = g.armStr * inner * frag;
+    armOld = mix(1., 0.5 + 1.2*c*c, min(s, 1.)*0.7);
+    armYoung = mix(0.25, 4.2*pow(c, 3.5) + 1.4*c2, min(s, 1.));
+    armDust = mix(0.4, 3.4*pow(cd, 2.5) + 1.2*c2, min(s, 1.));
     if (detail > 0.) {
       float n = gfbm(p*vec3(9.,9.,9.) + g.seed*2., 4);
-      clump = 0.25 + 2.6*smoothstep(0.3, 0.75, n);
+      clump = 0.15 + 3.2*smoothstep(0.32, 0.72, n);
       float n2 = gnoise(p*vec3(26.,26.,26.) + g.seed*3.);
-      h2 = smoothstep(0.66, 0.82, n2) * pow(c, 3.) * s * 14.;
+      h2 = smoothstep(0.64, 0.8, n2) * pow(c, 3.) * s * 16.;
+      float n3 = gnoise(p*vec3(47.,47.,47.) + g.seed*4.1);
+      knots = smoothstep(0.66, 0.84, n3) * (pow(c, 2.5) + c2) * s * 9.;
     }
   }
   float e0 = 0.5 / g.hz;  // normalises face-on central column to ~1
-  emis = colOld * (disk*vOld*armOld + bulge*g.hz*2.0 + barD*g.hz*2.0) * e0;
-  emis += colYoung * disk * vYoung * armYoung * clump * g.young * e0 * 0.55;
-  emis += colH2 * disk * vYoung * h2 * g.young * e0 * 0.5;
+  emis = colOld * (disk*vOld*armOld*0.75 + bulge*g.hz*2.0 + barD*g.hz*2.0) * e0;
+  emis += colYoung * disk * vYoung * (armYoung * clump + knots) * g.young * e0 * 1.25;
+  emis += colH2 * disk * vYoung * h2 * g.young * e0 * 0.6;
   float dn = 1.;
-  if (detail > 0.) { float f = gfbm(p*vec3(14.,30.,14.) + g.seed*5., 4); dn = 0.15 + 3.2*smoothstep(0.32,0.72,f); if (detail > 1.) { float f2 = gfbm(p*vec3(70.,160.,70.) + g.seed, 3); dn *= 0.4 + 1.5*f2; } }
-  ext = g.dust * exp(-R/(G_RD*1.6)) * smoothstep(1.0,0.8,R) * vDust * armDust * dn * (0.9/(g.hz*0.6)) * smoothstep(0.0, g.rb*1.2, R + 0.02);
+  if (detail > 0.) { float f = gfbm(p*vec3(14.,30.,14.) + g.seed*5., 4); dn = 0.1 + 3.4*smoothstep(0.34,0.7,f); if (detail > 1.) { float f2 = gfbm(p*vec3(70.,160.,70.) + g.seed, 3); dn *= 0.35 + 1.6*f2; } }
+  ext = g.dust * exp(-R/(G_RD*1.6)) * smoothstep(1.0,0.8,R) * vDust * armDust * dn * (0.6/(g.hz*0.6)) * smoothstep(0.0, g.rb*1.2, R + 0.02);
 }
 `;
 

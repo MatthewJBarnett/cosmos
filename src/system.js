@@ -247,8 +247,8 @@ function buildSol(sys) {
   // Jupiter
   const jup = P('Jupiter', 'Gas giant', 5.202887, 0.04838624, 1.30439695, 100.47390909, 14.72847983, 34.39644051, 317.83, 69911, 9.925, 3.13, 0.52, 165, { oblate: 0.0649 });
   jup.surface = gasPreset('jupiter', rng, jup); jup.surface.bands = 9;
-  jup.atmo = makeAtmosphere(jup, 1e5, { H2: 0.9, He: 0.1 }, { T: 165, top: 500000, hM: 20000, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0] });
-  jup.rings = { inner: 92000e3, outer: 129000e3, opacity: 0.02, color: [0.5, 0.4, 0.3], seed: 5, kind: 'faint' };
+  jup.atmo = makeAtmosphere(jup, 0.05e5, { H2: 0.9, He: 0.1 }, { T: 165, top: 500000, hM: 20000, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0] });
+  jup.rings = { inner: 92000e3, outer: 129000e3, opacity: 0.003, color: [0.5, 0.4, 0.3], seed: 5, kind: 'faint' };
   const io = Mn(jup, 'Io', 'Volcanic', 421800, 0.0041, 0.036, 8.9319e22, 1821.6, 0.63); io.surface = surfacePreset('io', rng, io);
   const eu = Mn(jup, 'Europa', 'Ice world', 671100, 0.0094, 0.466, 4.7998e22, 1560.8, 0.67); eu.surface = surfacePreset('ice', rng, eu); Object.assign(eu.surface, { crater: 0.03, cracks: 1, contAmp: 120, mtnAmp: 200, hillAmp: 60, colA: [0.78, 0.75, 0.68], colB: [0.62, 0.55, 0.45], colCrack: [0.36, 0.2, 0.11] });
   const ga = Mn(jup, 'Ganymede', 'Ice world', 1070400, 0.0013, 0.177, 1.4819e23, 2634.1, 0.43); ga.surface = surfacePreset('ice', rng, ga); Object.assign(ga.surface, { crater: 0.7, cracks: 0.5, maria: 0.6, colA: [0.5, 0.47, 0.43], colB: [0.38, 0.35, 0.32], colLow: [0.2, 0.18, 0.16], colCrack: [0.6, 0.58, 0.55] });
@@ -256,7 +256,7 @@ function buildSol(sys) {
   // Saturn
   const sat = P('Saturn', 'Gas giant', 9.53667594, 0.05386179, 2.48599187, 113.66242448, 92.59887831, 49.95424423, 95.16, 58232, 10.656, 26.73, 0.47, 134, { oblate: 0.098, poleLon: 79.5 });
   sat.surface = gasPreset('saturn', rng, sat);
-  sat.atmo = makeAtmosphere(sat, 1e5, { H2: 0.96, He: 0.04 }, { T: 134, top: 700000, hM: 40000, mieS: [1.5e-7, 1.4e-7, 1e-7], mieA: [0, 0, 0] });
+  sat.atmo = makeAtmosphere(sat, 0.05e5, { H2: 0.96, He: 0.04 }, { T: 134, top: 700000, hM: 40000, mieS: [1.5e-7, 1.4e-7, 1e-7], mieA: [0, 0, 0] });
   sat.rings = { inner: 66900e3, outer: 140220e3, opacity: 1, color: [0.82, 0.74, 0.6], seed: 1, kind: 'saturn' };
   const mkIce = (b, o) => { b.surface = surfacePreset('ice', rng, b); Object.assign(b.surface, o); };
   mkIce(Mn(sat, 'Mimas', 'Ice world', 185539, 0.0196, 1.574, 3.7493e19, 198.2, 0.96), { crater: 1, cracks: 0 });
@@ -301,6 +301,7 @@ function buildSol(sys) {
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV'];
 export function starName(desc) {
   if (desc.sol) return 'Sun';
+  if (desc.name) return desc.name;
   const r = new RNG(desc.seed ^ 0x77);
   if (desc.star.MV < 0 && r.chance(0.5)) return makeName(desc.seed);
   return r.pick(['HD', 'HIP', 'GJ', 'TYC', 'BD', 'LHS', 'KIC']) + ' ' + (10000 + desc.seed % 890000);
@@ -309,7 +310,7 @@ export function starName(desc) {
 function makeStarBody(star, name, rng) {
   const b = body({ name, kind: 'star', cls: star.cls, star, mass: star.mass, radius: star.radius, temp: star.T, lum: star.lum, tilt: rng.range(0, 30), poleLon: rng.range(0, 360) });
   b.rotPeriod = star.kind === KIND.NS ? rng.logRange(0.002, 4) : star.kind === KIND.WD ? rng.logRange(600, 86400) : rng.logRange(0.5, 40) * C.DAY * Math.sqrt(star.radius / C.Rsun);
-  if (star.kind === KIND.BH) { b.cls = 'Black hole'; b.blackHole = true; b.accretion = rng.chance(0.6) ? rng.range(0.3, 1) : 0; b.rotPeriod = 0; }
+  if (star.kind === KIND.BH) { b.cls = star.cls || 'Black hole'; b.blackHole = true; b.accretion = star.accretion !== undefined ? star.accretion : (rng.chance(0.6) ? rng.range(0.3, 1) : 0); b.rotPeriod = 0; }
   else if (star.kind === KIND.NS) { b.neutron = true; b.pulsar = rng.chance(0.7); }
   b.surface = { gen: 'star', seed: [rng.range(0, 1000), rng.range(0, 1000), rng.range(0, 1000)], freq: 1, T: star.T, spots: star.T < 6500 && star.kind <= 2 ? rng.range(0.1, 1) : 0, hmin: 0, hmax: 0, gran: star.kind === KIND.GIANT || star.kind === KIND.SUPERGIANT ? 3 : 0 };
   return b;
@@ -348,6 +349,7 @@ function buildProcedural(sys) {
   let nPl = st.kind === KIND.MS || st.kind === KIND.BD ? rng.int(0, 10) : rng.int(0, 5);
   if (st.kind === KIND.BD) nPl = Math.min(nPl, 4);
   if (st.mass > 8 * C.Msun) nPl = Math.min(nPl, 3);
+  if (st.mass > 200 * C.Msun) nPl = 0;
   let a = Math.max(rng.range(0.04, 0.35) * Math.max(sqL, 0.15), st.radius / C.AU * 2.5, minAfac);
   const frost = 2.7 * sqL;
   let idx = 0, beltDone = false;
@@ -412,7 +414,7 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
     b.surface = gasPreset(gk, rng, b);
     b.albedo = gk === 'hot' ? 0.1 : 0.45; b.oblate = clamp(0.1 * Math.pow(10 * 3600 / Math.abs(b.rotPeriod), 2) * (1300 / (b.mass / (4.19 * b.radius ** 3))), 0, 0.15);
     const meth = gk === 'neptune' || gk === 'uranus';
-    b.atmo = makeAtmosphere(b, 1e5, { H2: 0.86, He: 0.13, CH4: 0.01 }, { T: Math.max(Teq, 60), top: undefined, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: meth ? [2e-6, 3e-7, 4e-8] : [0, 0, 0], absH: 0, absW: 4e5 });
+    b.atmo = makeAtmosphere(b, meth ? 0.8e5 : 0.05e5, { H2: 0.86, He: 0.13, CH4: 0.01 }, { T: Math.max(Teq, 60), top: undefined, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: meth ? [2e-6, 3e-7, 4e-8] : [0, 0, 0], absH: 0, absW: 4e5 });
     b.atmo.top = Math.max(b.atmo.hR * 14, b.radius * 0.006);
     if (rng.chance(type === 'gas' ? 0.45 : 0.3) && Teq < 500) {
       const big = rng.chance(0.45);

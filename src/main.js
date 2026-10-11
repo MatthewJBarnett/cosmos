@@ -17,7 +17,7 @@ try {
   planetCfg.T = num('tex', 193); if ((planetCfg.T - 1) % 3) planetCfg.T = 193;
   planetCfg.genPerFrame = num('gen', 3);
   skyCfg.cubeSize = num('cube', 1024); skyCfg.galRange = num('galr', 1);
-  atmoCfg.cloudRes = num('cloudres', 768);
+  atmoCfg.cloudRes = num('cloudres', 768); atmoCfg.steps = num('asteps', 28); atmoCfg.cloudSteps = num('csteps', 32);
   rcfg.scale = num('scale', Math.min(window.devicePixelRatio || 1, 1.5));
   const L = (m) => { if (params.has('log')) console.log('LOG ' + m + ' ' + performance.now().toFixed(0)); }; window.__L = L;
   L('gl'); rcfg.prof = params.has('prof'); renderer = new Renderer(canvas); L('renderer');
@@ -50,17 +50,18 @@ window.cosmos = {
   frame,
   // run frames until all generation has finished and exposure has settled
   async settle(maxFrames = 400, dt = 0.05) {
-    renderer.sync = true; const g = planetCfg.genPerFrame; planetCfg.genPerFrame = 40;
+    renderer.sync = true; nav.sync = true; const g = planetCfg.genPerFrame; planetCfg.genPerFrame = 40;
     let calm = 0, n = 0;
     for (; n < maxFrames && calm < 4; n++) {
       const e0 = renderer.exposure;
       frame(dt);
       const stable = Math.abs(Math.log(renderer.exposure / e0)) < 0.02;
       calm = (renderer.stats.pending === 0 && !nav.goto && stable) ? calm + 1 : 0;
+      if (params.has('log')) console.log('LOG frame ' + n + ' calm ' + calm + ' ' + JSON.stringify(renderer.stats) + ' goto ' + !!nav.goto + ' alt ' + nav.altitude.toFixed(1));
       if (n % 5 === 4) await new Promise(r => setTimeout(r, 0));
     }
     gl.finish();
-    renderer.sync = false; planetCfg.genPerFrame = g;
+    renderer.sync = false; nav.sync = false; planetCfg.genPerFrame = g;
     return n;
   },
 };

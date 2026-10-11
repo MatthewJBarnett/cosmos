@@ -5,7 +5,7 @@ import { LF, LF_MIN, YOUNG, makeStar } from './stars.js';
 import { makeDensityFn, SUN_POS } from './universe.js';
 
 const NB = LF.length;
-export const STAR_MLIM = 8.3;     // apparent magnitude to which stars are instantiated
+export const STAR_MLIM = 8.8;     // apparent magnitude to which stars are instantiated
 const MAX_PER_CELL = 2500;
 
 export class StarField {

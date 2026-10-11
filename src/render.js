@@ -9,7 +9,7 @@ import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg } from './sky.js
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.06, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 4e6, minExposure: 1e-3, fxaa: true };
+export const rcfg = { scale: 1, bloom: 0.06, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-6, fxaa: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -301,7 +301,7 @@ export class Renderer {
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawAtmosphere(b, { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
+        drawAtmosphere(b, { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
@@ -311,7 +311,7 @@ export class Renderer {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawBlackHole(b, { scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot });
+        drawBlackHole(b, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot });
       }
     }
     gl.depthMask(true);
@@ -366,7 +366,8 @@ export class Renderer {
     else {
       const hi = Math.max(this.lumHi || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
-      target = Math.min(0.55 / hi, 0.16 / avg * 6);
+      target = Math.min(0.7 / hi, 0.16 / avg * 6);
+      if (hi > 300) target *= 0.55;
       target = clamp(target, rcfg.minExposure, rcfg.maxExposure);
     }
     target *= Math.pow(2, rcfg.exposureBias);

@@ -106,7 +106,7 @@ void main(){
   if (uKind == 2) {
     // stellar photosphere with limb darkening
     float mu = max(dot(up, Vv), 0.);
-    vec3 ld = 1. - vec3(0.55, 0.65, 0.78)*(1. - pow(mu, 0.6));
+    vec3 ld = 1. - vec3(0.52, 0.64, 0.82)*(1. - mu) - vec3(0.06, 0.08, 0.1)*(1. - mu)*(1. - mu);
     float tex = alb.r/0.8;
     vec3 c = bbColor(uStarT*(0.82 + 0.18*tex)) * tex * tex * ld * uStarRad;
     oColor = vec4(min(c*uExposure, vec3(60000.)), 1.);

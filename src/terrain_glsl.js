@@ -135,6 +135,14 @@ float terrain(vec3 d, vec3 P){
   gFine = fine;
   float rough = (0.25 + 1.3*gMtn + 0.3*abs(cont)) * (1. - 0.8*gMaria);
   float h = base + mtn + fine*uHillAmp*rough;
+  // rolling hills at kilometre scales, patchy
+  if (uOMax >= 8) {
+    float hm = gn(4, 6u, dw).x + 0.6*gn(6, 6u, dw).x;
+    hm = 0.06 + smoothstep(-0.25, 0.7, hm) * land;
+    float hl = 0.; amp = 1.;
+    for (int o = 8; o <= uOMax; o++) { vec4 n = gn(o, 5u, d); hl += amp*(o < 12 ? (1. - abs(n.x))*1.4 - 0.7 : n.x); amp *= 0.5; }
+    h += hl * uHillAmp * 0.55 * hm * (1. - 0.85*gMaria);
+  }
   // dunes
   gDune = 0.;
   if (uDunes > 0. && uOMax >= 12) {
@@ -180,7 +188,7 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
     moist *= 1. - 0.6*exp(-pow((ld-24.)/11., 2.));
     moist += 0.35*exp(-pow(ld/9., 2.));
     moist -= smoothstep(0., 3000., alt)*0.3;
-    float vd = smoothstep(0.28, 0.62, moist) * smoothstep(-14., 2., tC) * smoothstep(42., 30., tC + (1.-moist)*10.) * uVeg;
+    float vd = smoothstep(0.2, 0.5, moist) * smoothstep(-14., 2., tC) * smoothstep(42., 30., tC + (1.-moist)*10.) * uVeg;
     vec3 veg = mix(uColVeg1, uColVeg2, smoothstep(0.5, 0.85, moist + n2*0.3));
     veg = mix(veg, vec3(0.13,0.12,0.06), smoothstep(4., -10., tC)*0.7);
     vec3 dry = mix(uColSand, c, smoothstep(0.1, 0.5, moist));
@@ -289,7 +297,7 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
     float lat = abs(P.y);
     float belt = exp(-pow((lat - 0.3)/0.2, 2.));
     float s = fbm(3, min(uOMax, 9), 38u, d, 0.55)*0.6 + gn(2, 39u, d).x*0.4;
-    float th = 1.02 - 0.4*uSpots*belt;
+    float th = 0.78 - 0.3*uSpots*belt;
     float umbra = smoothstep(th + 0.05, th + 0.11, s), pen = smoothstep(th, th + 0.05, s);
     float fib = uOMax >= 9 ? gn(min(uOMax, 10), 40u, d).x*0.15 : 0.;
     bright = mix(bright, 0.42 + fib, pen); bright = mix(bright, 0.1, umbra);

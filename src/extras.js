@@ -137,7 +137,7 @@ export function drawOrbits(sys, nav, o) {
       p = Q.rot(sys.worldQ, p);
       // fade the stretch right behind the body to show direction of motion
       const k = i / ORB_N; const a = alpha * (0.25 + 0.75 * k) * (sel ? 1.8 : 1);
-      data.push(p[0] + prel[0], p[1] + prel[1], p[2] + prel[2], col[0], col[1], col[2], a * 0.5);
+      data.push(p[0] + prel[0], p[1] + prel[1], p[2] + prel[2], col[0], col[1], col[2], a * 0.22);
     }
     segs.push([start, ORB_N + 1]);
   }
