@@ -49,6 +49,10 @@ export class Program {
       this.types[nm] = info.type;
       if (info.type === gl.SAMPLER_2D || info.type === gl.SAMPLER_CUBE || info.type === gl.SAMPLER_3D) { this.texUnit[nm] = unit; unit += info.size; }
     }
+    // Give every sampler its own unit up front. Samplers of different types must never share a unit,
+    // even ones a draw leaves unset, or strict drivers reject the draw call.
+    gl.useProgram(p);
+    for (const nm in this.texUnit) gl.uniform1i(this.u[nm], this.texUnit[nm]);
   }
   use() { gl.useProgram(this.p); return this; }
   // set uniforms from object; textures given as {tex, target}
