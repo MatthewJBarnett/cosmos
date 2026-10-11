@@ -109,8 +109,21 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 ## Decisions and limits
 
 - Raw WebGL2 was chosen over WebGPU so it runs everywhere and can be tested headless here.
-- This machine has no GPU. Everything was checked with SwiftShader at low resolution; frame rate on real GPUs is untested.
-  If it is slow, use `?q=low`.
-- Earth is procedural (Earth-like, not the real continents). Other Solar System bodies are tuned look-alikes.
-- Not done: terrain self-shadowing, vegetation or rock meshes on the ground, real star catalogue, relativistic effects
-  apart from black hole lensing, n-body dynamics (orbits are Keplerian).
+- This machine has no GPU. Everything was checked with SwiftShader at reduced settings, so frame rate and
+  driver behaviour on real GPUs are untested. If it is slow, use `?q=low`; dynamic resolution also kicks in below 24 fps.
+- Earth is procedural (Earth-like, not the real continents). Other Solar System bodies are tuned look-alikes with
+  real sizes, orbits, pole directions and atmospheres.
+- Brightness is physical, so a sunlit planet hides the stars and deep space needs long exposures. Auto exposure
+  handles this; `[` and `]` bias it. Galaxy and nebula surface brightness is boosted about 20 times to be visible.
+
+## Known gaps
+
+- Terrain shadows are traced inside one tile only, so very long shadows can end at tile borders.
+- No vegetation, rocks or other meshes on the ground. Plains look flat from low altitude.
+- Clouds are a single volumetric layer driven by a baked weather map. From orbit they read as fairly flat sheets.
+- Comet tails are camera-facing ribbons and look wrong from inside the tail.
+- Distant galaxies in the deep field are drawn as small blobs and can look like stars.
+- Auto exposure can hunt for a second or two when a very bright point source enters the frame.
+- No real star catalogue (only the Sun, Sgr A* and Cygnus X-1 are placed by hand), no relativistic effects apart from
+  black hole lensing, and orbits are Keplerian rather than n-body.
+- The 1120x630 sunset render for the gallery timed out on the software renderer. The gallery uses the 800x450 one.
