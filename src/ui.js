@@ -79,7 +79,7 @@ export class UI {
     const s = this.setPanel;
     s.innerHTML = `<h3>Settings</h3>
       <label>Exposure bias <input type="range" id="sExp" min="-6" max="6" step="0.25" value="0"><span id="sExpV">0 EV</span></label>
-      <label>Bloom <input type="range" id="sBloom" min="0" max="0.25" step="0.005" value="${rcfg.bloom}"></label>
+      <label>Bloom <input type="range" id="sBloom" min="0" max="0.2" step="0.005" value="${rcfg.bloom}"></label>
       <label>Field of view <input type="range" id="sFov" min="5" max="110" step="1" value="55"><span id="sFovV">55°</span></label>
       <label>Render scale <input type="range" id="sScale" min="0.4" max="2" step="0.1" value="${rcfg.scale}"><span id="sScaleV">${rcfg.scale}</span></label>
       <label><input type="checkbox" id="sClouds" checked> Volumetric clouds</label>

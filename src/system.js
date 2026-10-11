@@ -293,7 +293,7 @@ function buildSol(sys) {
   sys.belts.push({ name: 'Kuiper belt', inner: 38 * C.AU, outer: 50 * C.AU, thick: 0.2, count: 6000, seed: 12, parent: sun });
   // Halley's comet
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });
-  halley.orbit = { a: 17.834 * C.AU, e: 0.96714, inc: 162.26 * D2R, node: 58.42 * D2R, argp: 111.33 * D2R, M0: 38.38 * D2R, period: 75.32 * C.YEAR };
+  halley.orbit = { a: 17.834 * C.AU, e: 0.96714, inc: 162.26 * D2R, node: 58.42 * D2R, argp: 111.33 * D2R, M0: 66.43 * D2R, period: 75.32 * C.YEAR };
   halley.surface = surfacePreset('asteroid', rng, halley); addChild(sun, halley);
 }
 

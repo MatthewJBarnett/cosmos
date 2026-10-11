@@ -83,6 +83,7 @@ uniform vec3 uFaceA;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind;
 uniform vec2 uDetailO;
 uniform int uKind;
+uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt;
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
 ${GLSL_BB}
@@ -119,6 +120,16 @@ void main(){
     vec3 T1 = normalize(uFaceA - dir*dot(dir, uFaceA)), T2 = cross(dir, T1);
     N = normalize(uRot*(dir*sqrt(max(0., 1. - dot(nn, nn))) + T1*nn.x + T2*nn.y));
     if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea - h; water = smoothstep(0., 0.4, depth); }
+    // fine surface grain close to the camera (pebbles, soil clumps), fading with distance
+    float near = clamp(1. - dist/900., 0., 1.);
+    if (near > 0. && water < 1.) {
+      vec2 wp = vUV*uChunkM + uDetailO;
+      vec3 n1 = texture(uNoise3, vec3(wp*0.11, 0.37)).rgb - 0.5, n2 = texture(uNoise3, vec3(wp*0.9, 0.71)).rgb - 0.5, n3 = texture(uNoise3, vec3(wp*6.3, 0.13)).rgb - 0.5;
+      vec3 T1 = normalize(uRot*normalize(uFaceA - dir*dot(dir, uFaceA))), T2 = cross(up, T1);
+      vec2 g = n1.xy*0.5 + n2.xy*0.35*clamp(1. - dist/200., 0., 1.) + n3.xy*0.3*clamp(1. - dist/30., 0., 1.);
+      N = normalize(N + (T1*g.x + T2*g.y)*0.55*near);
+      alb.rgb *= 1. + (n1.z*0.25 + n2.z*0.2*clamp(1. - dist/200., 0., 1.) + n3.z*0.2*clamp(1. - dist/30., 0., 1.))*near;
+    }
   }
   vec3 col = vec3(0.);
   vec3 wN = up;
@@ -150,6 +161,13 @@ void main(){
       float r = max(length(vWorld - uPlanetRel), aRg + 1.);
       sunT = atmoSunTrans(r, mus);
       amb = texture(uIrrLUT, vec2(mus*0.5 + 0.5, 0.5)).rgb * uLightCol[i] * mix(1., vis, 0.9);
+      if (uHasClouds > 0.5 && mus > 0.) {
+        // cloud shadows: follow the sun ray up to the cloud deck and look up the weather map there
+        vec3 pc = (vWorld - uPlanetRel) + L*(uCloudAlt/max(mus, 0.08));
+        float cov = texture(uCloudMap, uCloudRotInv*pc).r;
+        float sh = smoothstep(0.15, 0.75, cov);
+        sunT *= 1. - 0.8*sh; amb *= 1. - 0.35*sh;
+      }
     }
     emisNight *= smoothstep(0.06, -0.12, mus);
     float nl = dot(N, L);
@@ -384,6 +402,8 @@ export function drawPlanet(body, o) {
     uNoise3: o.noise3,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
+  const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
+  p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1 });
   for (const d of draws) {
     const ch = d.ch, F = FACES[ch.face];
     // origin of this tile in metres along the face, wrapped, for stable small scale effects

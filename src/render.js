@@ -4,12 +4,12 @@ import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
-import { getAtmoLUT, drawAtmosphere } from './atmosphere.js';
+import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube } from './atmosphere.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg } from './sky.js';
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.06, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-6, fxaa: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-6, fxaa: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -266,7 +266,7 @@ export class Renderer {
         if (!b._ringOnly) {
           gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND);
           const starRad = isStar ? 1.47e4 * b.lum / ((b.radius / C.Rsun) ** 2) * clamp((b.pxRadius - 0.8) / 1.2, 0, 1) : 0;
-          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null });
+          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);
         }
         b._ringOnly = false;
@@ -331,7 +331,7 @@ export class Renderer {
     for (let i = this.mips.length - 2; i >= 0; i--) {
       const m = this.mips[i], n = this.mips[i + 1];
       gl.bindFramebuffer(gl.FRAMEBUFFER, m.fu); gl.viewport(0, 0, m.w, m.h);
-      this.pUp.use().set({ uTex: acc, uBase: m.t, uTexel: [1 / n.w, 1 / n.h], uMix: 0.62 }); drawFS();
+      this.pUp.use().set({ uTex: acc, uBase: m.t, uTexel: [1 / n.w, 1 / n.h], uMix: 0.55 }); drawFS();
       acc = m.u;
     }
     const useFxaa = rcfg.fxaa;
@@ -341,6 +341,10 @@ export class Renderer {
 
     T('post');
     if (prof) console.log('LOG prof ' + prof.join(' '));
+    // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
+    let deep = 0;
+    if (nav.level === 'universe') deep = 1; else if (gal) deep = clamp((V.len(nav.camG()) / gal.radius - 1.3) / 2, 0, 1);
+    this.maxExposure = rcfg.maxExposure * (1 + 150 * deep);
     this.adaptExposure(dt);
     this.stats = { stars: nStars, drawn: drawList.length, pending: pendingBakes + (nav.field ? nav.field.busy || 0 : 0), exposure: this.exposure };
   }
@@ -367,7 +371,7 @@ export class Renderer {
       const hi = Math.max(this.lumHi || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
-      target = clamp(target, rcfg.minExposure, rcfg.maxExposure);
+      target = clamp(target, rcfg.minExposure, this.maxExposure || rcfg.maxExposure);
     }
     target *= Math.pow(2, rcfg.exposureBias);
     if (this.sync) { this.exposure = Math.exp(Math.log(this.exposure) + (Math.log(target) - Math.log(this.exposure)) * 0.7); return; }

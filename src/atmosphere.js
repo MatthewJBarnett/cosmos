@@ -86,6 +86,10 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   float cov = wm.r;
   if (cov < 0.01) return 0.;
   if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
+  // break the weather map up with mid-scale structure (tens to hundreds of km)
+  float mid = textureLod(uNoise3, pl/1.7e6 + 0.11, max(lod - 7., 0.)).g*0.55 + textureLod(uNoise3, pl/4.3e5 + 0.37, max(lod - 5., 0.)).b*0.45;
+  cov = clamp(cov*(0.35 + 1.3*smoothstep(0.25, 0.62, mid)), 0., 1.);
+  if (cov < 0.01) return 0.;
   float topH = mix(0.35, 1.0, wm.g*cov);
   float prof = smoothstep(0., 0.07, hfrac) * smoothstep(topH, topH*0.45, hfrac);
   float d = cov*prof;
@@ -94,8 +98,8 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float big = textureLod(uNoise3, pl/170000. + 0.2, lod - 4.).a;
     float n = textureLod(uNoise3, q + vec3(uTime*0.0004, 0., 0.), lod).r*0.6 + textureLod(uNoise3, q*3.1 + 0.3, lod + 1.6).g*0.28 + textureLod(uNoise3, q*9.7, lod + 3.3).b*0.12;
     n = mix(n, big, 0.35);
-    d = clamp((d - n*0.8*(1.05 - cov*0.6)) * 2.4, 0., 1.);
-  } else d = clamp((d - 0.33*(1.05 - cov*0.6))*2.6, 0., 1.);
+    d = clamp((d - n*0.8*(1.05 - cov*0.6)) * 2.2, 0., 1.);
+  } else d = clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
   return d;
 }
 void main(){
@@ -181,9 +185,10 @@ void main(){
   int N = uSteps;
   bool passed = false;
   float spow = mix(2., 1., clamp((length(ro) - aR0)/(aRt - aR0), 0., 1.));
+  float ajit = mix(jit, 0.5, clamp((length(ro) - aR0)/(aRt - aR0) - 0.6, 0., 1.));
   for (int i = 0; i < N; i++) {
     float f1 = float(i + 1)/float(N); f1 = pow(f1, spow);
-    float tt1 = len*f1, dt = tt1 - prev; float t = tmin + prev + dt*jit; prev = tt1;
+    float tt1 = len*f1, dt = tt1 - prev; float t = tmin + prev + dt*ajit; prev = tt1;
     if (!passed && t > cloudDist) { passed = true; Tc = T; }
     vec3 p = ro + rd*t; float r = length(p);
     vec3 sr, sm, ex; atmoDensity(r - aR0, sr, sm, ex);
@@ -254,15 +259,21 @@ export function getAtmoLUT(body) {
   return l;
 }
 
+// planet rotation including the slow drift of the cloud layer relative to the ground
+export function cloudRotInv(body, rotQ, time) {
+  const c = body.atmo && body.atmo.clouds;
+  const drift = c ? Q.axis([0, 1, 0], (time * 2e-6 * (c.kind === 'venus' ? 60 : 1)) % (2 * Math.PI)) : Q.ident();
+  return Q.mat3(Q.conj(Q.mul(rotQ, drift)));
+}
 let dummyCube = null;
+export function getDummyCube() { if (!dummyCube) dummyCube = texCube(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR); return dummyCube; }
 // Composite the atmosphere of `body` over the scene. o: {scene, depth, camRot(mat3), tanFov, rel, rotQ, light, exposure, fcoef, time, noise3, frame}
 export function drawAtmosphere(body, o) {
   init();
   const l = getAtmoLUT(body), c = body.atmo.clouds;
   if (!dummyCube) dummyCube = texCube(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
   // cloud layer drifts slowly relative to the ground
-  const drift = c ? Q.axis([0, 1, 0], (o.time * 2e-6 * (c.kind === 'venus' ? 60 : 1)) % (2 * Math.PI)) : Q.ident();
-  const rotInv = Q.mat3(Q.conj(Q.mul(o.rotQ, drift)));
+  const rotInv = cloudRotInv(body, o.rotQ, o.time);
   pComp.use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,

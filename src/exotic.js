@@ -239,7 +239,42 @@ export function drawNebulaeAndFx(nav, o) {
     gl.disable(gl.SCISSOR_TEST);
   }
 }
+const BEAM_VS = `layout(location=0) in vec2 aPos; uniform mat4 uViewProj; uniform vec3 uRel, uAxis; uniform float uLen, uW0, uW1; out vec2 vP; ${LOGDEPTH_VS}
+void main(){ float t = aPos.y*0.5 + 0.5; vec3 c = uRel + uAxis*(t*uLen); vec3 side = normalize(cross(uAxis, normalize(c)));
+  vP = vec2(aPos.x, t); vec3 w = c + side*aPos.x*mix(uW0, uW1, t); gl_Position = uViewProj*vec4(w, 1.); logDepth(); }`;
+const BEAM_FS = `in vec2 vP; out vec4 o; uniform vec3 uCol; uniform float uI, uFall, uExposure; ${LOGDEPTH_FS}
+void main(){ logDepth(); float a = exp(-vP.x*vP.x*5.)*pow(1. - vP.y, uFall)*smoothstep(0., 0.02, vP.y + 0.02); o = vec4(uCol*a*uI*uExposure, 0.); }`;
+let pBeam;
+function beam(o, rel, axis, len, w0, w1, col, I, fall) {
+  if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
+  pBeam.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: rel, uAxis: axis, uLen: len, uW0: w0, uW1: w1, uCol: col, uI: I, uFall: fall, uExposure: o.exposure });
+  gl.bindVertexArray(quad()); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
 drawNebulaeAndFx.coronae = function (sys, nav, o) {
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
+  const star = sys.stars[0];
+  for (const b of sys.bodies) {
+    if (!b.rel) continue;
+    if (b.kind === 'comet' && star) {
+      // dust and ion tails grow as the comet approaches the star
+      const toStar = V.sub(star.wpos, b.wpos), r = V.len(toStar) / C.AU; if (r > 6) continue;
+      const act = Math.min(4, 1 / (r * r)) * star.lum, away = V.mul(V.norm(toStar), -1);
+      const E = star.lum / (r * r);
+      const vel = V.norm(V.cross(Q.rot(sys.worldQ, [0, 1, 0]), away));
+      const dust = V.norm(V.addm(away, vel, -0.35));
+      const L = 0.25 * C.AU * Math.sqrt(act);
+      beam(o, b.rel, away, L * 1.6, b.radius * 30, L * 0.05, [0.35, 0.6, 1.0], 2.5e-7 * E * act, 1.6);
+      beam(o, b.rel, dust, L, b.radius * 40, L * 0.22, [1.0, 0.9, 0.7], 5e-7 * E * act, 2.2);
+      beam(o, V.addm(b.rel, away, -b.radius * 60), away, b.radius * 400, b.radius * 150, b.radius * 400, [0.6, 1.0, 0.8], 4e-6 * E * act, 3);
+    }
+    if (b.neutron && b.pulsar && b.pxRadius > 0.02) {
+      // lighthouse beams along the (tilted) magnetic axis
+      const ax = Q.rot(b.wrot, V.norm([0.6, 0.8, 0]));
+      const len = b.radius * 4000;
+      beam(o, b.rel, ax, len, b.radius * 2, len * 0.08, [0.55, 0.7, 1.0], 30 * b.lum, 1.2);
+      beam(o, b.rel, V.mul(ax, -1), len, b.radius * 2, len * 0.08, [0.55, 0.7, 1.0], 30 * b.lum, 1.2);
+    }
+  }
   if (!pCor) pCor = new Program('corona', COR_VS, COR_FS);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
   for (const s of sys.stars) {
