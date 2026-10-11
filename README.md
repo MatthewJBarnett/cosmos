@@ -129,4 +129,6 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Auto exposure can hunt for a second or two when a very bright point source enters the frame.
 - No real star catalogue (only the Sun, Sgr A* and Cygnus X-1 are placed by hand), no relativistic effects apart from
   black hole lensing, and orbits are Keplerian rather than n-body.
+- The default `?q=high` settings could not be smoke tested end to end here: the first frames take minutes on the software
+  renderer. Each setting was exercised separately in the gallery renders, and `tools/live.mjs` passes at reduced settings.
 - The 1120x630 sunset render for the gallery timed out on the software renderer. The gallery uses the 800x450 one.

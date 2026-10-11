@@ -273,7 +273,7 @@ export class GalaxySky {
       pCube.use().set({ uFace: new Float32Array(CUBE_FACES[this.face]), uCam: this.newPos, uSteps: 150, uNoise3: noise3, gP: new Float32Array([u.type, u.bulge, u.rb, u.arms, u.pitch, u.armStr, u.dust, u.seed, u.hz, u.bar, u.flatn, u.young, u.lum]) });
       drawFS();
       this.face++;
-    } while ((sync || !this.valid) && this.face < 6);
+    } while (sync && this.face < 6);   // otherwise one face per frame, so slower GPUs never stall
     if (this.face >= 6) { const t = this.front; this.front = this.back; this.back = t; this.face = -1; this.pos = this.newPos; this.valid = true; }
   }
   draw(rotLocalFromView, tanFov, exposure) {
