@@ -187,7 +187,7 @@ void main(){
   int N = uSteps;
   bool passed = false;
   float spow = mix(2., 1., clamp((length(ro) - aR0)/(aRt - aR0), 0., 1.));
-  float ajit = mix(jit, 0.5, clamp((length(ro) - aR0)/(aRt - aR0) - 0.6, 0., 1.));
+  float ajit = mix(0.25 + 0.5*jit, 0.5, clamp((length(ro) - aR0)/(aRt - aR0) - 0.6, 0., 1.));
   for (int i = 0; i < N; i++) {
     float f1 = float(i + 1)/float(N); f1 = pow(f1, spow);
     float tt1 = len*f1, dt = tt1 - prev; float t = tmin + prev + dt*ajit; prev = tt1;

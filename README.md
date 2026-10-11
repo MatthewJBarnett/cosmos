@@ -25,6 +25,7 @@ All of these are unedited frames from the app, rendered headless on this machine
 
 Needs a browser with WebGL2 and float render targets (any desktop Chrome, Firefox or Edge with a GPU).
 Quality presets: add `?q=low`, `?q=medium` or `?q=high` (default). Dynamic resolution is on by default.
+Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search box accepts).
 
 ## Controls
 
