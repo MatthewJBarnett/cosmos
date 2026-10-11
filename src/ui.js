@@ -6,6 +6,7 @@ import { starName } from './system.js';
 import { galaxyName, REAL_GALAXIES } from './universe.js';
 import { rcfg } from './render.js';
 import { RNG } from './rng.js';
+import { visibleNebulae } from './exotic.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -49,6 +50,7 @@ export class UI {
     this.info = root.appendChild(el('div', 'panel info'));
     this.top = root.appendChild(el('div', 'panel top'));
     this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
+      <select id="places" title="Places"><option value="">Places…</option></select>
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
@@ -84,7 +86,9 @@ export class UI {
       <label><input type="checkbox" id="sOrbits" checked> Orbits</label>
       <label><input type="checkbox" id="sLabels" checked> Labels</label>
       <label><input type="checkbox" id="sAuto" checked> Auto exposure</label>
-      <label><input type="checkbox" id="sFxaa" checked> Anti-aliasing</label>`;
+      <label><input type="checkbox" id="sFxaa" checked> Anti-aliasing</label>
+      <label><input type="checkbox" id="sAutoScale" ${rcfg.autoScale ? 'checked' : ''}> Dynamic resolution</label>
+      <label>Quality <select id="sQual"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim">(reloads)</span></label>`;
     const q = (id) => s.querySelector('#' + id);
     q('sExp').oninput = (e) => { rcfg.exposureBias = +e.target.value; q('sExpV').textContent = e.target.value + ' EV'; };
     q('sBloom').oninput = (e) => { rcfg.bloom = +e.target.value; };
@@ -95,6 +99,9 @@ export class UI {
     q('sLabels').onchange = (e) => { this.showLabels = e.target.checked; };
     q('sAuto').onchange = (e) => { rcfg.autoExposure = e.target.checked; rcfg.manualExposure = this.r.exposure; };
     q('sFxaa').onchange = (e) => { rcfg.fxaa = e.target.checked; };
+    q('sAutoScale').onchange = (e) => { rcfg.autoScale = e.target.checked; };
+    q('sQual').value = rcfg.quality || 'high';
+    q('sQual').onchange = (e) => { const u = new URL(location.href); u.searchParams.set('q', e.target.value); location.href = u.toString(); };
   }
   bind() {
     const c = this.canvas, nav = this.nav;
@@ -142,6 +149,11 @@ export class UI {
     $('bHelp').onclick = () => this.toggle(this.help);
     $('bRand').onclick = () => this.explore();
     $('search').addEventListener('change', e => { this.search(e.target.value); });
+    const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
+      'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'], 'Black holes': ['Sagittarius A*', 'Cygnus X-1'],
+      'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };
+    $('places').innerHTML = '<option value="">Places…</option>' + Object.entries(groups).map(([g, l]) => `<optgroup label="${g}">${l.map(n => `<option>${n}</option>`).join('')}</optgroup>`).join('');
+    $('places').onchange = (e) => { if (e.target.value) this.search(e.target.value); e.target.value = ''; e.target.blur(); };
     $('tPause').onclick = () => { nav.paused = !nav.paused; };
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
@@ -249,6 +261,9 @@ export class UI {
       if (nav.level !== 'system' || (nav.system && V.len(nav.S) > 3e13)) {
         const cu = nav.camU();
         for (const g of REAL_GALAXIES) { const rel = V.sub(g.posU, cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name, 'galaxy', 10); }
+      }
+      if (nav.level !== 'universe' && nav.galaxy) {
+        for (const v of visibleNebulae) if (v.px > 6 && v.px < 500 && v.nb.name) put(v.rel, v.nb.name, 'galaxy', Math.min(v.px, 60) + 6);
       }
     }
     // selection marker

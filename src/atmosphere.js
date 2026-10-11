@@ -75,6 +75,7 @@ ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
 uniform float uFcoef;
 float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+vec3 toWorld(vec3 p){ return uOblate > 0. ? transpose(uPlanetRotInv)*(p*vec3(1., 1. - uOblate, 1.)) : p; }
 // density of cloud at point p (relative to planet centre, world axes)
 float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   float r = length(p); float alt = r - aR0;
@@ -106,6 +107,12 @@ void main(){
   float depth = texture(uDepth, vUV).r;
   float sceneDist = depth >= 0.99999 ? 1e30 : (exp2(depth*2./uFcoef) - 1.)/cosf;
   vec3 ro = -uPlanetRel;
+  vec3 rdW = rd;
+  if (uOblate > 0.) {
+    // work in the planet frame stretched so the oblate spheroid becomes a sphere
+    vec3 a = uPlanetRotInv*ro, b2 = uPlanetRotInv*rd; a.y /= 1. - uOblate; b2.y /= 1. - uOblate;
+    float l = length(b2); ro = a; rd = b2/l; sceneDist *= l;
+  }
   float t0, t1;
   if (raySphere(ro, rd, aRt, t0, t1) < 0. || t1 < 0.) { oColor = scene; return; }
   float tmin = max(t0, 0.), tmax = min(t1, sceneDist);
@@ -128,8 +135,10 @@ void main(){
       s1 = min(s1, s0 + 450000.);
       int NS = uCloudSteps; float dt = (s1 - s0)/float(NS);
       float wsum = 0., dsum = 0.;
+      // far away every pixel can share the same sample heights; jitter is only needed up close
+      float cjit = mix(jit, 0.5, clamp(log2(max(s0*uPixAngle/170., 1.))*0.3 - 0.6, 0., 1.));
       for (int i = 0; i < NS; i++) {
-        float t = s0 + (float(i) + jit)*dt;
+        float t = s0 + (float(i) + cjit)*dt;
         vec3 p = ro + rd*t; float hf;
         float d = cloudDensity(p, false, log2(max(t*uPixAngle/170., 1.)), hf);
         if (d > 0.002) {
@@ -180,9 +189,10 @@ void main(){
     vec3 sr, sm, ex; atmoDensity(r - aR0, sr, sm, ex);
     vec3 S = vec3(0.);
     for (int li = 0; li < uNumLights; li++) {
-      vec3 Ld = normalize(uLightPos[li] - (p + uPlanetRel));
-      float mu = dot(p, Ld)/r, c = dot(rd, Ld);
-      float vis = uNumOcc > 0 ? eclipse(p + uPlanetRel, li) : 1.;
+      vec3 pw = toWorld(p);
+      vec3 Ld = normalize(uLightPos[li] - (pw + uPlanetRel));
+      float mu = dot(normalize(pw), Ld), c = dot(rdW, Ld);
+      float vis = uNumOcc > 0 ? eclipse(pw + uPlanetRel, li) : 1.;
       S += uLightCol[li]*vis*((sr*phaseR(c) + sm*phaseM(c, aMieG))*atmoSunTrans(r, mu) + (sr + sm)*atmoMulti(r, mu));
     }
     vec3 st = exp(-ex*dt);
@@ -256,7 +266,7 @@ export function drawAtmosphere(body, o) {
   pComp.use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
+    uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
   drawFS();

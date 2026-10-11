@@ -116,7 +116,7 @@ float terrain(vec3 d, vec3 P){
   // mountain belts
   float mm = 0.;
   if (uOMax >= 2) { mm = gn(2,2u,dw).x; if (uOMax >= 3) mm += 0.5*gn(3,2u,dw).x; if (uOMax >= 4) mm += 0.25*gn(4,2u,dw).x; }
-  mm = smoothstep(-0.05, 0.75, mm + 0.3*abs(cont));
+  mm = smoothstep(-0.15, 0.7, mm + 0.3*abs(cont));
   gMtn = mm * land;
   float r = 0., amp = 1., wgt = 1.; vec3 ds = vec3(0.);
   int o1 = min(uOMax, 18);
@@ -138,7 +138,7 @@ float terrain(vec3 d, vec3 P){
   // rolling hills at kilometre scales, patchy
   if (uOMax >= 8) {
     float hm = gn(4, 6u, dw).x + 0.6*gn(6, 6u, dw).x;
-    hm = 0.06 + smoothstep(-0.25, 0.7, hm) * land;
+    hm = 0.18 + smoothstep(-0.3, 0.6, hm) * land;
     float hl = 0.; amp = 1.;
     for (int o = 8; o <= uOMax; o++) { vec4 n = gn(o, 5u, d); hl += amp*(o < 12 ? (1. - abs(n.x))*1.4 - 0.7 : n.x); amp *= 0.5; }
     h += hl * uHillAmp * 0.55 * hm * (1. - 0.85*gMaria);
@@ -177,7 +177,7 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
   float nf = uOMax >= 15 ? gn(uOMax-1, 15u, d).x*0.5 + gn(uOMax, 15u, d).x*0.5 : 0.;
   vec3 c = mix(uColA, uColB, smoothstep(-0.3, 0.3, n1 + n2*0.4));
   c = mix(c, uColLow, gMaria);
-  c = mix(c, uColLow, uMaria > 0. ? 0. : smoothstep(0.0, -0.6, gCont)*0.6);
+  c = mix(c, uColLow, uMaria > 0. ? 0. : smoothstep(0.1, -0.5, gCont + n1*0.6)*0.85);
   c = mix(c, uColSand, gDune*0.8);
   float rock = smoothstep(0.35, 0.75, slope);
   if (uVeg > 0. || uOcean > 0.5) {
@@ -301,7 +301,6 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
     float umbra = smoothstep(th + 0.05, th + 0.11, s), pen = smoothstep(th, th + 0.05, s);
     float fib = uOMax >= 9 ? gn(min(uOMax, 10), 40u, d).x*0.15 : 0.;
     bright = mix(bright, 0.42 + fib, pen); bright = mix(bright, 0.1, umbra);
-    bright += smoothstep(th - 0.2, th, s)*(1.-pen)*0.1*belt;
   }
   return vec3(clamp(bright, 0., 1.));
 }

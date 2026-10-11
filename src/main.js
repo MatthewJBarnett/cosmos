@@ -1,7 +1,7 @@
 // Entry point: boots WebGL, the world and the UI, and runs the frame loop.
 import { initGL, gl } from './gl.js';
 import { Renderer, rcfg } from './render.js';
-import { Nav, findByName, solSystem } from './nav.js';
+import { Nav, findByName, solSystem, systemFor } from './nav.js';
 import { cfg as planetCfg } from './planet.js';
 import { skyCfg } from './sky.js';
 import { atmoCfg } from './atmosphere.js';
@@ -14,11 +14,14 @@ const canvas = document.getElementById('gl');
 let renderer, nav, ui;
 try {
   initGL(canvas);
-  planetCfg.T = num('tex', 193); if ((planetCfg.T - 1) % 3) planetCfg.T = 193;
+  const quality = params.get('q') || 'high';
+  if (quality === 'low') { planetCfg.T = 97; atmoCfg.steps = 14; atmoCfg.cloudSteps = 14; skyCfg.cubeSize = 512; atmoCfg.cloudRes = 384; skyCfg.galSteps = 40; }
+  else if (quality === 'medium') { planetCfg.T = 145; atmoCfg.steps = 20; atmoCfg.cloudSteps = 22; skyCfg.cubeSize = 768; atmoCfg.cloudRes = 512; }
+  planetCfg.T = num('tex', planetCfg.T); if ((planetCfg.T - 1) % 3) planetCfg.T = 193;
   planetCfg.genPerFrame = num('gen', 3);
-  skyCfg.cubeSize = num('cube', 1024); skyCfg.galRange = num('galr', 1);
-  atmoCfg.cloudRes = num('cloudres', 768); atmoCfg.steps = num('asteps', 28); atmoCfg.cloudSteps = num('csteps', 32);
-  rcfg.scale = num('scale', Math.min(window.devicePixelRatio || 1, 1.5));
+  skyCfg.cubeSize = num('cube', skyCfg.cubeSize); skyCfg.galRange = num('galr', 1);
+  atmoCfg.cloudRes = num('cloudres', atmoCfg.cloudRes); atmoCfg.steps = num('asteps', atmoCfg.steps); atmoCfg.cloudSteps = num('csteps', atmoCfg.cloudSteps);
+  rcfg.scale = num('scale', Math.min(window.devicePixelRatio || 1, 1.5)); rcfg.scaleMax = rcfg.scale; rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
   const L = (m) => { if (params.has('log')) console.log('LOG ' + m + ' ' + performance.now().toFixed(0)); }; window.__L = L;
   L('gl'); rcfg.prof = params.has('prof'); renderer = new Renderer(canvas); L('renderer');
   nav = new Nav(); L('nav');
@@ -29,7 +32,7 @@ try {
   throw e;
 }
 
-let last = performance.now(), fpsAcc = 0, fpsN = 0;
+let last = performance.now(), fpsAcc = 0, fpsN = 0, slow = 0, fast = 0;
 function frame(dt) {
   nav.update(dt, ui.input(dt)); if (window.__L) window.__L('nav.update');
   renderer.render(nav, dt); if (window.__L) { gl.finish(); window.__L('render'); }
@@ -37,7 +40,16 @@ function frame(dt) {
 }
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { ui.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
+  fpsAcc += dt; fpsN++;
+  if (fpsAcc > 0.5) {
+    ui.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
+    // dynamic resolution keeps the frame rate usable on slower GPUs
+    if (rcfg.autoScale && now > 6000) {
+      if (ui.fps < 24) { slow++; fast = 0; } else if (ui.fps > 50) { fast++; slow = 0; } else { slow = 0; fast = 0; }
+      if (slow >= 3 && rcfg.scale > 0.4) { rcfg.scale = Math.max(0.4, rcfg.scale * 0.85); slow = 0; }
+      if (fast >= 10 && rcfg.scale < rcfg.scaleMax) { rcfg.scale = Math.min(rcfg.scaleMax, rcfg.scale * 1.1); fast = 0; }
+    }
+  }
   try { frame(dt); } catch (e) { console.error(e); ui.fatal(e); return; }
   requestAnimationFrame(loop);
 }
@@ -46,7 +58,7 @@ if (!testMode) requestAnimationFrame(loop);
 
 // Scripting / test hooks
 window.cosmos = {
-  nav, renderer, rcfg, V, Q, C, findByName, solSystem, ui,
+  nav, renderer, rcfg, V, Q, C, findByName, solSystem, systemFor, ui,
   frame,
   // run frames until all generation has finished and exposure has settled
   async settle(maxFrames = 400, dt = 0.05) {

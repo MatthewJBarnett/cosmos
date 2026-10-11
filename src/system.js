@@ -230,14 +230,14 @@ function buildSol(sys) {
   // Earth
   const earth = P('Earth', 'Terra', 1.00000261, 0.01671123, -0.00001531, 0, 102.93768193, 100.46457166, 1, 6371, 23.9345, 23.4393, 0.3, 288, { poleLon: 90, poleAbs: true, life: true });
   earth.surface = surfacePreset('terra', rng, earth); earth.surface.city = 1; earth.surface.seed = [37.2, 91.7, 13.4]; earth.surface.tempEq = 300;
-  earth.atmo = makeAtmosphere(earth, 101325, { N2: 0.78, O2: 0.21, Ar: 0.01 }, { T: 255, hR: 8000, hM: 1200, top: 100000, clouds: { base: 1500, top: 9000, cover: 0.52, density: 1, color: [1, 1, 1], kind: 'earth' } });
+  earth.atmo = makeAtmosphere(earth, 101325, { N2: 0.78, O2: 0.21, Ar: 0.01 }, { T: 255, hR: 8000, hM: 1200, top: 100000, clouds: { base: 1500, top: 9000, cover: 0.44, density: 1, color: [1, 1, 1], kind: 'earth' } });
   earth.atmo.rayleigh = [5.802e-6, 13.558e-6, 33.1e-6]; earth.atmo.absorb = [0.650e-6, 1.881e-6, 0.085e-6]; earth.atmo.absH = 25000; earth.atmo.absW = 15000;
   const moon = Mn(earth, 'Moon', 'Selena', 384400, 0.0549, 5.145, 7.342e22, 1737.4, 0.12, { equatorial: false, tilt: 6.68 });
   moon.surface = surfacePreset('selena', rng, moon); Object.assign(moon.surface, { maria: 0.75, colA: [0.2, 0.195, 0.185], colB: [0.15, 0.145, 0.14], colLow: [0.062, 0.062, 0.066] });
   // Mars
   const mars = P('Mars', 'Desert', 1.52371034, 0.0933941, 1.84969142, 49.55953891, -23.94362959, -4.55343205, 0.107, 3389.5, 24.6229, 25.19, 0.17, 210, { poleLon: 352.9 });
-  mars.surface = surfacePreset('desert', rng, mars); Object.assign(mars.surface, { colA: [0.42, 0.2, 0.09], colB: [0.27, 0.13, 0.065], colLow: [0.16, 0.09, 0.06], colSand: [0.5, 0.27, 0.13], iceLat: 0.955, mtnAmp: 9000, contAmp: 3500 });
-  mars.atmo = makeAtmosphere(mars, 636, { CO2: 0.95, N2: 0.03, Ar: 0.02 }, { T: 210, hR: 11100, hM: 11000, top: 120000, mieS: [3.2e-5, 2.6e-5, 1.6e-5], mieA: [0.1e-5, 0.5e-5, 1.5e-5], mieG: [0.72, 0.76, 0.86] });
+  mars.surface = surfacePreset('desert', rng, mars); Object.assign(mars.surface, { colA: [0.44, 0.21, 0.09], colB: [0.2, 0.09, 0.045], colLow: [0.11, 0.06, 0.04], colSand: [0.5, 0.27, 0.13], iceLat: 0.955, mtnAmp: 9000, contAmp: 3500 });
+  mars.atmo = makeAtmosphere(mars, 636, { CO2: 0.95, N2: 0.03, Ar: 0.02 }, { T: 210, hR: 11100, hM: 11000, top: 120000, mieS: [1.3e-5, 1.05e-5, 0.65e-5], mieA: [0.04e-5, 0.2e-5, 0.6e-5], mieG: [0.72, 0.76, 0.86] });
   const ph = Mn(mars, 'Phobos', 'Asteroid', 9376, 0.0151, 1.08, 1.0659e16, 11.27, 0.07); ph.surface = surfacePreset('asteroid', rng, ph);
   const de = Mn(mars, 'Deimos', 'Asteroid', 23463, 0.00033, 0.93, 1.4762e15, 6.2, 0.07); de.surface = surfacePreset('asteroid', rng, de);
   // Ceres

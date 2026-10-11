@@ -25,14 +25,21 @@ void main(){
   float peak = I/(6.2832*sig*sig);
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 5.*uPixScale); peak = I/(6.2832*sig*sig); }
   vec3 c = bbColor(aMT.y); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
-  vCol = c*peak; vSig = sig;
+  vCol = c*min(peak, 30.); vSig = sig;
   gl_Position = uViewProj*vec4(p, 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 const STAR_FS = `
 in vec3 vCol; in float vSig; out vec4 o;
-void main(){ vec2 d = (gl_PointCoord - 0.5)*ceil(vSig*6. + 1.); o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig)), 1.); }`;
+void main(){
+  float sz = ceil(vSig*6. + 1.); vec2 d = (gl_PointCoord - 0.5)*sz; float r = length(d);
+  float g = exp(-r*r/(2.*vSig*vSig));
+  // faint diffraction spikes on bright sources
+  float bright = smoothstep(1.2, 3.5, vSig);
+  float sp = (exp(-abs(d.x)*0.9/vSig)*exp(-d.y*d.y*1.6) + exp(-abs(d.y)*0.9/vSig)*exp(-d.x*d.x*1.6))*0.09*bright;
+  o = vec4(vCol*(g + sp)*smoothstep(0.5*sz, 0.3*sz, r), 1.);
+}`;
 
 const PT_VS = `
 layout(location=0) in vec3 aDir; layout(location=1) in vec4 aCol;
@@ -43,7 +50,7 @@ void main(){
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 7.*uPixScale); peak = I/(6.2832*sig*sig); }
-  vCol = aCol.rgb*min(peak, 60000.); vSig = sig;
+  vCol = aCol.rgb*min(peak, 30.); vSig = sig;
   gl_Position = uViewProj*vec4(aDir, 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0005 ? 0. : ceil(sig*6. + 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);

@@ -40,3 +40,5 @@ button:hover { background: rgba(110, 170, 255, 0.25); }
 .help { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; max-width: 90vw; }
 .fatal { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); background: #401818; border: 1px solid #a44; padding: 16px 20px; border-radius: 8px; pointer-events: auto; max-width: 70vw; }
 @media (max-width: 760px) { .top input#search { width: 120px; } .info { width: 210px; font-size: 12px; } .time span { display: none; } }
+
+select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rgba(160, 190, 230, 0.2); border-radius: 5px; padding: 5px 6px; font: inherit; max-width: 110px; }

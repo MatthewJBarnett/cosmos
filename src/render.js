@@ -356,7 +356,7 @@ export class Renderer {
     const lum = [];
     for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / this.exposure; lum.push(isFinite(l) ? l : 0); }
     lum.sort((a, b) => a - b);
-    this.lumHi = lum[Math.floor(lum.length * 0.985)];
+    this.lumHi = lum[Math.floor(lum.length * 0.97)];
     this.lumMed = lum[Math.floor(lum.length * 0.5)];
     let s = 0; for (const l of lum) s += l; this.lumAvg = s / lum.length;
   }
@@ -367,7 +367,6 @@ export class Renderer {
       const hi = Math.max(this.lumHi || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
-      if (hi > 300) target *= 0.55;
       target = clamp(target, rcfg.minExposure, rcfg.maxExposure);
     }
     target *= Math.pow(2, rcfg.exposureBias);

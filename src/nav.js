@@ -156,12 +156,22 @@ export class Nav {
     const sys = body.system; const rel = this.relTo({ type: 'body', body });
     const toCam = V.norm(V.mul(rel, -1));
     let dir = toCam;
-    if (sys.stars.length && body.kind !== 'star') { const toStar = V.norm(V.sub(sys.stars[0].wpos, body.wpos)); dir = V.norm(V.add(V.mul(toCam, 0.6), toStar)); if (V.dot(dir, toStar) < 0.25) dir = V.norm(V.add(dir, V.mul(toStar, 0.6))); }
+    if (opt.sunAngle !== undefined && sys.stars.length) { const toStar = V.norm(V.sub(sys.stars[0].wpos, body.wpos)); const perp = V.norm(V.cross(toStar, V.cross(toCam, toStar))); dir = V.norm(V.add(V.mul(toStar, Math.cos(opt.sunAngle)), V.mul(perp, Math.sin(opt.sunAngle)))); }
+    else if (sys.stars.length && body.kind !== 'star') { const toStar = V.norm(V.sub(sys.stars[0].wpos, body.wpos)); dir = V.norm(V.add(V.mul(toCam, 0.6), toStar)); if (V.dot(dir, toStar) < 0.25) dir = V.norm(V.add(dir, V.mul(toStar, 0.6))); }
     let h = 0;
     if (body.surface.gen === 'terra') {
       const st = planetState(body), inv = Q.conj(body.wrot), sea = body.surface.ocean > 0.5 ? body.surface.sea : -1e9;
       h = st.queryHeight(Q.rot(inv, dir));
       if (opt.dir) { dir = V.norm(opt.dir); h = st.queryHeight(Q.rot(inv, dir)); }
+      else if (opt.prefer === 'high') {
+        const a = V.norm(V.cross(dir, [0.31, 0.77, 0.55])), b2 = V.cross(dir, a);
+        for (let ring = 1; ring <= 7; ring++) for (let k = 0; k < 10; k++) {
+          const ang = ring * 0.05, az = k / 10 * 6.2832 + ring;
+          const d2 = V.norm(V.add(V.mul(dir, Math.cos(ang)), V.add(V.mul(a, Math.sin(ang) * Math.cos(az)), V.mul(b2, Math.sin(ang) * Math.sin(az)))));
+          const h2 = st.queryHeight(Q.rot(inv, d2));
+          if (h2 > h) { dir = d2; h = h2; }
+        }
+      }
       else if (h <= sea + 20) {
         // prefer dry land: probe nearby directions
         let a = V.norm(V.cross(dir, [0.31, 0.77, 0.55])), b2 = V.cross(dir, a);
