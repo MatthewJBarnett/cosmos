@@ -14,6 +14,7 @@ All of these are unedited frames from the app, rendered headless on this machine
 | ![Saturn](docs/saturn.jpg) Saturn in 2017 | ![Jupiter](docs/jupiter.jpg) Jupiter |
 | ![Milky Way](docs/mw.jpg) Milky Way from the Solar System | ![Andromeda](docs/m31.jpg) Andromeda |
 | ![Orion](docs/orion.jpg) Orion Nebula | ![Black hole](docs/bh.jpg) Sagittarius A* |
+| ![Cygnus X-1](docs/cygx1.jpg) Cygnus X-1 lensing its supergiant companion | ![Deep field](docs/web.jpg) Intergalactic deep field |
 | ![Night](docs/night.jpg) City lights on the night side | ![Bodies](docs/sheet.jpg) Mercury, Venus, Io, Europa, Titan, Uranus, Neptune, Pluto, Ganymede |
 
 ## Run
