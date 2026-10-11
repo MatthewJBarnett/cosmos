@@ -48,6 +48,8 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | F2, P | Hide the interface, save a screenshot |
 | H | Help |
 
+On touch screens: one finger looks around, pinch moves toward or away from the selection, and two on-screen buttons fly forward and back.
+
 The Places menu jumps to planets, nebulae, black holes and galaxies. Explore picks a random star.
 
 ## What is simulated

@@ -72,6 +72,15 @@ export class UI {
       </table><p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
     setTimeout(() => this.hint.classList.add('fade'), 9000);
+    // on-screen fly buttons for touch screens
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      const pad = root.appendChild(el('div', 'pad'));
+      for (const [label, key] of [['▲', 'w'], ['▼', 's']]) {
+        const b = pad.appendChild(el('button', '', label));
+        const on = (e) => { e.preventDefault(); this.keys.add(key); }, off = (e) => { e.preventDefault(); this.keys.delete(key); };
+        b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+      }
+    }
     this.buildSettings();
     this.bind();
     this.lastInfoKey = null; this.labelPool = []; this.sysKey = null;
