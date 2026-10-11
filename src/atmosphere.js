@@ -52,7 +52,8 @@ void main(){
   float n2 = fbm(q*6.1 + 11., 6);
   float ld = degrees(abs(lat));
   float clim = 0.06*exp(-pow(ld/7., 2.)) + 0.09*exp(-pow((ld - 55.)/14., 2.)) - 0.09*exp(-pow((ld - 24.)/9., 2.)) + 0.03*cyc;
-  float v = n + clim + (n2 - 0.5)*0.22;
+  float n3 = fbm(q*17.3 + 3., 5);
+  float v = n + clim + (n2 - 0.5)*0.24 + (n3 - 0.5)*0.1;
   float th = 0.62 - uCover*0.36;
   float cov = smoothstep(th, th + 0.28, v);
   // second channel: cloud top height variation / convective cells

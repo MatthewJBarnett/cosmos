@@ -8,7 +8,7 @@ import { NOCT, GEN_COMMON, GEN_TERRA, GEN_GAS, GEN_STAR, GEN_MAIN } from './terr
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 
-export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0 };
+export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true };
 const FACES = [
   { N: [1, 0, 0], A: [0, 0, -1], B: [0, 1, 0] }, { N: [-1, 0, 0], A: [0, 0, 1], B: [0, 1, 0] },
   { N: [0, 1, 0], A: [1, 0, 0], B: [0, 0, -1] }, { N: [0, -1, 0], A: [1, 0, 0], B: [0, 0, 1] },
@@ -83,7 +83,7 @@ uniform vec3 uFaceA;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind;
 uniform vec2 uDetailO;
 uniform int uKind;
-uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt;
+uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows;
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
 ${GLSL_BB}
@@ -188,6 +188,25 @@ void main(){
     }
     // crude self shadowing of terrain near the terminator from the macro normal
     shade *= smoothstep(-0.02, 0.06, mus);
+    // terrain shadows: march the height tile towards the sun (within this tile)
+    if (uKind == 0 && uShadows > 0.5 && shade > 0. && mus < 0.75 && water < 0.5) {
+      vec3 Ll = L*uRot;                         // sun direction in the planet frame
+      vec3 t1 = normalize(uFaceA - dir*dot(dir, uFaceA)), t2 = cross(dir, t1);
+      vec2 sl = vec2(dot(Ll, t1), dot(Ll, t2)); float lz = dot(Ll, dir);
+      float texel = uChunkM/(uTexSize - 1.);
+      float h0 = texelFetch(uHeightTex, ivec2(clamp(vUV, 0., 1.)*(uTexSize - 1.) + 0.5), 0).r;
+      float occ = 0.; float s = 1.2;
+      for (int k = 0; k < 14; k++) {
+        float dm = s*texel;
+        vec2 uv2 = vUV + sl*dm/uChunkM;
+        if (uv2.x < 0. || uv2.y < 0. || uv2.x > 1. || uv2.y > 1.) break;
+        float hk = texelFetch(uHeightTex, ivec2(uv2*(uTexSize - 1.) + 0.5), 0).r - dm*dm/(2.*uRadius);
+        float rayH = h0 + lz*dm/max(length(sl), 1e-3);
+        occ = max(occ, (hk - rayH)/(dm*0.06 + texel*0.35));
+        s *= 1.42;
+      }
+      shade *= 1. - clamp(occ, 0., 1.)*0.92;
+    }
     vec3 land = alb.rgb * (lc*sunT*shade + amb) / 3.14159;
     if (uSpec > 0.) { vec3 H = normalize(L + Vv); land += lc*sunT*uSpec*0.04*ggx(max(dot(N, H), 0.), 0.35)*max(nl, 0.); }
     if (water > 0.) {
@@ -399,7 +418,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: surf.sea || 0, uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: surf.lava ? 0.06 : 2.5e-5, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
-    uNoise3: o.noise3,
+    uNoise3: o.noise3, uShadows: cfg.shadows ? 1 : 0,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
