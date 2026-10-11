@@ -124,6 +124,7 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Terrain shadows are traced inside one tile only, so very long shadows can end at tile borders.
 - No vegetation, rocks or other meshes on the ground. Plains look flat from low altitude.
 - Clouds are a single volumetric layer driven by a baked weather map. From orbit they read as fairly flat sheets.
+- A faint vertical seam can show in the Milky Way glow where two faces of the sky cubemap meet.
 - Comet tails are camera-facing ribbons and look wrong from inside the tail.
 - Distant galaxies in the deep field are drawn as small blobs and can look like stars.
 - Auto exposure can hunt for a second or two when a very bright point source enters the frame.
