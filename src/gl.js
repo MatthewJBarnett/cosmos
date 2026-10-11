@@ -1,0 +1,149 @@
+// Thin WebGL2 helpers.
+export let gl = null;
+export const caps = {};
+
+export function initGL(canvas) {
+  gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+  if (!gl) throw new Error('WebGL2 is required');
+  caps.colorFloat = !!gl.getExtension('EXT_color_buffer_float');
+  caps.floatLinear = !!gl.getExtension('OES_texture_float_linear');
+  caps.aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+  if (!caps.colorFloat) throw new Error('EXT_color_buffer_float is required');
+  return gl;
+}
+
+const HEADER = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp samplerCube;\nprecision highp sampler3D;\n';
+
+function compile(type, src, name) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, HEADER + src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(s);
+    const lines = (HEADER + src).split('\n');
+    const m = /ERROR: \d+:(\d+)/.exec(log);
+    let ctx = '';
+    if (m) { const n = +m[1]; ctx = lines.slice(Math.max(0, n - 4), n + 2).map((l, i) => (Math.max(0, n - 4) + i + 1) + ': ' + l).join('\n'); }
+    console.error('Shader compile error [' + name + ']\n' + log + '\n' + ctx);
+    throw new Error('Shader compile error [' + name + ']: ' + log);
+  }
+  return s;
+}
+
+export class Program {
+  constructor(name, vs, fs) {
+    this.name = name; const __t = performance.now();
+    const p = this.p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs, name + '.vs'));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs, name + '.fs'));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); throw new Error('Link error [' + name + ']: ' + gl.getProgramInfoLog(p)); }
+    if (window.__L) window.__L('compiled ' + name + ' in ' + (performance.now() - __t).toFixed(0));
+    this.u = {}; this.types = {}; this.texUnit = {};
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    let unit = 0;
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(p, i);
+      const nm = info.name.replace(/\[0\]$/, '');
+      this.u[nm] = gl.getUniformLocation(p, info.name);
+      this.types[nm] = info.type;
+      if (info.type === gl.SAMPLER_2D || info.type === gl.SAMPLER_CUBE || info.type === gl.SAMPLER_3D) { this.texUnit[nm] = unit; unit += info.size; }
+    }
+  }
+  use() { gl.useProgram(this.p); return this; }
+  // set uniforms from object; textures given as {tex, target}
+  set(vals) {
+    for (const k in vals) {
+      const loc = this.u[k]; if (loc === undefined || loc === null) continue;
+      const v = vals[k], t = this.types[k];
+      switch (t) {
+        case gl.FLOAT: if (typeof v === 'number') gl.uniform1f(loc, v); else gl.uniform1fv(loc, v); break;
+        case gl.FLOAT_VEC2: gl.uniform2fv(loc, v); break;
+        case gl.FLOAT_VEC3: gl.uniform3fv(loc, v); break;
+        case gl.FLOAT_VEC4: gl.uniform4fv(loc, v); break;
+        case gl.INT: case gl.BOOL: if (typeof v === 'number' || typeof v === 'boolean') gl.uniform1i(loc, v); else gl.uniform1iv(loc, v); break;
+        case gl.INT_VEC2: gl.uniform2iv(loc, v); break;
+        case gl.INT_VEC3: gl.uniform3iv(loc, v); break;
+        case gl.INT_VEC4: gl.uniform4iv(loc, v); break;
+        case gl.FLOAT_MAT3: gl.uniformMatrix3fv(loc, false, v); break;
+        case gl.FLOAT_MAT4: gl.uniformMatrix4fv(loc, false, v); break;
+        case gl.SAMPLER_2D: gl.activeTexture(gl.TEXTURE0 + this.texUnit[k]); gl.bindTexture(gl.TEXTURE_2D, v); gl.uniform1i(loc, this.texUnit[k]); break;
+        case gl.SAMPLER_CUBE: gl.activeTexture(gl.TEXTURE0 + this.texUnit[k]); gl.bindTexture(gl.TEXTURE_CUBE_MAP, v); gl.uniform1i(loc, this.texUnit[k]); break;
+        case gl.SAMPLER_3D: gl.activeTexture(gl.TEXTURE0 + this.texUnit[k]); gl.bindTexture(gl.TEXTURE_3D, v); gl.uniform1i(loc, this.texUnit[k]); break;
+        default: console.warn('unhandled uniform type', k, t);
+      }
+    }
+    return this;
+  }
+}
+
+export function tex2D(w, h, internal, format, type, filter, wrap, data = null) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, format, type, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter === gl.NEAREST ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap || gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap || gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+export function texCube(size, internal, format, type, filter) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+  for (let i = 0; i < 6; i++) gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, internal, size, size, 0, format, type, null);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+// Framebuffer with given color textures (array) and optional depth texture
+export function fbo(colors, depth = null, cubeFace = -1) {
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  const bufs = [];
+  colors.forEach((c, i) => {
+    if (cubeFace >= 0) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_CUBE_MAP_POSITIVE_X + cubeFace, c, 0);
+    else gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, c, 0);
+    bufs.push(gl.COLOR_ATTACHMENT0 + i);
+  });
+  if (depth) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth, 0);
+  gl.drawBuffers(bufs);
+  const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (st !== gl.FRAMEBUFFER_COMPLETE) console.error('FBO incomplete', st.toString(16));
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return f;
+}
+
+let fsVAO = null;
+export function drawFS() {
+  if (!fsVAO) {
+    fsVAO = gl.createVertexArray(); gl.bindVertexArray(fsVAO);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  }
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+export const FS_VS = `layout(location=0) in vec2 aPos; out vec2 vUV; void main(){ vUV = aPos*0.5+0.5; gl_Position = vec4(aPos,0.,1.); }`;
+
+export function makeVAO(attribs, index = null) {
+  // attribs: [{data, size, loc, divisor, type}]
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const bufs = [];
+  for (const a of attribs) {
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, a.data, a.usage || gl.STATIC_DRAW);
+    const stride = a.stride || 0;
+    if (a.parts) { for (const p of a.parts) { gl.enableVertexAttribArray(p.loc); gl.vertexAttribPointer(p.loc, p.size, gl.FLOAT, false, stride, p.offset); if (a.divisor) gl.vertexAttribDivisor(p.loc, a.divisor); } }
+    else { gl.enableVertexAttribArray(a.loc); gl.vertexAttribPointer(a.loc, a.size, gl.FLOAT, false, 0, 0); if (a.divisor) gl.vertexAttribDivisor(a.loc, a.divisor); }
+    bufs.push(b);
+  }
+  let ib = null;
+  if (index) { ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index, gl.STATIC_DRAW); }
+  gl.bindVertexArray(null);
+  return { vao, bufs, ib, free() { gl.deleteVertexArray(vao); bufs.forEach(b => gl.deleteBuffer(b)); if (ib) gl.deleteBuffer(ib); } };
+}

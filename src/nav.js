@@ -1,0 +1,320 @@
+// Camera and world state: hierarchical position (universe / galaxy / star system), movement, go-to,
+// object following, level transitions and picking.
+import { V, Q, C, clamp } from './math.js';
+import { gl, makeVAO } from './gl.js';
+import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS } from './universe.js';
+import { StarField, sunDescriptor } from './starfield.js';
+import { StarSystem, starName } from './system.js';
+import { planetState } from './planet.js';
+import { visibleGalaxyCells } from './sky.js';
+
+const PC = C.PC, MPC = C.PC * 1e6;
+const fields = new Map(), systems = new Map();
+
+function fieldFor(g) {
+  let f = fields.get(g.id);
+  if (f) return f;
+  f = new StarField(g);
+  if (g === MILKY_WAY) {
+    const desc = sunDescriptor(g);
+    f.fixed.push({ pos: desc.pos, MV: 4.83, desc });
+    const data = new Float32Array([0, 0, 0, 4.83, 5772]);
+    f.cells.set('fixed:sol', { fixedCell: true, origin: desc.pos, n: 1, data, last: Infinity, vao: makeVAO([{ data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+  }
+  fields.set(g.id, f);
+  if (fields.size > 3) { const k = fields.keys().next().value; fields.get(k).dispose(); fields.delete(k); }
+  return f;
+}
+export function systemFor(desc) {
+  let s = systems.get(desc.key);
+  if (s) return s;
+  s = new StarSystem(desc);
+  systems.set(desc.key, s);
+  if (systems.size > 8) systems.delete(systems.keys().next().value);
+  return s;
+}
+export const solSystem = () => systemFor(sunDescriptor(MILKY_WAY));
+
+export function targetName(t) {
+  if (!t) return '';
+  if (t.type === 'body') return t.body.name;
+  if (t.type === 'star') return starName(t.desc);
+  return galaxyName(t.galaxy);
+}
+
+export class Nav {
+  constructor() {
+    this.fov = 55 * Math.PI / 180;
+    this.q = Q.ident(); this.level = 'system';
+    this.U = [0, 0, 0]; this.G = [0, 0, 0]; this.S = [0, 0, 0];
+    this.galaxy = MILKY_WAY; this.field = fieldFor(MILKY_WAY);
+    this.system = solSystem();
+    this.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; this.rate = 1; this.paused = false;
+    this.speed = 5e6; this.vel = [0, 0, 0]; this.selected = null; this.goto = null; this.anchor = null;
+    this.frame = 0; this.altitude = 1e30; this.speedNow = 0; this.onArrive = null;
+    this.system.update(this.time);
+    const earth = this.system.find('Earth'), sun = this.system.find('Sun');
+    const toSun = V.norm(V.sub(sun.wpos, earth.wpos));
+    const side = V.norm(V.cross(toSun, [0.2, 1, 0.1]));
+    const off = V.norm(V.add(V.mul(toSun, 0.55), V.add(V.mul(side, 0.8), [0, 0.25, 0])));
+    this.S = V.add(earth.wpos, V.mul(off, earth.radius * 3.4));
+    this.q = Q.look(V.mul(off, -1), [0, 1, 0]);
+    this.selected = { type: 'body', body: earth };
+  }
+  // ----- positions at each scale -----
+  camG() { return this.level === 'system' ? V.addm(this.system.posGu, this.S, 1 / PC) : this.level === 'galaxy' ? this.G : null; }
+  camU() { if (this.level === 'universe') return this.U; const g = this.camG(); return V.addm(this.galaxy.posU, g, 1e-6); }
+  camLocal() { return Q.rot(Q.conj(this.galaxy.quat), this.camG()); }
+  // vector (metres, universe axes) from camera to a point given in a galaxy (pc, universe axes) plus metres offset
+  relGalactic(g, posGu, extraM) {
+    let r;
+    if (this.galaxy === g && this.level === 'system') { const sp = this.system.posGu; r = [(posGu[0] - sp[0]) * PC - this.S[0], (posGu[1] - sp[1]) * PC - this.S[1], (posGu[2] - sp[2]) * PC - this.S[2]]; }
+    else if (this.galaxy === g && this.level === 'galaxy') r = [(posGu[0] - this.G[0]) * PC, (posGu[1] - this.G[1]) * PC, (posGu[2] - this.G[2]) * PC];
+    else { const cu = this.camU(); r = [((g.posU[0] - cu[0]) * 1e6 + posGu[0]) * PC, ((g.posU[1] - cu[1]) * 1e6 + posGu[1]) * PC, ((g.posU[2] - cu[2]) * 1e6 + posGu[2]) * PC]; }
+    return extraM ? V.add(r, extraM) : r;
+  }
+  relTo(t) {
+    if (t.type === 'body') {
+      const b = t.body, sys = b.system;
+      let r;
+      if (sys === this.system && this.level === 'system') r = V.sub(b.wpos, this.S);
+      else { if (sys.time !== this.time) sys.update(this.time); r = this.relGalactic(sys.galaxy, sys.posGu, b.wpos); }
+      if (t.offset) r = V.add(r, t.offset);
+      return r;
+    }
+    if (t.type === 'star') { const g = t.desc.galaxy; return this.relGalactic(g, Q.rot(g.quat, t.desc.pos)); }
+    const cu = this.camU(), g = t.galaxy;
+    return [(g.posU[0] - cu[0]) * MPC, (g.posU[1] - cu[1]) * MPC, (g.posU[2] - cu[2]) * MPC];
+  }
+  targetRadius(t) { return t.type === 'body' ? (t.body.radius || 1e9) : t.type === 'star' ? t.desc.star.radius : t.galaxy.radius * PC; }
+
+  move(dm) {
+    if (this.level === 'system') this.S = V.add(this.S, dm);
+    else if (this.level === 'galaxy') this.G = V.addm(this.G, dm, 1 / PC);
+    else this.U = V.addm(this.U, dm, 1 / MPC);
+  }
+
+  // ----- level transitions -----
+  enterSystem(desc) {
+    const sys = systemFor(desc);
+    const g = this.camG();
+    this.S = [(g[0] - sys.posGu[0]) * PC, (g[1] - sys.posGu[1]) * PC, (g[2] - sys.posGu[2]) * PC];
+    this.system = sys; this.level = 'system'; sys.update(this.time);
+    // a go-to aimed at the star continues towards its body
+    if (this.goto && this.goto.target.type === 'star' && this.goto.target.desc.key === desc.key) this.retarget({ type: 'body', body: sys.stars[0] });
+    if (this.selected && this.selected.type === 'star' && this.selected.desc.key === desc.key) this.selected = { type: 'body', body: sys.stars[0] };
+  }
+  retarget(t) {
+    const g = this.goto; g.target = t;
+    const d = V.len(this.relTo(t)); g.d0 = d / Math.pow(d / g.d1n(t), g.e); g.d1 = g.d1n(t);
+  }
+  transitions() {
+    this.frame++;
+    if (this.level === 'system') {
+      if (V.len(this.S) > 0.25 * PC) { this.G = this.camG(); this.level = 'galaxy'; this.system = null; this.anchor = null; }
+    } else if (this.level === 'galaxy') {
+      if (this.frame % 10 === 0 || this.goto) {
+        const n = this.field.nearest(this.camLocal(), 0.2);
+        if (n) { this.enterSystem(n); return; }
+      }
+      if (V.len(this.G) > 4 * this.galaxy.radius) { this.U = this.camU(); this.level = 'universe'; this.galaxy = null; this.field = null; }
+    } else if (this.frame % 10 === 0 || this.goto) {
+      let best = null, bs = 3.5;
+      const test = (g) => { const d = V.dist(g.posU, this.U) * 1e6 / g.radius; if (d < bs) { bs = d; best = g; } };
+      for (const c of visibleGalaxyCells) for (const g of c.list) test(g);
+      if (best) { this.galaxy = best; this.field = fieldFor(best); this.G = [(this.U[0] - best.posU[0]) * 1e6, (this.U[1] - best.posU[1]) * 1e6, (this.U[2] - best.posU[2]) * 1e6]; this.level = 'galaxy'; }
+    }
+  }
+
+  // ----- go-to -----
+  goTo(t, opt = {}) {
+    if (!t) return;
+    const d1n = (tt) => opt.dist || (tt.type === 'body' ? tt.body.radius * (tt.body.kind === 'star' ? (tt.body.blackHole ? 40 : 7) : tt.body.rings ? 5.5 : 3.3) || 1e10 : tt.type === 'star' ? tt.desc.star.radius * 7 + 1e7 : tt.galaxy.radius * PC * 2.3);
+    const d = V.len(this.relTo(t));
+    const d1 = d1n(t);
+    const dur = opt.dur || clamp(2.5 + Math.abs(Math.log10(d / d1)) * 0.75, 2.5, 11);
+    this.goto = { target: t, t: 0, dur, d0: d, d1, d1n, e: 0, land: opt.land };
+    this.selected = t.offset ? { type: 'body', body: t.body } : t;
+  }
+  land(body) {
+    if (!body || !body.surface) return;
+    const sys = body.system; const rel = this.relTo({ type: 'body', body });
+    const toCam = V.norm(V.mul(rel, -1));
+    let dir = toCam;
+    if (sys.stars.length && body.kind !== 'star') { const toStar = V.norm(V.sub(sys.stars[0].wpos, body.wpos)); dir = V.norm(V.add(V.mul(toCam, 0.6), toStar)); if (V.dot(dir, toStar) < 0.25) dir = V.norm(V.add(dir, V.mul(toStar, 0.6))); }
+    let h = 0;
+    if (body.surface.gen === 'terra') h = planetState(body).queryHeight(Q.rot(Q.conj(body.wrot), dir));
+    const off = V.mul(dir, body.radius + h + (body.surface.gen === 'terra' ? 1200 : body.radius * 0.02));
+    this.goTo({ type: 'body', body, offset: off }, { dist: 1, land: { dir } });
+  }
+  stepGoto(dt) {
+    const g = this.goto; if (!g) return;
+    g.t += dt; const x = clamp(g.t / g.dur, 0, 1);
+    const e = x * x * x * (x * (x * 6 - 15) + 10); g.e = e;
+    const rel = this.relTo(g.target), dist = V.len(rel);
+    const want = Math.exp(Math.log(g.d0) + (Math.log(g.d1) - Math.log(g.d0)) * e);
+    const dir = V.mul(rel, 1 / dist);
+    this.move(V.mul(dir, dist - want));
+    this.speedNow = Math.abs(dist - want) / Math.max(dt, 1e-6);
+    // turn towards the target
+    if (!g.land || x < 0.75) {
+      const up = Q.rot(this.q, [0, 1, 0]);
+      const tq = Q.look(g.target.offset ? V.sub(rel, V.mul(g.target.offset, 0.999)) : rel, up);
+      this.q = Q.slerp(this.q, tq, 1 - Math.exp(-dt * 4));
+    } else {
+      // level out for landing: look along the horizon towards the sun
+      const upv = g.land.dir, b = g.target.body, st = b.system.stars[0];
+      let f = st ? V.sub(st.wpos, b.wpos) : Q.rot(this.q, [0, 0, -1]);
+      f = V.norm(V.sub(f, V.mul(upv, V.dot(f, upv))));
+      f = V.norm(V.add(f, V.mul(upv, -0.06)));
+      this.q = Q.slerp(this.q, Q.look(f, upv), 1 - Math.exp(-dt * 3));
+    }
+    if (x >= 1) {
+      this.goto = null;
+      this.speed = clamp(want * 0.4, 20, 1e25);
+      if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(); }
+    }
+  }
+
+  // ----- per frame -----
+  update(dt, input) {
+    if (!this.paused) this.time += dt * this.rate;
+    const sys = this.system;
+    // follow the anchor body through its orbital motion and rotation
+    let anchor = null;
+    if (sys && this.level === 'system') {
+      const prev = this.anchor && this.anchor.system === sys ? this.anchor : null;
+      const prevPos = prev ? prev.wpos : null, prevAng = prev ? prev.rotAngle : 0;
+      sys.update(this.time);
+      if (prev) {
+        this.S = V.add(this.S, V.sub(prev.wpos, prevPos));
+        const rel = V.sub(this.S, prev.wpos), alt = V.len(rel) - prev.radius;
+        const w = prev.kind === 'star' ? 0 : clamp((1.2 * prev.radius - alt) / (1.0 * prev.radius), 0, 1);
+        if (w > 0 && prev.rotPeriod && !this.paused) {
+          const dAng = 2 * Math.PI * dt * this.rate / prev.rotPeriod * w;
+          const axis = Q.rot(prev.wrot, [0, 1, 0]), rq = Q.axis(axis, dAng);
+          this.S = V.add(prev.wpos, Q.rot(rq, rel)); this.q = Q.norm(Q.mul(rq, this.q));
+        }
+      }
+      // choose anchor for the next frame
+      let best = 30;
+      for (const b of sys.bodies) { if (!b.radius) continue; const d = V.dist(b.wpos, this.S) / b.radius; if (d < best) { best = d; anchor = b; } }
+      if (!anchor && this.selected && this.selected.type === 'body' && this.selected.body.system === sys && !this.goto) { const b = this.selected.body; if (b.radius && V.dist(b.wpos, this.S) < b.radius * 3000) anchor = b; }
+      if (this.goto && this.goto.target.type === 'body' && this.goto.target.body.system === sys) anchor = this.goto.target.body;
+    }
+    this.anchor = anchor;
+    let alt = 1e30, up = null;
+    if (anchor) { const rel = V.sub(this.S, anchor.wpos); const d = V.len(rel); alt = d - anchor.radius - (anchor._groundH || 0); up = V.mul(rel, 1 / d); }
+
+    // look
+    const ls = this.fov / 900;
+    if (input.lookX || input.lookY) {
+      const nearGround = up && alt < anchor.radius * 0.15;
+      if (nearGround) this.q = Q.mul(Q.axis(up, -input.lookX * ls), this.q); else this.q = Q.mul(this.q, Q.axis([0, 1, 0], -input.lookX * ls));
+      this.q = Q.mul(this.q, Q.axis([1, 0, 0], -input.lookY * ls));
+    }
+    if (input.roll) this.q = Q.mul(this.q, Q.axis([0, 0, 1], input.roll * dt * 1.2));
+    if (input.turnX || input.turnY) { this.q = Q.mul(this.q, Q.axis([0, 1, 0], -input.turnX * dt * 0.9)); this.q = Q.mul(this.q, Q.axis([1, 0, 0], -input.turnY * dt * 0.9)); }
+    // keep the horizon level near the ground unless rolling
+    if (up && alt < anchor.radius * 0.05 && !input.roll && !this.goto) {
+      const r = Q.rot(this.q, [1, 0, 0]), f = Q.rot(this.q, [0, 0, -1]);
+      if (Math.abs(V.dot(f, up)) < 0.95) { const rollErr = Math.asin(clamp(V.dot(r, up), -1, 1)); this.q = Q.mul(this.q, Q.axis([0, 0, 1], -rollErr * Math.min(1, dt * 3))); }
+    }
+    this.q = Q.norm(this.q);
+    // orbit around the selection
+    if ((input.orbitX || input.orbitY) && this.selected && !this.goto) {
+      const rel = this.relTo(this.selected);
+      const upW = Q.rot(this.q, [0, 1, 0]), rightW = Q.rot(this.q, [1, 0, 0]);
+      const R = Q.mul(Q.axis(upW, -input.orbitX * 0.005), Q.axis(rightW, -input.orbitY * 0.005));
+      const camRel = V.mul(rel, -1), nr = Q.rot(R, camRel);
+      this.move(V.sub(nr, camRel)); this.q = Q.norm(Q.mul(R, this.q));
+    }
+    if (input.zoom && this.selected && !this.goto) {
+      const rel = this.relTo(this.selected), d = V.len(rel), R = this.targetRadius(this.selected);
+      const nd = Math.max(R * 1.0005, (d - R) * Math.pow(1.0015, input.zoom) + R);
+      this.move(V.mul(rel, (d - nd) / d));
+    }
+    if (input.wheel) this.speed = clamp(this.speed * Math.pow(1.0018, -input.wheel), 0.5, 3e25);
+
+    // translate
+    if (this.goto) { this.stepGoto(dt); this.vel = [0, 0, 0]; }
+    else {
+      let sp = this.speed * (input.fast ? 10 : 1) * (input.slow ? 0.1 : 1);
+      if (anchor && alt < anchor.radius * 4) sp = Math.min(sp, Math.max(alt * 1.5, 3) * (input.fast ? 4 : 1));
+      const want = V.mul([input.mx, input.my, input.mz], sp);
+      const k = 1 - Math.exp(-dt * 7);
+      this.vel = V.lerp(this.vel, want, k);
+      this.speedNow = V.len(this.vel);
+      if (this.speedNow > 0) this.move(Q.rot(this.q, V.mul(this.vel, dt)));
+    }
+
+    // terrain collision
+    this.altitude = 1e30;
+    if (anchor && this.level === 'system') {
+      const rel = V.sub(this.S, anchor.wpos); let d = V.len(rel);
+      let h = 0;
+      if (anchor.surface && anchor.surface.gen === 'terra' && d - anchor.radius < Math.max(anchor.radius * 0.02, (anchor.surface.hmax || 0) * 3 + 3000)) {
+        h = planetState(anchor).queryHeight(Q.rot(Q.conj(anchor.wrot), V.mul(rel, 1 / d)));
+        planetState(anchor).groundH = h;
+      } else if (anchor.surface) planetState(anchor).groundH = 0;
+      anchor._groundH = h;
+      const minR = anchor.kind === 'star' ? anchor.radius * 1.02 : anchor.radius + h + (anchor.surface && anchor.surface.gen === 'terra' ? 1.7 : anchor.radius * 0.001);
+      if (d < minR) { this.S = V.add(anchor.wpos, V.mul(rel, minR / d)); d = minR; }
+      this.altitude = d - anchor.radius - h;
+    }
+    this.transitions();
+    if (this.field && this.level !== 'universe') this.field.update(this.camLocal());
+  }
+
+  // ----- picking: ray direction in world axes, pixel angular size -----
+  pick(dir, pxRad) {
+    if (this.system && this.level === 'system') {
+      let best = null, bs = 1e9;
+      for (const b of this.system.bodies) {
+        if (b.kind === 'barycenter') continue;
+        const rel = V.sub(b.wpos, this.S), d = V.len(rel);
+        const sep = Math.acos(clamp(V.dot(rel, dir) / d, -1, 1)), ar = Math.asin(Math.min(1, b.radius / d));
+        const thr = Math.max(ar, 11 * pxRad);
+        if (sep > thr) continue;
+        const score = sep < ar ? d * 1e-30 : sep / thr + (b.kind === 'moon' ? 0.2 : 0);
+        if (score < bs) { bs = score; best = b; }
+      }
+      if (best) return { type: 'body', body: best };
+    }
+    if (this.field && this.level !== 'universe') {
+      const s = this.field.pick(this.camLocal(), Q.rot(Q.conj(this.galaxy.quat), dir), 9 * pxRad);
+      if (s && !(this.system && s.key === this.system.desc.key)) return { type: 'star', desc: s };
+    }
+    const cu = this.camU(); let best = null, bs = 1e9;
+    const test = (g) => {
+      if (g === this.galaxy && V.len(this.camG()) < g.radius * 1.2) return;
+      const rel = V.sub(g.posU, cu), d = V.len(rel); if (d <= 0) return;
+      const sep = Math.acos(clamp(V.dot(rel, dir) / d, -1, 1)), ar = g.radius * 1e-6 / d;
+      if (ar < 1.2 * pxRad) return;
+      const thr = Math.max(ar * 0.7, 8 * pxRad); if (sep > thr) return;
+      const score = sep / thr - Math.log10(ar) * 0.2; if (score < bs) { bs = score; best = g; }
+    };
+    for (const c of visibleGalaxyCells) for (const g of c.list) test(g);
+    return best ? { type: 'galaxy', galaxy: best } : null;
+  }
+
+  // serialise / restore a location (for URLs and testing)
+  describe() { return { level: this.level, dist: this.selected ? V.len(this.relTo(this.selected)) : 0 }; }
+}
+
+export function findByName(nav, name) {
+  const n = name.trim().toLowerCase(); if (!n) return null;
+  if (nav.system) { const b = nav.system.bodies.find(b => b.name.toLowerCase() === n) || nav.system.bodies.find(b => b.name.toLowerCase().startsWith(n)); if (b) return { type: 'body', body: b }; }
+  const sol = solSystem(); const b = sol.bodies.find(b => b.name.toLowerCase() === n) || (n.length > 2 && sol.bodies.find(b => b.name.toLowerCase().startsWith(n)));
+  if (b) return { type: 'body', body: b };
+  const g = REAL_GALAXIES.find(g => g.name.toLowerCase().includes(n));
+  if (g) return { type: 'galaxy', galaxy: g };
+  return null;
+}
+export function searchList(nav) {
+  const out = [];
+  if (nav.system) for (const b of nav.system.bodies) if (b.kind !== 'barycenter') out.push(b.name);
+  for (const b of solSystem().bodies) if (!out.includes(b.name)) out.push(b.name);
+  for (const g of REAL_GALAXIES) out.push(g.name);
+  return out;
+}

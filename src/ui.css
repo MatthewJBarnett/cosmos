@@ -1,0 +1,42 @@
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 13px/1.45 "Inter", "Segoe UI", system-ui, sans-serif; color: #dfe6ee; }
+#gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+#ui { position: fixed; inset: 0; pointer-events: none; user-select: none; }
+#ui.hide > * { display: none !important; }
+.panel { position: absolute; pointer-events: auto; background: rgba(10, 14, 20, 0.62); backdrop-filter: blur(10px); border: 1px solid rgba(160, 190, 230, 0.16); border-radius: 8px; padding: 10px 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); }
+.hidden { display: none !important; }
+.dim { color: #8b98a8; }
+h2 { margin: 0 0 2px; font-size: 18px; font-weight: 600; letter-spacing: 0.2px; color: #fff; }
+h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #fff; }
+.info { left: 14px; top: 14px; width: 270px; }
+.info .sub { color: #8fb4e6; margin-bottom: 6px; font-size: 12px; }
+table { border-collapse: collapse; width: 100%; }
+td { padding: 1.5px 0; vertical-align: top; }
+td:first-child { color: #8b98a8; padding-right: 10px; white-space: nowrap; }
+.top { right: 14px; top: 14px; display: flex; gap: 6px; align-items: center; padding: 6px; }
+input#search { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(160, 190, 230, 0.2); color: #fff; border-radius: 5px; padding: 6px 9px; width: 230px; outline: none; font: inherit; }
+input#search:focus { border-color: #6aa8ff; }
+button { background: rgba(255, 255, 255, 0.08); color: #dfe6ee; border: 1px solid rgba(160, 190, 230, 0.2); border-radius: 5px; padding: 6px 10px; font: inherit; cursor: pointer; }
+button:hover { background: rgba(110, 170, 255, 0.25); }
+.status { left: 14px; bottom: 14px; min-width: 220px; }
+.status b { color: #9fb3c8; font-weight: 500; margin-right: 4px; }
+.status div:first-child b { color: #fff; font-weight: 600; font-size: 14px; }
+.time { left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 5px; align-items: center; padding: 6px 10px; white-space: nowrap; }
+.time span { margin-left: 8px; font-variant-numeric: tabular-nums; }
+.labels { position: absolute; inset: 0; overflow: hidden; }
+.label { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 11.5px; color: #b9d2f5; text-shadow: 0 0 4px #000, 0 0 2px #000; will-change: transform; }
+.label.star { color: #ffe9b8; } .label.moon { color: #9fb0c4; font-size: 10.5px; } .label.dwarf, .label.comet { color: #9a9a9a; font-size: 10.5px; }
+.label.galaxy { color: #c9b8f0; } .label.sel { color: #ffd76a; }
+.marker { position: absolute; left: 0; top: 0; border: 1px solid rgba(255, 215, 106, 0.75); border-radius: 50%; box-sizing: border-box; display: none; will-change: transform; }
+.sys { right: 14px; top: 64px; width: 360px; max-height: 70vh; overflow: auto; }
+.sys .row { display: flex; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.sys .row:hover { background: rgba(110, 170, 255, 0.18); } .sys .row.sel { background: rgba(255, 215, 106, 0.16); }
+.sys .d1 { padding-left: 18px; } .sys .d2 { padding-left: 34px; } .sys .d3 { padding-left: 50px; }
+.sys .nm { flex: 1; color: #fff; } .sys .cl { color: #8fb4e6; font-size: 11.5px; } .sys .ds { color: #8b98a8; font-size: 11.5px; width: 78px; text-align: right; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #7fb0ff; flex: none; }
+.dot.star { background: #ffd27a; box-shadow: 0 0 6px #ffb84a; } .dot.moon { background: #9aa6b4; width: 6px; height: 6px; } .dot.dwarf, .dot.comet { background: #777; width: 6px; height: 6px; }
+.settings { right: 14px; top: 64px; width: 300px; }
+.settings label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.settings input[type=range] { flex: 1; }
+.help { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; max-width: 90vw; }
+.fatal { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); background: #401818; border: 1px solid #a44; padding: 16px 20px; border-radius: 8px; pointer-events: auto; max-width: 70vw; }
+@media (max-width: 760px) { .top input#search { width: 120px; } .info { width: 210px; font-size: 12px; } .time span { display: none; } }

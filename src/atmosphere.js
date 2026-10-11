@@ -1,0 +1,261 @@
+// Atmosphere LUT management, volumetric clouds and the screen space compositing pass.
+import { gl, Program, tex2D, texCube, fbo, drawFS, FS_VS } from './gl.js';
+import { Q, V, clamp } from './math.js';
+import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, ATMO_TRANS_FS, ATMO_MULTI_FS, ATMO_IRR_FS } from './atmo_glsl.js';
+import { LIGHT_UNIFORMS } from './planet.js';
+
+let pTrans, pMulti, pIrr, pComp, pCloudMap;
+const luts = new Map();
+export const atmoCfg = { steps: 28, cloudSteps: 32, cloudRes: 768 };
+
+const CLOUDMAP_FS = `
+in vec2 vUV; out vec4 o;
+uniform mat3 uFace; uniform float uSeed, uCover, uKind;
+uint h3(ivec3 c){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ uint(c.z)*0xcb1ab31fu; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15; return h; }
+float vn(vec3 x){
+  vec3 i = floor(x), f = x - i; f = f*f*f*(f*(f*6.-15.)+10.); ivec3 c = ivec3(i);
+  #define HV(o) (float(h3(c + o) & 65535u)/65535.)
+  return mix(mix(mix(HV(ivec3(0,0,0)), HV(ivec3(1,0,0)), f.x), mix(HV(ivec3(0,1,0)), HV(ivec3(1,1,0)), f.x), f.y),
+             mix(mix(HV(ivec3(0,0,1)), HV(ivec3(1,0,1)), f.x), mix(HV(ivec3(0,1,1)), HV(ivec3(1,1,1)), f.x), f.y), f.z);
+}
+float fbm(vec3 p, int n){ float s = 0., a = 0.5; for (int i = 0; i < n; i++) { s += a*vn(p); p = p*2.02 + 19.1; a *= 0.5; } return s; }
+vec3 rotAxis(vec3 p, vec3 ax, float a){ return mix(dot(ax, p)*ax, p, cos(a)) + cross(ax, p)*sin(a); }
+void main(){
+  vec3 dir = normalize(uFace*vec3(vUV*2. - 1., 1.));
+  vec3 p = dir;
+  float lat = asin(clamp(dir.y, -1., 1.));
+  if (uKind > 0.5) {
+    // Venus like: global deck with swept streaks
+    vec3 q = p*vec3(3., 9., 3.) + uSeed;
+    q.x += dir.y*dir.y*6.;
+    float s = fbm(q + fbm(q*2., 3)*1.5, 5);
+    o = vec4(1., s, 0., 1.); return;
+  }
+  // cyclones: rotate the lookup around random centres to wind fronts into spirals
+  float cyc = 0.;
+  for (int i = 0; i < 14; i++) {
+    float fi = float(i);
+    vec3 c = normalize(fract(sin(vec3(fi*12.9898, fi*78.233, fi*39.425) + uSeed)*43758.5453) - 0.5);
+    float clat = abs(c.y);
+    if (clat < 0.25 || clat > 0.85) continue;
+    float d = acos(clamp(dot(dir, c), -1., 1.));
+    float rad = 0.16 + 0.1*fract(fi*0.618);
+    float fall = exp(-d*d/(rad*rad));
+    float sgn = c.y > 0. ? 1. : -1.;
+    p = rotAxis(p, c, sgn*fall*3.2*(1. - 0.5*d/rad*fall));
+    cyc += fall;
+  }
+  vec3 w = vec3(fbm(p*3. + uSeed, 4), fbm(p*3. + uSeed + 31., 4), fbm(p*3. + uSeed + 67., 4)) - 0.5;
+  vec3 q = p*4.2 + w*1.1 + uSeed;
+  // stretched along latitude circles (zonal flow)
+  float n = fbm(q*vec3(1., 1.6, 1.), 7);
+  float n2 = fbm(q*6.1 + 11., 6);
+  float ld = degrees(abs(lat));
+  float clim = 0.06*exp(-pow(ld/7., 2.)) + 0.09*exp(-pow((ld - 55.)/14., 2.)) - 0.09*exp(-pow((ld - 24.)/9., 2.)) + 0.03*cyc;
+  float v = n + clim + (n2 - 0.5)*0.22;
+  float th = 0.62 - uCover*0.36;
+  float cov = smoothstep(th, th + 0.2, v);
+  // second channel: cloud top height variation / convective cells
+  float tall = smoothstep(0.5, 0.75, fbm(q*2.3 + 5., 4) + cyc*0.2);
+  o = vec4(cov, tall, n2, 1.);
+}`;
+
+const COMP_FS = `
+in vec2 vUV; out vec4 oColor;
+uniform sampler2D uScene, uDepth;
+uniform sampler3D uNoise3;
+uniform samplerCube uCloudMap;
+uniform mat3 uCamRot, uPlanetRotInv;
+uniform vec2 uTanFov;
+uniform float uExposure, uTime, uOblate, uFrame;
+uniform float cBase, cTop, cDens, cHas, cKind; uniform vec3 cColor;
+uniform sampler2D uIrrLUT;
+uniform int uSteps, uCloudSteps;
+${LIGHT_UNIFORMS}
+${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
+uniform float uFcoef;
+float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// density of cloud at point p (relative to planet centre, world axes)
+float cloudDensity(vec3 p, bool cheap, out float hfrac){
+  float r = length(p); float alt = r - aR0;
+  hfrac = (alt - cBase)/(cTop - cBase);
+  if (hfrac <= 0. || hfrac >= 1.) return 0.;
+  vec3 pl = uPlanetRotInv*p; vec3 dir = pl/r;
+  vec4 wm = texture(uCloudMap, dir);
+  float cov = wm.r;
+  if (cov < 0.01) return 0.;
+  if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
+  float topH = mix(0.35, 1.0, wm.g*cov);
+  float prof = smoothstep(0., 0.07, hfrac) * smoothstep(topH, topH*0.45, hfrac);
+  float d = cov*prof;
+  if (!cheap) {
+    vec3 q = pl/9000.;
+    float n = texture(uNoise3, q + vec3(uTime*0.0004, 0., 0.)).r*0.6 + texture(uNoise3, q*3.1 + 0.3).g*0.28 + texture(uNoise3, q*9.7).b*0.12;
+    d = clamp((d - n*0.75*(1.05 - cov*0.6)) * 2.6, 0., 1.);
+  } else d = clamp((d - 0.33*(1.05 - cov*0.6))*2.6, 0., 1.);
+  return d;
+}
+void main(){
+  vec4 scene = texture(uScene, vUV);
+  vec2 ndc = vUV*2. - 1.;
+  vec3 rdc = vec3(ndc*uTanFov, -1.);
+  float cosf = 1./length(rdc);
+  vec3 rd = normalize(uCamRot*rdc);
+  float depth = texture(uDepth, vUV).r;
+  float sceneDist = depth >= 0.99999 ? 1e30 : (exp2(depth*2./uFcoef) - 1.)/cosf;
+  vec3 ro = -uPlanetRel;
+  float t0, t1;
+  if (raySphere(ro, rd, aRt, t0, t1) < 0. || t1 < 0.) { oColor = scene; return; }
+  float tmin = max(t0, 0.), tmax = min(t1, sceneDist);
+  float g0, g1; bool hitGround = false;
+  if (raySphere(ro, rd, aRg, g0, g1) > 0. && g0 > 0. && g0 < tmax) { tmax = g0; hitGround = true; }
+  if (tmax <= tmin) { oColor = scene; return; }
+  float jit = ign(gl_FragCoord.xy + uFrame*5.588);
+  // ---- clouds ----
+  vec3 cloudL = vec3(0.); float cloudT = 1., cloudDist = tmax;
+  if (cHas > 0.5) {
+    float Rb = aR0 + cBase, Rtp = aR0 + cTop;
+    float a0, a1, b0, b1; float rcam = length(ro);
+    float hitTop = raySphere(ro, rd, Rtp, a0, a1), hitBase = raySphere(ro, rd, Rb, b0, b1);
+    float s0 = -1., s1 = -1.;
+    if (rcam > Rtp) { if (hitTop > 0. && a0 > 0.) { s0 = a0; s1 = (hitBase > 0. && b0 > 0.) ? b0 : a1; } }
+    else if (rcam < Rb) { if (hitBase > 0.) { s0 = b1; s1 = a1; } }
+    else { s0 = 0.; s1 = (hitBase > 0. && b0 > 0.) ? b0 : a1; }
+    s1 = min(s1, tmax);
+    if (s0 >= 0. && s1 > s0) {
+      s1 = min(s1, s0 + 450000.);
+      int NS = uCloudSteps; float dt = (s1 - s0)/float(NS);
+      float wsum = 0., dsum = 0.;
+      for (int i = 0; i < NS; i++) {
+        float t = s0 + (float(i) + jit)*dt;
+        vec3 p = ro + rd*t; float hf;
+        float d = cloudDensity(p, false, hf);
+        if (d > 0.002) {
+          float sig = d*cDens*0.0045;
+          vec3 lsum = vec3(0.);
+          float r = length(p); vec3 up = p/r;
+          for (int li = 0; li < uNumLights; li++) {
+            vec3 L = normalize(uLightPos[li] - (p + uPlanetRel));
+            float mu = dot(up, L);
+            // optical depth towards the light
+            float od = 0.; float ls = (cTop - cBase)*0.22;
+            for (int k = 0; k < 4; k++) { float hh; od += cloudDensity(p + L*ls*(float(k) + 0.6), true, hh)*cDens*0.0045*ls; }
+            vec3 sunT = atmoSunTrans(r, mu);
+            float c = dot(rd, L);
+            // multiple scattering approximation (octaves)
+            float sc = 0.; float a = 1., b = 1., g = 1.;
+            for (int m = 0; m < 3; m++) {
+              float gg = 0.75*g; float ph = mix((1. - gg*gg)/(4.*PI*pow(1. + gg*gg - 2.*gg*c, 1.5)), (1. - 0.09*g*g)/(4.*PI*pow(1. + 0.09*g*g + 0.6*g*c, 1.5)), 0.35);
+              sc += a*exp(-od*b)*ph; a *= 0.55; b *= 0.3; g *= 0.6;
+            }
+            float vis = uNumOcc > 0 ? eclipse(p + uPlanetRel, li) : 1.;
+            lsum += uLightCol[li]*sunT*sc*vis*3.2;
+            // ambient: sky light from above, ground bounce from below
+            vec3 amb = texture(uIrrLUT, vec2(mu*0.5 + 0.5, 0.5)).rgb*uLightCol[li]*vis;
+            lsum += amb*(0.25 + 0.45*hf)/PI + uLightCol[li]*sunT*max(mu, 0.)*0.03*(1. - hf)*vis;
+          }
+          float st = exp(-sig*dt);
+          cloudL += cloudT*lsum*cColor*(1. - st);
+          wsum += cloudT*(1. - st); dsum += cloudT*(1. - st)*t;
+          cloudT *= st;
+          if (cloudT < 0.01) { cloudT = 0.; break; }
+        }
+      }
+      if (wsum > 0.) cloudDist = dsum/wsum;
+    }
+  }
+  // ---- gas ----
+  vec3 L = vec3(0.), T = vec3(1.), Tc = vec3(1.);
+  float len = tmax - tmin, prev = 0.;
+  int N = uSteps;
+  bool passed = false;
+  float spow = mix(2., 1., clamp((length(ro) - aR0)/(aRt - aR0), 0., 1.));
+  for (int i = 0; i < N; i++) {
+    float f1 = float(i + 1)/float(N); f1 = pow(f1, spow);
+    float tt1 = len*f1, dt = tt1 - prev; float t = tmin + prev + dt*jit; prev = tt1;
+    if (!passed && t > cloudDist) { passed = true; Tc = T; }
+    vec3 p = ro + rd*t; float r = length(p);
+    vec3 sr, sm, ex; atmoDensity(r - aR0, sr, sm, ex);
+    vec3 S = vec3(0.);
+    for (int li = 0; li < uNumLights; li++) {
+      vec3 Ld = normalize(uLightPos[li] - (p + uPlanetRel));
+      float mu = dot(p, Ld)/r, c = dot(rd, Ld);
+      float vis = uNumOcc > 0 ? eclipse(p + uPlanetRel, li) : 1.;
+      S += uLightCol[li]*vis*((sr*phaseR(c) + sm*phaseM(c, aMieG))*atmoSunTrans(r, mu) + (sr + sm)*atmoMulti(r, mu));
+    }
+    vec3 st = exp(-ex*dt);
+    L += T*(S - S*st)/max(ex, vec3(1e-12)) * (passed ? cloudT : 1.);
+    T *= st;
+  }
+  if (!passed) Tc = T;
+  vec3 col = scene.rgb*T*cloudT + (L + cloudL*Tc)*uExposure;
+  oColor = vec4(min(col, vec3(60000.)), 1.);
+}`;
+
+function init() {
+  if (pTrans) return;
+  pTrans = new Program('atmo-trans', FS_VS, ATMO_TRANS_FS);
+  pMulti = new Program('atmo-multi', FS_VS, ATMO_MULTI_FS);
+  pIrr = new Program('atmo-irr', FS_VS, ATMO_IRR_FS);
+  pComp = new Program('atmo-comp', FS_VS, COMP_FS);
+  pCloudMap = new Program('cloudmap', FS_VS, CLOUDMAP_FS);
+}
+
+export function atmoUniforms(body) {
+  const a = body.atmo, s = body.surface;
+  const R0 = body.radius, Rg = R0 + Math.min(0, (s.hmin || 0) * 0.5);
+  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh, aHR: a.hR, aMieS: a.mieS, aMieA: a.mieA, aHM: a.hM, aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
+}
+
+const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y,-Y,+Z,-Z)
+  [0, 0, -1, 0, -1, 0, 1, 0, 0], [0, 0, 1, 0, -1, 0, -1, 0, 0], [1, 0, 0, 0, 0, 1, 0, 1, 0], [1, 0, 0, 0, 0, -1, 0, -1, 0], [1, 0, 0, 0, -1, 0, 0, 0, 1], [-1, 0, 0, 0, -1, 0, 0, 0, -1]];
+export { CUBE_FACES };
+
+export function getAtmoLUT(body) {
+  init();
+  let l = luts.get(body.uid);
+  if (l) { l.last = performance.now(); return l; }
+  const u = atmoUniforms(body);
+  l = { uniforms: u, last: performance.now() };
+  l.trans = tex2D(256, 64, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+  l.multi = tex2D(32, 32, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+  l.irr = tex2D(64, 1, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+  gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+  let f = fbo([l.trans]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 256, 64); pTrans.use().set(u); drawFS(); gl.deleteFramebuffer(f);
+  f = fbo([l.multi]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 32, 32); pMulti.use().set(u).set({ uTransLUT: l.trans }); drawFS(); gl.deleteFramebuffer(f);
+  f = fbo([l.irr]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 64, 1); pIrr.use().set(u).set({ uTransLUT: l.trans, uMultiLUT: l.multi }); drawFS(); gl.deleteFramebuffer(f);
+  const c = body.atmo.clouds;
+  if (c) {
+    const S = atmoCfg.cloudRes;
+    l.cloud = texCube(S, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+    pCloudMap.use().set({ uSeed: (body.uid * 7.31) % 50 + (body.surface.seed ? body.surface.seed[0] % 13 : 0), uCover: c.cover, uKind: c.kind === 'venus' ? 1 : 0 });
+    for (let i = 0; i < 6; i++) {
+      const fb = fbo([l.cloud], null, i); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, S, S);
+      pCloudMap.set({ uFace: new Float32Array(CUBE_FACES[i]) }); drawFS(); gl.deleteFramebuffer(fb);
+    }
+  }
+  luts.set(body.uid, l);
+  if (luts.size > 12) {
+    let old = null; for (const [k, v] of luts) if (!old || v.last < luts.get(old).last) old = k;
+    const d = luts.get(old); gl.deleteTexture(d.trans); gl.deleteTexture(d.multi); gl.deleteTexture(d.irr); if (d.cloud) gl.deleteTexture(d.cloud); luts.delete(old);
+  }
+  return l;
+}
+
+let dummyCube = null;
+// Composite the atmosphere of `body` over the scene. o: {scene, depth, camRot(mat3), tanFov, rel, rotQ, light, exposure, fcoef, time, noise3, frame}
+export function drawAtmosphere(body, o) {
+  init();
+  const l = getAtmoLUT(body), c = body.atmo.clouds;
+  if (!dummyCube) dummyCube = texCube(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+  // cloud layer drifts slowly relative to the ground
+  const drift = c ? Q.axis([0, 1, 0], (o.time * 2e-6 * (c.kind === 'venus' ? 60 : 1)) % (2 * Math.PI)) : Q.ident();
+  const rotInv = Q.mat3(Q.conj(Q.mul(o.rotQ, drift)));
+  pComp.use().set(l.uniforms).set(o.light).set({
+    uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
+    uExposure: o.exposure, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
+    cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
+    uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
+  });
+  drawFS();
+}
