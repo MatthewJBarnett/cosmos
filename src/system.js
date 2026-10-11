@@ -488,13 +488,13 @@ export function describeBody(b) {
   const fmt = (x, d = 3) => x === 0 ? '0' : (Math.abs(x) >= 1e5 || Math.abs(x) < 1e-3 ? x.toExponential(d - 1) : (+x.toPrecision(d)).toString());
   rows.push(['Class', b.cls]);
   if (b.kind === 'star') {
-    rows.push(['Mass', fmt(b.mass / C.Msun) + ' M☉']);
-    rows.push(['Radius', b.radius > 1e7 ? fmt(b.radius / C.Rsun) + ' R☉' : fmt(b.radius / 1e3) + ' km']);
+    rows.push(['Mass', fmt(b.mass / C.Msun) + ' M<sub>Sun</sub>']);
+    rows.push(['Radius', b.radius > 1e7 ? fmt(b.radius / C.Rsun) + ' R<sub>Sun</sub>' : fmt(b.radius / 1e3) + ' km']);
     if (b.temp) rows.push(['Temperature', Math.round(b.temp) + ' K']);
-    rows.push(['Luminosity', fmt(b.lum) + ' L☉']);
+    rows.push(['Luminosity', fmt(b.lum) + ' L<sub>Sun</sub>']);
     if (b.star) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
   } else if (b.kind !== 'barycenter') {
-    rows.push(['Mass', b.mass > 0.01 * C.Mearth ? (b.mass > 50 * C.Mearth ? fmt(b.mass / C.Mjup) + ' M♃' : fmt(b.mass / C.Mearth) + ' M⊕') : fmt(b.mass) + ' kg']);
+    rows.push(['Mass', b.mass > 0.01 * C.Mearth ? (b.mass > 50 * C.Mearth ? fmt(b.mass / C.Mjup) + ' M<sub>Jup</sub>' : fmt(b.mass / C.Mearth) + ' M<sub>Earth</sub>') : fmt(b.mass) + ' kg']);
     rows.push(['Radius', fmt(b.radius / 1e3, 5) + ' km']);
     rows.push(['Gravity', fmt(surfaceGravity(b) / 9.80665) + ' g']);
     rows.push(['Density', fmt(b.mass / (4.18879 * b.radius ** 3) / 1000) + ' g/cm³']);

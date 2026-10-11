@@ -44,3 +44,11 @@ button:hover { background: rgba(110, 170, 255, 0.25); }
 select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rgba(160, 190, 230, 0.2); border-radius: 5px; padding: 5px 6px; font: inherit; max-width: 110px; }
 .hint { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); color: #c8d4e2; background: rgba(10, 14, 20, 0.55); padding: 6px 14px; border-radius: 16px; font-size: 12.5px; transition: opacity 2s; white-space: nowrap; }
 .hint.fade { opacity: 0; }
+@media (max-width: 760px), (max-height: 520px) {
+  .top { left: 8px; right: 8px; top: 8px; flex-wrap: wrap; }
+  .info { left: 8px; top: 96px; width: 200px; max-height: 34vh; overflow: auto; font-size: 12px; }
+  .status { left: 8px; bottom: 56px; min-width: 0; font-size: 12px; }
+  .time { bottom: 8px; }
+  .hint { display: none; }
+  .sys, .settings { top: 96px; right: 8px; max-width: calc(100vw - 16px); }
+}
