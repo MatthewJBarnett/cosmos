@@ -171,6 +171,7 @@ export class StarSystem {
         const qn = Q.look([n[0] === 0 && n[2] === 0 ? 1 : -n[2], 0, n[0] === 0 && n[2] === 0 ? 0 : n[0]], n);
         pole = Q.rot(qn, [Math.sin(ob) * Math.cos(lon), Math.cos(ob), -Math.sin(ob) * Math.sin(lon)]);
       }
+      if (b.poleEcl) { const lo = b.poleEcl[0] * D2R, la = b.poleEcl[1] * D2R; pole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; }
       if (b.parent && b.parent.axisQ && b.equatorial) pole = Q.rot(b.parent.axisQ, [Math.sin(ob) * Math.cos(lon), Math.cos(ob), -Math.sin(ob) * Math.sin(lon)]);
       b.pole = V.norm(pole);
       const x = Math.abs(b.pole[1]) > 0.9999 ? [1, 0, 0] : V.norm(V.cross([0, 1, 0], b.pole));
@@ -235,7 +236,7 @@ function buildSol(sys) {
   const moon = Mn(earth, 'Moon', 'Selena', 384400, 0.0549, 5.145, 7.342e22, 1737.4, 0.12, { equatorial: false, tilt: 6.68 });
   moon.surface = surfacePreset('selena', rng, moon); Object.assign(moon.surface, { maria: 0.75, colA: [0.2, 0.195, 0.185], colB: [0.15, 0.145, 0.14], colLow: [0.062, 0.062, 0.066] });
   // Mars
-  const mars = P('Mars', 'Desert', 1.52371034, 0.0933941, 1.84969142, 49.55953891, -23.94362959, -4.55343205, 0.107, 3389.5, 24.6229, 25.19, 0.17, 210, { poleLon: 352.9 });
+  const mars = P('Mars', 'Desert', 1.52371034, 0.0933941, 1.84969142, 49.55953891, -23.94362959, -4.55343205, 0.107, 3389.5, 24.6229, 25.19, 0.17, 210, { poleEcl: [352.9, 63.3] });
   mars.surface = surfacePreset('desert', rng, mars); Object.assign(mars.surface, { colA: [0.44, 0.21, 0.09], colB: [0.2, 0.09, 0.045], colLow: [0.11, 0.06, 0.04], colSand: [0.5, 0.27, 0.13], iceLat: 0.955, mtnAmp: 9000, contAmp: 3500 });
   mars.atmo = makeAtmosphere(mars, 636, { CO2: 0.95, N2: 0.03, Ar: 0.02 }, { T: 210, hR: 11100, hM: 11000, top: 120000, mieS: [1.3e-5, 1.05e-5, 0.65e-5], mieA: [0.04e-5, 0.2e-5, 0.6e-5], mieG: [0.72, 0.76, 0.86] });
   const ph = Mn(mars, 'Phobos', 'Asteroid', 9376, 0.0151, 1.08, 1.0659e16, 11.27, 0.07); ph.surface = surfacePreset('asteroid', rng, ph);
@@ -254,7 +255,7 @@ function buildSol(sys) {
   const ga = Mn(jup, 'Ganymede', 'Ice world', 1070400, 0.0013, 0.177, 1.4819e23, 2634.1, 0.43); ga.surface = surfacePreset('ice', rng, ga); Object.assign(ga.surface, { crater: 0.7, cracks: 0.5, maria: 0.6, colA: [0.5, 0.47, 0.43], colB: [0.38, 0.35, 0.32], colLow: [0.2, 0.18, 0.16], colCrack: [0.6, 0.58, 0.55] });
   const ca = Mn(jup, 'Callisto', 'Ice world', 1882700, 0.0074, 0.192, 1.0759e23, 2410.3, 0.2); ca.surface = surfacePreset('ice', rng, ca); Object.assign(ca.surface, { crater: 1, cracks: 0, colA: [0.24, 0.21, 0.18], colB: [0.16, 0.14, 0.12], colLow: [0.13, 0.115, 0.1] });
   // Saturn
-  const sat = P('Saturn', 'Gas giant', 9.53667594, 0.05386179, 2.48599187, 113.66242448, 92.59887831, 49.95424423, 95.16, 58232, 10.656, 26.73, 0.47, 134, { oblate: 0.098, poleLon: 79.5 });
+  const sat = P('Saturn', 'Gas giant', 9.53667594, 0.05386179, 2.48599187, 113.66242448, 92.59887831, 49.95424423, 95.16, 58232, 10.656, 26.73, 0.47, 134, { oblate: 0.098, poleEcl: [79.5, 61.9] });
   sat.surface = gasPreset('saturn', rng, sat);
   sat.atmo = makeAtmosphere(sat, 0.05e5, { H2: 0.96, He: 0.04 }, { T: 134, top: 700000, hM: 40000, mieS: [1.5e-7, 1.4e-7, 1e-7], mieA: [0, 0, 0] });
   sat.rings = { inner: 66900e3, outer: 140220e3, opacity: 1, color: [0.82, 0.74, 0.6], seed: 1, kind: 'saturn' };
@@ -269,7 +270,7 @@ function buildSol(sys) {
   titan.atmo = makeAtmosphere(titan, 146700, { N2: 0.95, CH4: 0.05 }, { T: 94, hR: 21000, hM: 55000, top: 600000, mieS: [1.9e-5, 1.5e-5, 0.8e-5], mieA: [0.1e-5, 0.5e-5, 1.5e-5], mieG: [0.7, 0.7, 0.7] });
   mkIce(Mn(sat, 'Iapetus', 'Ice world', 3560820, 0.0286, 15.47, 1.8056e21, 734.5, 0.3), { crater: 1, cracks: 0, maria: 1, colLow: [0.04, 0.035, 0.03] });
   // Uranus
-  const ura = P('Uranus', 'Ice giant', 19.18916464, 0.04725744, 0.77263783, 74.01692503, 170.9542763, 313.23810451, 14.54, 25362, -17.24, 97.77, 0.51, 76, { oblate: 0.0229 });
+  const ura = P('Uranus', 'Ice giant', 19.18916464, 0.04725744, 0.77263783, 74.01692503, 170.9542763, 313.23810451, 14.54, 25362, -17.24, 97.77, 0.51, 76, { oblate: 0.0229, poleEcl: [77.6, -7.7] });
   ura.surface = gasPreset('uranus', rng, ura);
   ura.atmo = makeAtmosphere(ura, 1e5, { H2: 0.83, He: 0.15, CH4: 0.02 }, { T: 76, top: 500000, hM: 30000, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: [1.5e-6, 2e-7, 5e-8], absH: 0, absW: 400000 });
   ura.rings = { inner: 38000e3, outer: 51200e3, opacity: 0.25, color: [0.35, 0.35, 0.38], seed: 9, kind: 'narrow' };
@@ -279,7 +280,7 @@ function buildSol(sys) {
   mkIce(Mn(ura, 'Titania', 'Ice world', 435910, 0.0011, 0.34, 3.527e21, 788.4, 0.35), { crater: 0.8, cracks: 0.5, colA: [0.4, 0.38, 0.36], colB: [0.3, 0.29, 0.27] });
   mkIce(Mn(ura, 'Oberon', 'Ice world', 583520, 0.0014, 0.058, 3.014e21, 761.4, 0.31), { crater: 1, cracks: 0.1, colA: [0.36, 0.33, 0.31], colB: [0.27, 0.25, 0.23] });
   // Neptune
-  const nep = P('Neptune', 'Ice giant', 30.06992276, 0.00859048, 1.77004347, 131.78422574, 44.96476227, -55.12002969, 17.15, 24622, 16.11, 28.32, 0.41, 72, { oblate: 0.0171 });
+  const nep = P('Neptune', 'Ice giant', 30.06992276, 0.00859048, 1.77004347, 131.78422574, 44.96476227, -55.12002969, 17.15, 24622, 16.11, 28.32, 0.41, 72, { oblate: 0.0171, poleEcl: [319.2, 61.5] });
   nep.surface = gasPreset('neptune', rng, nep);
   nep.atmo = makeAtmosphere(nep, 1e5, { H2: 0.8, He: 0.19, CH4: 0.015 }, { T: 72, top: 500000, hM: 30000, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: [2.5e-6, 4e-7, 3e-8], absH: 0, absW: 400000 });
   const tri = Mn(nep, 'Triton', 'Ice world', 354759, 0.000016, 156.885, 2.139e22, 1353.4, 0.76); mkIce(tri, { crater: 0.1, cracks: 0.6, colA: [0.78, 0.72, 0.68], colB: [0.65, 0.58, 0.55], colCrack: [0.5, 0.45, 0.45] });
@@ -326,11 +327,14 @@ function buildProcedural(sys) {
   sys.root = primary;
   // multiplicity
   const multP = st.kind === KIND.MS ? clamp(0.25 + 0.2 * Math.log10(st.mass / C.Msun + 0.3) + 0.2, 0.2, 0.75) : 0.25;
-  if (rng.chance(multP) && st.kind !== KIND.BH) {
+  const comp = d.companion;
+  if ((rng.chance(multP) && st.kind !== KIND.BH) || comp) {
     const q = rng.range(0.15, 0.98);
     const MV2 = st.MV + (-10 * Math.log10(q)) * (st.kind === KIND.MS ? 1 : 0.4) + (st.kind === KIND.MS ? 0 : 3);
-    const s2 = makeStar(clamp(MV2, -6, 24), rng.f() * 0.5 + 0.5, rng.f(), false);
-    const sepAU = Math.pow(10, clamp(1.5 + 1.4 * rng.gauss(), -1.2, 4)) * Math.max(1, (st.radius + s2.radius) / C.AU * 3);
+    const s2r = makeStar(clamp(MV2, -6, 24), rng.f() * 0.5 + 0.5, rng.f(), false);
+    const s2 = comp ? makeStar(comp.MV, comp.u1, comp.u2, true) : s2r;
+    const sepR = Math.pow(10, clamp(1.5 + 1.4 * rng.gauss(), -1.2, 4)) * Math.max(1, (st.radius + s2.radius) / C.AU * 3);
+    const sepAU = comp ? comp.sep : sepR;
     const bary = body({ name: name + ' barycenter', kind: 'barycenter', cls: 'Barycenter', mass: st.mass + s2.mass, radius: 0 });
     primary.name = name + ' A';
     const B = makeStarBody(s2, name + ' B', rng);

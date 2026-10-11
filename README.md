@@ -3,11 +3,24 @@
 A procedural universe at 1:1 scale that runs in the browser (WebGL2, no build step, no dependencies).
 You can fly from a planet's surface out to intergalactic space without a loading screen.
 
+## Gallery
+
+All of these are unedited frames from the app, rendered headless on this machine (software GPU, reduced settings).
+
+| | |
+| --- | --- |
+| ![Earth](docs/earth.jpg) Earth-like planet, clouds and terminator | ![Mars](docs/mars.jpg) Mars surface, dust sky with blue solar aureole |
+| ![Moon](docs/moon.jpg) Moon near the terminator | ![Sunset](docs/land3.jpg) Sunset on Earth |
+| ![Saturn](docs/saturn.jpg) Saturn in 2017 | ![Jupiter](docs/jupiter.jpg) Jupiter |
+| ![Milky Way](docs/mw.jpg) Milky Way from the Solar System | ![Andromeda](docs/m31.jpg) Andromeda |
+| ![Orion](docs/orion.jpg) Orion Nebula | ![Black hole](docs/bh.jpg) Sagittarius A* |
+| ![Night](docs/night.jpg) City lights on the night side | ![Bodies](docs/sheet.jpg) Mercury, Venus, Io, Europa, Titan, Uranus, Neptune, Pluto, Ganymede |
+
 ## Run
 
     cd ~/projects/cosmos
-    python3 -m http.server 8642
-    # open http://localhost:8642/
+    ./run.sh          # serves http://localhost:8642/
+    ./run.sh show     # also opens it on the desktop session (display :20)
 
 Needs a browser with WebGL2 and float render targets (any desktop Chrome, Firefox or Edge with a GPU).
 Quality presets: add `?q=low`, `?q=medium` or `?q=high` (default). Dynamic resolution is on by default.
@@ -22,7 +35,7 @@ Quality presets: add `?q=low`, `?q=medium` or `?q=high` (default). Dynamic resol
 | W A S D, R F | Fly (Shift faster, Ctrl slower) |
 | Q E, arrows | Roll, turn |
 | Click, double click | Select, go to |
-| G, L | Go to, land on the selection |
+| G, L, C | Go to, land on, look at the selection |
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time |
 | Tab | System browser |
 | O, N | Orbits, labels |

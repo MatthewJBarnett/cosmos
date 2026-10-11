@@ -226,10 +226,10 @@ export function drawNebulaeAndFx(nav, o) {
     const nb = v.nb; v.name = nb.name; visibleNebulae.push(v);
     // scissor to the projected sphere
     let sc = null;
-    if (v.d > nb.radius * 1.3) {
+    if (v.d > nb.radius * 4) {
       const vv = Q.rot(Q.conj(nav.q), v.rel); if (vv[2] > -nb.radius * 0 && vv[2] > 0) continue;
       const z = -vv[2]; if (z <= 0) continue;
-      const cx = (vv[0] / (z * o.tanFov[0]) * 0.5 + 0.5) * w, cy = (vv[1] / (z * o.tanFov[1]) * 0.5 + 0.5) * h, rp = v.px * 1.6 + 4;
+      const cx = (vv[0] / (z * o.tanFov[0]) * 0.5 + 0.5) * w, cy = (vv[1] / (z * o.tanFov[1]) * 0.5 + 0.5) * h, rp = v.px * 2.2 + 6;
       const x0 = clamp(Math.floor(cx - rp), 0, w), y0 = clamp(Math.floor(cy - rp), 0, h), x1 = clamp(Math.ceil(cx + rp), 0, w), y1 = clamp(Math.ceil(cy + rp), 0, h);
       if (x1 <= x0 || y1 <= y0) continue; sc = [x0, y0, x1 - x0, y1 - y0];
     }

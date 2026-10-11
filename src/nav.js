@@ -25,7 +25,7 @@ function fieldFor(g) {
     addFixed(f, sunDescriptor(g), 4.83, 5772);
     // Cygnus X-1: stellar black hole with a blue supergiant companion
     const d = galDir(71.33, 3.07);
-    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 } }, 12, 20000);
+    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
   }
   // central supermassive black hole
   {
@@ -258,6 +258,12 @@ export class Nav {
     if (up && alt < anchor.radius * 0.05 && !input.roll && !this.goto) {
       const r = Q.rot(this.q, [1, 0, 0]), f = Q.rot(this.q, [0, 0, -1]);
       if (Math.abs(V.dot(f, up)) < 0.95) { const rollErr = Math.asin(clamp(V.dot(r, up), -1, 1)); this.q = Q.mul(this.q, Q.axis([0, 0, 1], -rollErr * Math.min(1, dt * 3))); }
+    }
+    // turn to face a target (C key)
+    if (this.lookTarget) {
+      const rel = this.relTo(this.lookTarget), tq = Q.look(rel, Q.rot(this.q, [0, 1, 0]));
+      this.q = Q.slerp(this.q, tq, 1 - Math.exp(-dt * 6));
+      if (V.dot(Q.rot(this.q, [0, 0, -1]), V.norm(rel)) > 0.99999 || input.lookX || input.lookY) this.lookTarget = null;
     }
     this.q = Q.norm(this.q);
     // orbit around the selection

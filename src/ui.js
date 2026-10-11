@@ -65,7 +65,7 @@ export class UI {
       <tr><td>Left drag</td><td>Look around</td></tr><tr><td>Right drag</td><td>Orbit the selected object</td></tr>
       <tr><td>Wheel</td><td>Change flight speed (Ctrl + wheel: zoom to selection)</td></tr>
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
-      <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L</td><td>Go to, land on selection</td></tr>
+      <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
       <tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N</td><td>Toggle orbits, labels</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2</td><td>Hide interface</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
@@ -131,6 +131,7 @@ export class UI {
       const k = e.key.toLowerCase(); this.keys.add(k);
       if (k === 'tab') { e.preventDefault(); this.toggle(this.sysPanel); }
       else if (k === 'g') nav.goTo(nav.selected);
+      else if (k === 'c') nav.lookTarget = nav.selected;
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
       else if (k === ' ') { e.preventDefault(); nav.paused = !nav.paused; }
       else if (k === '.') this.stepRate(1); else if (k === ',') this.stepRate(-1);

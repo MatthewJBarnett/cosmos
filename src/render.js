@@ -351,7 +351,9 @@ export class Renderer {
     // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
     let deep = 0;
     if (nav.level === 'universe') deep = 1; else if (gal) deep = clamp((V.len(nav.camG()) / gal.radius - 1.3) / 2, 0, 1);
-    this.maxExposure = rcfg.maxExposure * (1 + 150 * deep);
+    this.maxExposure = rcfg.maxExposure * (1 + 150 * deep); this.deep = deep;
+    // an accretion disk is small and extremely bright: meter on it rather than on the dark sky around it
+    this.meterTop = !!(sys && blackHoles.length && blackHoles.some(b => b.accretion && b.dist < b.radius * 400));
     this.adaptExposure(dt);
     this.stats = { stars: nStars, drawn: drawList.length, pending: pendingBakes + (nav.field ? nav.field.busy || 0 : 0), exposure: this.exposure };
   }
@@ -367,7 +369,7 @@ export class Renderer {
     const lum = [];
     for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / this.exposure; lum.push(isFinite(l) ? l : 0); }
     lum.sort((a, b) => a - b);
-    this.lumHi = lum[Math.floor(lum.length * 0.97)];
+    this.lumHi = lum[Math.floor(lum.length * 0.97)]; this.lumTop = lum[Math.floor(lum.length * 0.996)];
     this.lumMed = lum[Math.floor(lum.length * 0.5)];
     let s = 0; for (const l of lum) s += l; this.lumAvg = s / lum.length;
   }
@@ -375,7 +377,8 @@ export class Renderer {
     let target;
     if (!rcfg.autoExposure) target = rcfg.manualExposure;
     else {
-      const hi = Math.max(this.lumHi || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
+      // in intergalactic space the only bright things are small galaxies: meter on the very brightest cells
+      const hi = Math.max((this.deep > 0.05 || this.meterTop ? this.lumTop : this.lumHi) || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
       target = clamp(target, rcfg.minExposure, this.maxExposure || rcfg.maxExposure);
