@@ -12,7 +12,10 @@ export function initGL(canvas) {
   return gl;
 }
 
-const HEADER = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp samplerCube;\nprecision highp sampler3D;\n';
+const HEADER = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp samplerCube;\nprecision highp sampler3D;\n' +
+  // Sample with an explicit level everywhere. Implicit derivatives are undefined inside loops and branches,
+  // and some GPUs (Apple) return garbage there, which poisoned the HDR buffer with infinities.
+  '#define texture(s, c) textureLod(s, c, 0.0)\n';
 
 function compile(type, src, name) {
   const s = gl.createShader(type);

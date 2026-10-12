@@ -19,7 +19,8 @@ void main(){
   vec3 f = texture(uTex, vUV + uTexel*vec2(-2,0)).rgb, g = texture(uTex, vUV + uTexel*vec2(2,0)).rgb, h = texture(uTex, vUV + uTexel*vec2(0,-2)).rgb, i = texture(uTex, vUV + uTexel*vec2(0,2)).rgb;
   vec3 j = texture(uTex, vUV + uTexel*vec2(-2,-2)).rgb, k = texture(uTex, vUV + uTexel*vec2(2,-2)).rgb, l = texture(uTex, vUV + uTexel*vec2(-2,2)).rgb, m = texture(uTex, vUV + uTexel*vec2(2,2)).rgb;
   vec3 s = (a + b + c + d)*0.125 + e*0.125 + (f + g + h + i)*0.0625 + (j + k + l + m)*0.03125;
-  o = vec4(min(s, vec3(60000.)), 1.);
+  if (any(isnan(s)) || any(isinf(s))) s = vec3(0.);
+  o = vec4(clamp(s, 0., 60000.), 1.);
 }`;
 const UP_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex, uBase; uniform vec2 uTexel; uniform float uMix;
 void main(){
@@ -38,6 +39,8 @@ vec3 aces(vec3 c){
 float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y)*p3.z); }
 void main(){
   vec3 hdr = texture(uHDR, vUV).rgb, bl = texture(uBloom, vUV).rgb;
+  if (any(isnan(hdr)) || any(isinf(hdr))) hdr = vec3(0.);
+  if (any(isnan(bl)) || any(isinf(bl))) bl = vec3(0.);
   vec3 c = mix(hdr, bl, uBloomAmt);
   // lens ghosts from very bright sources (sun in frame)
   vec2 gv = vec2(0.5) - vUV;

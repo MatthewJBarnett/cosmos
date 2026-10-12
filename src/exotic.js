@@ -169,7 +169,9 @@ void main(){
     L += T*col*d*dt;
     T *= st;
   }
-  o = vec4(L*uScale, T);
+  vec3 res = L*uScale;
+  if (any(isnan(res)) || any(isinf(res))) res = vec3(0.);
+  o = vec4(min(res, vec3(60000.)), clamp(T, 0., 1.));
 }`;
 let pNeb;
 const nebCache = new Map();

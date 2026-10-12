@@ -115,7 +115,9 @@ void main(){
     T *= st;
     if (T.g < 0.01) break;
   }
-  o = vec4(L*g.lum*uScale, T.g);
+  vec3 res = L*g.lum*uScale;
+  if (any(isnan(res)) || any(isinf(res))) res = vec3(0.);
+  o = vec4(min(res, vec3(60000.)), T.g);
 }`;
 
 const CUBE_FS = `
@@ -148,12 +150,14 @@ void main(){
     T *= st;
     if (T.g < 0.005) break;
   }
-  o = vec4(L*g.lum, T.g);
+  vec4 res = vec4(L*g.lum, T.g);
+  if (any(isnan(res)) || any(isinf(res))) res = vec4(0., 0., 0., 1.);
+  o = clamp(res, 0., 30000.);
 }`;
 const CUBEDRAW_FS = `
 in vec2 vUV; out vec4 o;
 uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale;
-void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); o = vec4(c.rgb*uScale, c.a); }`;
+void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, clamp(c.a, 0., 1.)); }`;
 
 let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
 function init() {

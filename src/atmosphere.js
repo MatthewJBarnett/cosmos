@@ -208,7 +208,8 @@ void main(){
   }
   if (!passed) Tc = T;
   vec3 col = scene.rgb*T*cloudT + (L + cloudL*Tc)*uExposure;
-  oColor = vec4(min(col, vec3(60000.)), 1.);
+  if (any(isnan(col)) || any(isinf(col))) col = scene.rgb;
+  oColor = vec4(clamp(col, 0., 60000.), 1.);
 }`;
 
 function init() {
