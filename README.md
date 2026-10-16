@@ -18,6 +18,8 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Cygnus X-1](docs/cygx1.jpg) Cygnus X-1 lensing its supergiant companion | ![Orion](docs/orion.jpg) Orion Nebula |
 | ![Andromeda](docs/m31.jpg) Andromeda | ![Galaxy](docs/galaxy2.jpg) The Milky Way from above |
 | ![Crescent Moon](docs/crescent_earthshine.jpg) Crescent Moon at dusk, 12 May 2024, with earthshine | ![Venus](docs/venus.jpg) Venus |
+| ![Refracted sunset](docs/refracted_sunset.jpg) Sunset over the Atlantic: refraction lifts and flattens the Sun | ![Night orbit](docs/night_orbit.jpg) Moonlit night from orbit with airglow |
+| ![Io shadow](docs/io_shadow.jpg) Io's shadow on Jupiter, 20 October 2026 | ![Winter](docs/winter.jpg) Europe in January |
 
 ## Run
 
@@ -87,12 +89,17 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
   coordinates supplied in double precision, so detail holds down to centimetres.
 - **Atmospheres:** physically based scattering (Hillaire 2020 LUTs) with coefficients from pressure, temperature,
   gravity and composition; ozone and methane absorption; Martian dust with wavelength-dependent phase; planet shadow,
-  eclipses and cloud shadows in the air (crepuscular rays). Aurora around the real geomagnetic pole.
+  eclipses and cloud shadows in the air (crepuscular rays).
 - **Clouds:** volumetric ray marching driven by the real cloud map on Earth and weather maps elsewhere.
 - **Oceans:** a directional wind-wave spectrum near the camera that becomes microfacet roughness with distance,
   Fresnel reflection of a horizon-weighted sky, the sun's glitter path, depth-dependent colour.
-- **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing, planetshine (earthshine on the Moon,
-  moonlight at night), Lommel-Seeliger scattering on airless bodies.
+- **Seeing from the ground:** astronomical refraction lifts and flattens the setting Sun and Moon and raises stars
+  near the horizon; stars twinkle more near the horizon; light pollution from the real night-lights map glows over
+  cities; airglow at 95 km; aurora around the real geomagnetic pole.
+- **Seasons:** Earth's snow cover follows the date (continental interiors first, forests show through the snow).
+- **Orbit mode (Y):** Newtonian two-body flight with thrusters; a 400 km orbit around Earth takes 92.4 minutes.
+- **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
+  (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.
 - **Exotic objects:** ray traced Schwarzschild black holes with Doppler-beamed accretion disks, volumetric nebulae,
   coronae, comet tails, pulsar beams.
 - **Camera:** HDR pipeline, auto exposure that switches to the corona during totality, bloom, ACES tone mapping and

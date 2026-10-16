@@ -3,7 +3,7 @@
 import { gl, Program, drawFS, FS_VS, makeVAO } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
 import { RNG, hashCombine, makeName } from './rng.js';
-import { LOGDEPTH_VS, LOGDEPTH_FS } from './planet.js';
+import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
 import { GLSL_BB, bbColor } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
@@ -93,8 +93,9 @@ export function drawBlackHole(b, o) {
 
 // ---------------- coronae ----------------
 const COR_VS = `layout(location=0) in vec2 aPos; uniform mat4 uViewProj; uniform vec3 uRel; uniform float uSize; out vec2 vP; ${LOGDEPTH_VS}
+${REFRACT_VS}
 void main(){ vec3 f = normalize(uRel); vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
-  vP = aPos*uSize; vec3 w = uRel + (r*aPos.x + u*aPos.y)*uSize; gl_Position = uViewProj*vec4(w, 1.); logDepth(); }`;
+  vP = aPos*uSize; vec3 w = uRel + (r*aPos.x + u*aPos.y)*uSize; gl_Position = uViewProj*vec4(refractLift(w), 1.); logDepth(); }`;
 const COR_FS = `in vec2 vP; out vec4 o; uniform float uR, uExposure, uRad, uTime, uSeed; uniform vec3 uCol; uniform sampler3D uNoise3; ${LOGDEPTH_FS}
 void main(){ logDepth();
   float r = length(vP)/uR; if (r < 0.98) discard;
@@ -286,7 +287,7 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
   for (const s of sys.stars) {
     if (s.blackHole || !s.rel || s.pxRadius < 1.5) continue;
     const c = bbColor(s.temp), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    pCor.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: s.rel, uSize: s.radius * 8, uR: s.radius, uExposure: o.exposure, uRad: 1.47e4 * s.lum / ((s.radius / C.Rsun) ** 2), uCol: [c[0] / y, c[1] / y, c[2] / y], uNoise3: o.noise3, uTime: o.time % 1e7, uSeed: (s.uid * 0.37) % 1 });
+    pCor.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: s.rel, uSize: s.radius * 8, uR: s.radius, uExposure: o.exposure, uRad: 1.47e4 * s.lum / ((s.radius / C.Rsun) ** 2), uCol: [c[0] / y, c[1] / y, c[2] / y], uNoise3: o.noise3, uTime: o.time % 1e7, uSeed: (s.uid * 0.37) % 1, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0] });
     gl.bindVertexArray(quad()); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   gl.disable(gl.DEPTH_TEST);

@@ -279,12 +279,25 @@ export class Renderer {
     }
     T('galsky');
     let nStars = 0;
+    // astronomical refraction for an observer near the surface of a body with an atmosphere
+    let refrK = 0, refrUp = [0, 1, 0];
+    { const an = nav.anchor;
+      if (an && an.atmo && sys && nav.level === 'system') {
+        const a = an.atmo, alt = Math.max(nav.altitude, 0);
+        if (alt < a.hR * 2.5) {
+          const kind = a.comp && a.comp.CO2 > 0.5 ? 1.5 : a.comp && a.comp.H2 > 0.5 ? 0.47 : 1;
+          refrK = Math.min(20, (a.P / 101325) * (288 / (a.T || 288)) * kind) * Math.exp(-alt / a.hR);
+          refrUp = V.norm(V.sub(nav.S, an.wpos));
+        }
+      } }
+    common.refrK = refrK; common.refrUp = refrUp;
     if (gal && nav.field) {
       const hide = sys ? sys.posLocal : null;
       // twinkling only for an observer under an atmosphere
       let twinkle = 0, upLocal = null;
       const an = nav.anchor;
-      if (an && an.atmo && nav.altitude < an.atmo.hR * 2 && an.atmo.P > 3e4) { twinkle = 1; upLocal = Q.rot(Q.conj(gal.quat), V.norm(V.sub(nav.S, an.wpos))); }
+      if (an && an.atmo && nav.altitude < an.atmo.hR * 2 && an.atmo.P > 3e4) twinkle = 1;
+      if (refrK > 0) upLocal = Q.rot(Q.conj(gal.quat), refrUp);
       nStars = drawStars(nav.field, camLocal, viewProjLocal, Object.assign({ hide, twinkle, upLocal }, common));
     }
     T('stars');
@@ -382,7 +395,7 @@ export class Renderer {
         if (!b._ringOnly) {
           gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND);
           const starRad = isStar ? 1.47e4 * b.lum / ((b.radius / C.Rsun) ** 2) * clamp((b.pxRadius - 0.8) / 1.2, 0, 1) : 0;
-          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, pxPerRadMax: h / (2 * Math.tan(3 * Math.PI / 180)), sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
+          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, pxPerRadMax: h / (2 * Math.tan(3 * Math.PI / 180)), sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, refrK: b === nav.anchor ? 0 : refrK, refrUp, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);
         }
         b._ringOnly = false;
@@ -407,7 +420,7 @@ export class Renderer {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
       drawPoints(points, viewProj, common);
       // star coronae / glare
-      drawNebulaeAndFx.coronae(sys, nav, { viewProj, fcoef, exposure, pxPerRad, time: nav.time, noise3: this.noise3 });
+      drawNebulaeAndFx.coronae(sys, nav, { viewProj, fcoef, exposure, pxPerRad, time: nav.time, noise3: this.noise3, refrK, refrUp });
 
       T('rings+pts');
       // atmospheres, far to near. The one covering most of the screen goes through the half resolution

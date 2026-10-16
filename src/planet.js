@@ -15,6 +15,18 @@ const FACES = [
   { N: [0, 1, 0], A: [1, 0, 0], B: [0, 0, -1] }, { N: [0, -1, 0], A: [1, 0, 0], B: [0, 0, 1] },
   { N: [0, 0, 1], A: [1, 0, 0], B: [0, 1, 0] }, { N: [0, 0, -1], A: [-1, 0, 0], B: [0, 1, 0] }];
 
+// Astronomical refraction for an observer under an atmosphere: celestial objects are lifted towards the zenith
+// by R(true altitude) (Saemundsson). uRefrK is 0 when not applicable, 1 for Earth at sea level.
+export const REFRACT_VS = `uniform float uRefrK; uniform vec3 uRefrUp;
+vec3 refractLift(vec3 p){
+  if (uRefrK <= 0.) return p;
+  float d = length(p); vec3 v = p/d;
+  float sh = dot(v, uRefrUp); if (sh < -0.05 || sh > 0.6) return p;
+  float h = degrees(asin(sh));
+  float R = radians(uRefrK*1.02/tan(radians(h + 10.3/(h + 5.11)))/60.);
+  vec3 t = normalize(uRefrUp - v*sh);
+  return (v*cos(R) + t*sin(R))*d;
+}`;
 export const LOGDEPTH_VS = `uniform float uFcoef; out float vFlogz;
 void logDepth(){ vFlogz = 1.0 + gl_Position.w; gl_Position.z = (log2(max(1e-6, vFlogz))*uFcoef - 1.0)*gl_Position.w; }`;
 export const LOGDEPTH_FS = `uniform float uFcoef; in float vFlogz;
@@ -22,6 +34,7 @@ void logDepth(){ gl_FragDepth = log2(vFlogz)*uFcoef*0.5; }`;
 
 const DRAW_VS = `
 layout(location=0) in vec3 aPos;
+${REFRACT_VS}
 uniform sampler2D uHeightTex;
 uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
@@ -43,7 +56,7 @@ void main(){
   local *= uShape;     // triaxial bodies (asteroids, small moons)
   vWorld = uRot*local + uCenterRel;
   vDir = dir; vUV = uv;
-  gl_Position = uViewProj*vec4(vWorld, 1.);
+  gl_Position = uViewProj*vec4(refractLift(vWorld), 1.);
   logDepth();
 }`;
 
@@ -514,7 +527,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: surf.sea || 0, uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: surf.lava ? 0.06 : 9e-5, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
-    uNoise3: o.noise3, uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
+    uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';

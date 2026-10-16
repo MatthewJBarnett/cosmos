@@ -341,7 +341,7 @@ void main(){
 
 // Astronomical refraction for an observer near the ground: we see sky light from a slightly lower true direction
 // (Bennett's formula), slightly different per colour (dispersion gives the green rim of the setting sun).
-uniform float uRefract; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
+uniform float uRefract, uSkyDepth; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
 vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanFov, vec3 fallback){
   if (uRefract <= 0.) return fallback;
   float sh = dot(rd, uUpR); if (sh < -0.03 || sh > 0.5) return fallback;
@@ -357,7 +357,7 @@ vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanF
     vec3 v = uCamRotInvR*r2; if (v.z >= 0.) continue;
     vec2 uv2 = (v.xy/(-v.z)/tanFov)*0.5 + 0.5;
     if (any(lessThan(uv2, vec2(0.))) || any(greaterThan(uv2, vec2(1.)))) continue;
-    if (texture(depthT, uv2).r < 0.99999) continue;     // only re-map sky onto sky
+    if (texture(depthT, uv2).r < uSkyDepth) continue;     // only re-map sky (incl. Sun, Moon, planets) onto sky
     col[c] = texture(scene, uv2)[c];
   }
   return col;
@@ -366,7 +366,6 @@ out vec4 oColor;
 void main(){
   vec4 scene = texture(uScene, vUV);
   vec3 L, T; float d, rep; volumetrics(vUV, L, T, d, rep);
-  if (d >= 0.99999) scene.rgb = refractedSky(uScene, uDepth, vUV, normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.)), uTanFov, scene.rgb);
   oColor = vec4(clamp(scene.rgb*T + L*uExposure, 0., 60000.), 1.);
 }
 #endif
@@ -419,7 +418,7 @@ uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform floa
 
 // Astronomical refraction for an observer near the ground: we see sky light from a slightly lower true direction
 // (Bennett's formula), slightly different per colour (dispersion gives the green rim of the setting sun).
-uniform float uRefract; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
+uniform float uRefract, uSkyDepth; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
 vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanFov, vec3 fallback){
   if (uRefract <= 0.) return fallback;
   float sh = dot(rd, uUpR); if (sh < -0.03 || sh > 0.5) return fallback;
@@ -435,7 +434,7 @@ vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanF
     vec3 v = uCamRotInvR*r2; if (v.z >= 0.) continue;
     vec2 uv2 = (v.xy/(-v.z)/tanFov)*0.5 + 0.5;
     if (any(lessThan(uv2, vec2(0.))) || any(greaterThan(uv2, vec2(1.)))) continue;
-    if (texture(depthT, uv2).r < 0.99999) continue;     // only re-map sky onto sky
+    if (texture(depthT, uv2).r < uSkyDepth) continue;     // only re-map sky (incl. Sun, Moon, planets) onto sky
     col[c] = texture(scene, uv2)[c];
   }
   return col;
@@ -443,7 +442,6 @@ vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanF
 void main(){
   vec4 scene = texture(uScene, vUV);
   float d = texture(uDepth, vUV).r;
-  if (d >= 0.99999) scene.rgb = refractedSky(uScene, uDepth, vUV, normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.)), uTanFov, scene.rgb);
   vec2 hp = vUV*uHalfSize - 0.5; vec2 f = fract(hp); ivec2 i0 = ivec2(floor(hp));
   ivec2 mx = ivec2(uHalfSize) - 1;
   vec3 L = vec3(0.), T = vec3(0.); float ws = 0.; float best = 1e9; vec3 bL = vec3(0.), bT = vec3(1.);
@@ -516,7 +514,8 @@ function refractUniforms(body, o) {
     const refr = a.comp && a.comp.CO2 > 0.5 ? 1.5 : a.comp && a.comp.H2 > 0.5 ? 0.47 : 1;
     k = Math.min(20, (a.P / 101325) * (288 / (a.T || 288)) * refr) * Math.exp(-Math.max(camAlt, 0) / a.hR);
   }
-  return { uRefract: k, uCamRotInvR: o.camRotInv || o.camRot, uUpR: up };
+  // anything farther than 100,000 km (Sun, Moon, planets, stars) is part of the sky for refraction
+  return { uRefract: k, uCamRotInvR: o.camRotInv || o.camRot, uUpR: up, uSkyDepth: Math.log2(1 + 1e8) * (o.fcoef || 0) * 0.5 };
 }
 let dummy2D = null;
 function getDummy2D() { if (!dummy2D) dummy2D = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([0, 0, 0, 255])); return dummy2D; }

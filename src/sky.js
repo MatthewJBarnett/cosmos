@@ -4,6 +4,7 @@ import { gl, Program, texCube, fbo, drawFS, FS_VS, makeVAO } from './gl.js';
 import { V, Q } from './math.js';
 import { GLSL_GALAXY, GLEVELS, galaxyCell, REAL_GALAXIES, galUniforms } from './universe.js';
 import { GLSL_BB } from './stars.js';
+import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
 
@@ -16,6 +17,7 @@ const STAR_VS = `
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT;
 uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uPixScale, uBoost; uniform vec3 uHide;
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
+${REFRACT_VS}
 out vec3 vCol; out float vSig;
 ${GLSL_BB}
 void main(){
@@ -36,7 +38,7 @@ void main(){
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 5.*uPixScale); peak = I/(6.2832*sig*sig); }
   vec3 c = bbColor(aMT.y); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
   vCol = c*min(peak, 30.); vSig = sig;
-  gl_Position = uViewProj*vec4(p, 1.); gl_Position.z = 0.;
+  gl_Position = uViewProj*vec4(refractLift(p), 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
@@ -55,13 +57,14 @@ const PT_VS = `
 layout(location=0) in vec3 aDir; layout(location=1) in vec4 aCol;
 uniform mat4 uViewProj; uniform float uExposure, uPxSA, uPixScale;
 out vec3 vCol; out float vSig;
+${REFRACT_VS}
 void main(){
   float I = aCol.a/uPxSA*uExposure;
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 7.*uPixScale); peak = I/(6.2832*sig*sig); }
   vCol = aCol.rgb*min(peak, 30.); vSig = sig;
-  gl_Position = uViewProj*vec4(aDir, 1.); gl_Position.z = 0.;
+  gl_Position = uViewProj*vec4(refractLift(aDir), 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0005 ? 0. : ceil(sig*6. + 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
@@ -204,7 +207,7 @@ function init() {
 export function drawStars(field, camLocal, viewProjLocal, o) {
   init();
   const p = pStar.use();
-  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0] });
+  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0] });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;
   const hide = o.hide;
@@ -223,7 +226,7 @@ export function drawPoints(list, viewProj, o) {
   const data = new Float32Array(list.length * 7);
   list.forEach((q, i) => { data.set(q.dir, i * 7); data.set(q.color, i * 7 + 3); data[i * 7 + 6] = q.flux; });
   gl.bindVertexArray(ptVAO); gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-  pPt.use().set({ uViewProj: viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale });
+  pPt.use().set({ uViewProj: viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0] });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   gl.drawArrays(gl.POINTS, 0, list.length);
 }
