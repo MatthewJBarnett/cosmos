@@ -107,7 +107,14 @@ def main(hyg_path, stel_path, out_dir):
             if not math.isfinite(t) or t <= 0:
                 t = 5800.0
             t = min(max(t, 1500.0), 60000.0)
+            # heliocentric space velocity (HYG gives pc/yr in equatorial Cartesian); missing radial velocities are 0
+            vx, vy, vz = fnum(row['vx']) or 0.0, fnum(row['vy']) or 0.0, fnum(row['vz']) or 0.0
+            gvx = M[0][0] * vx + M[0][1] * vy + M[0][2] * vz
+            gvy = M[1][0] * vx + M[1][1] * vy + M[1][2] * vz
+            gvz = M[2][0] * vx + M[2][1] * vy + M[2][2] * vz
+            KMS = 977792.2  # km/s per pc/yr
             stars.append({
+                'VX': gvx * KMS, 'VY': gvz * KMS, 'VZ': -gvy * KMS,
                 'mag': mag, 'X': gx, 'Y': gz, 'Z': -gy, 'abs': absmag, 'T': t,
                 'hip': hip, 'proper': row['proper'].strip(), 'bayer': bayer_name(row),
                 'flam': flam_name(row), 'spect': row['spect'].strip(), 'hd': row['hd'].strip(),
@@ -120,6 +127,14 @@ def main(hyg_path, stel_path, out_dir):
         buf = bytearray()
         for s in stars:
             buf += struct.pack('<5f', s['X'], s['Y'], s['Z'], s['abs'], s['T'])
+        fh.write(buf)
+    # velocities (km/s, same frame and order), kept separate so stars.bin stays unchanged
+    with open(f"{out_dir}/stars_vel.bin", 'wb') as fh:
+        buf = bytearray()
+        for s in stars:
+            v = [s['VX'], s['VY'], s['VZ']]
+            v = [x if math.isfinite(x) and abs(x) < 3000 else 0.0 for x in v]
+            buf += struct.pack('<3f', *v)
         fh.write(buf)
 
     hip_index = {}
