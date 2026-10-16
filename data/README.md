@@ -127,3 +127,15 @@ USGS maps come from `https://planetarymaps.usgs.gov/cgi-bin/mapserv` GetMap requ
   file path could be confirmed. It has relief shading baked in, so lighting from the height map will
   double up slightly.
 - Pluto and Charon colour (USGS global mosaics are panchromatic).
+
+## Milky Way: `milkyway.jpg`
+
+Source: ESO Milky Way panorama (eso0932a, ESO/S. Brunier), CC BY 4.0. 4096x2048, galactic coordinates,
+galactic centre in the middle, longitude increasing to the left. Point stars removed with 7x7 then 5x5 median
+filters so they are not counted twice against the star catalogue. Built by `tools/data/build_milkyway.sh`.
+
+## Height maps: `*_height16.png`
+
+The 16-bit grayscale height PNGs were repacked as 8-bit RGB (R = high byte, G = low byte) by
+`tools/data/pack_heights.py`, because browsers decode 16-bit PNGs to 8 bits. Decode with
+`v = (R*256 + G) / 65535` and the ranges in `manifest.json`.

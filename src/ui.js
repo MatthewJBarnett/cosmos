@@ -74,7 +74,15 @@ export class UI {
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
       <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
-      </table><p class="dim">Press H or ? to close.</p>`;
+      </table>
+      <h3 style="margin-top:12px">Data and credits</h3>
+      <p class="dim credits">Earth: NASA Blue Marble NG, Black Marble 2016, Blue Marble clouds (NASA Earth Observatory); ETOPO 2022 (NOAA); Natural Earth.
+      Moon: LRO LROC WAC and LOLA (NASA SVS CGI Moon Kit). Mars: Viking MDIM 2.1 and MOLA (USGS Astrogeology). Mercury, moons, Pluto, Ceres: USGS Astrogeology mosaics from MESSENGER, Galileo, Voyager, Cassini, New Horizons and Dawn.
+      Gas giants, Venus clouds and Saturn's rings: Solar System Scope textures (CC BY 4.0).
+      Stars: HYG database v4.4, David Nash / astronexus.com (CC BY-SA 4.0). Constellation figures: Stellarium (GPL).
+      Milky Way: ESO/S. Brunier panorama (CC BY 4.0). Exoplanets: NASA Exoplanet Archive.
+      Ephemerides: JPL approximate planetary elements (E. M. Standish), J. Meeus, Astronomical Algorithms.</p>
+      <p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
     setTimeout(() => this.hint.classList.add('fade'), 9000);
     // on-screen fly buttons for touch screens
