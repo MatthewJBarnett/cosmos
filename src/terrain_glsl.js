@@ -304,7 +304,16 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   c = mix(c, c*vec3(0.85, 0.82, 0.8), rock2*0.4*(1. - fine));
   float nf = uOMax >= o0 ? fbm(o0, uOMax, 15u, d, 0.6)*0.5 : 0.;
   c *= 1. + nf*0.25*(1. - fine) + gFine*0.05;
-  if (uHasL > 0.5) { float l = texture(uLMap, uv).r; emis = l*l*0.85*gLand; }
+  if (uHasL > 0.5) {
+    float l = texture(uLMap, uv).r; emis = l*l*0.85*gLand;
+    // below the map's ~10 km pixels, light comes from towns and streets, not an even glow
+    if (uOMax >= o0 + 3) {
+      float towns = smoothstep(0.45, 0.8, 0.5 + 0.5*(gn(o0 + 3, 81u, d).x + 0.5*gn(o0 + 4, 81u, d).x));
+      float k = towns*3.2;
+      if (uOMax >= o0 + 8) { float st = max(gn(o0 + 8, 82u, d).x, 0.) + max(gn(o0 + 9, 83u, d).x, 0.)*0.7; k *= pow(st*1.6, 4.)*3.; }
+      emis *= mix(1., k, fine);
+    }
+  }
   if (uHasM > 0.5 && gLand < 0.5) c = m*0.8;
   return clamp(c, 0., 1.);
 }

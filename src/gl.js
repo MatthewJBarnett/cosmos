@@ -73,9 +73,14 @@ export class Program {
     for (const nm in this.texUnit) gl.uniform1i(this.u[nm], this.texUnit[nm]);
     this.linked = true;
   }
-  use() { if (!this.linked) this.finish(); gl.useProgram(this.p); return this; }
+  use() {
+    if (!this.linked && !this.broken) { try { this.finish(); } catch (e) { console.error(e); this.broken = true; } }
+    if (this.broken) { gl.useProgram(null); return this; }
+    gl.useProgram(this.p); return this;
+  }
   // set uniforms from object; textures given as {tex, target}
   set(vals) {
+    if (this.broken) return this;
     if (!this.linked) this.finish();
     for (const k in vals) {
       const loc = this.u[k]; if (loc === undefined || loc === null) continue;

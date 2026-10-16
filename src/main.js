@@ -10,7 +10,7 @@ import { loading, loadCatalog } from './assets.js';
 import { initPlanetPrograms } from './planet.js';
 import { initAtmoPrograms } from './atmosphere.js';
 import { initSkyPrograms } from './sky.js';
-import { initExtraPrograms } from './extras.js';
+import { initExtraPrograms, initRingParticles } from './extras.js';
 import { initExoticPrograms } from './exotic.js';
 import { V, Q, C } from './math.js';
 
@@ -39,7 +39,7 @@ try {
   L('gl'); rcfg.prof = params.has('prof');
   // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight
   showLoading('Compiling shaders');
-  initPlanetPrograms(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initExoticPrograms();
+  initPlanetPrograms(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initRingParticles(); initExoticPrograms();
   renderer = new Renderer(canvas); L('renderer');
   nav = new Nav(); L('nav');
   ui = new UI(nav, renderer, canvas);
@@ -87,7 +87,8 @@ async function waitPrograms() {
     if (n === allPrograms.length || performance.now() - t0 > 60000) break;
     await new Promise(r => setTimeout(r, 30));
   }
-  for (const p of allPrograms) p.finish();
+  // a shader that fails on this GPU disables its feature instead of stopping the app
+  for (const p of allPrograms) { try { p.finish(); } catch (e) { console.error(e); p.broken = true; } }
 }
 await waitPrograms();
 loadCatalog();

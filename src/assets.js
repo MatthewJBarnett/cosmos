@@ -22,7 +22,7 @@ export function loadTexture(url, kind = 'color') {
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
       const internal = kind === 'color' ? gl.SRGB8_ALPHA8 : gl.RGBA8;
       gl.texImage2D(gl.TEXTURE_2D, 0, internal, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      if (kind === 'data') {
+      if (kind === 'data' && !/_mask/.test(url)) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       } else {
         gl.generateMipmap(gl.TEXTURE_2D);

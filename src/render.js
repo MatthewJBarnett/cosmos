@@ -8,7 +8,7 @@ import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } 
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS } from './universe.js';
-import { drawRings, drawOrbits, drawBelts } from './extras.js';
+import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
 export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true, realSky: true };
@@ -302,7 +302,7 @@ export class Renderer {
           return { rel: l.rel, rad: l.body.radius, col: [c[0] / y * E, c[1] / y * E, c[2] / y * E], E, body: l.body };
         }).sort((a, c) => c.E - a.E);
         // planetshine: sunlight reflected by a nearby large body (earthshine on the Moon, moonlight on Earth)
-        if (b.kind !== 'star' && L.length) {
+        if (b.kind !== 'star' && L.length && !rcfg.noShine) {
           const sun = L[0];
           const cands = [];
           if (b.parent && b.parent.kind !== 'star' && b.parent.kind !== 'barycenter') cands.push(b.parent);
@@ -394,6 +394,8 @@ export class Renderer {
       T('planets');
       // rings, belts (blended, depth tested)
       gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
+      for (const b of drawList) if (b.rings && b._L && b.dist < b.rings.outer * 1.5) drawRingParticles(b, nav, { viewProj, fcoef, exposure, lights: b._L });
+      gl.depthMask(false);
       for (const b of drawList) if (b.rings && b.pxRadius > 0.5 && b._lu) drawRings(b, { viewProj, fcoef, exposure, light: b._lu, rel: b.rel, rotQ: b.wrot, noise3: this.noise3 });
       drawBelts(sys, nav, { viewProj, fcoef, exposure, pxSA, pixScale, lights });
       gl.disable(gl.DEPTH_TEST);
