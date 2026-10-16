@@ -30,12 +30,13 @@ try {
   const quality = params.get('q') || 'high';
   if (quality === 'low') { planetCfg.T = 97; atmoCfg.steps = 14; atmoCfg.cloudSteps = 14; skyCfg.cubeSize = 512; atmoCfg.cloudRes = 384; skyCfg.galSteps = 40; }
   else if (quality === 'medium') { planetCfg.T = 145; atmoCfg.steps = 20; atmoCfg.cloudSteps = 22; skyCfg.cubeSize = 768; atmoCfg.cloudRes = 512; }
+  else if (quality === 'ultra') { planetCfg.T = 241; planetCfg.maxChunks = 420; planetCfg.genPerFrame = 4; atmoCfg.steps = 36; atmoCfg.cloudSteps = 44; skyCfg.cubeSize = 1536; atmoCfg.cloudRes = 1024; skyCfg.galSteps = 96; }
   planetCfg.T = num('tex', planetCfg.T); if ((planetCfg.T - 1) % 3) planetCfg.T = 193;
   planetCfg.genPerFrame = num('gen', 3);
   skyCfg.cubeSize = num('cube', skyCfg.cubeSize); skyCfg.galRange = num('galr', 1);
   atmoCfg.cloudRes = num('cloudres', atmoCfg.cloudRes); atmoCfg.steps = num('asteps', atmoCfg.steps); atmoCfg.cloudSteps = num('csteps', atmoCfg.cloudSteps);
   // start at one render pixel per CSS pixel (temporal AA keeps it sharp); dynamic resolution may go up to 1.5x on fast GPUs
-  rcfg.scaleMax = num('scale', Math.min(window.devicePixelRatio || 1, 1.5)); rcfg.scale = num('scale', Math.min(1, rcfg.scaleMax)); rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
+  rcfg.scaleMax = num('scale', Math.min(window.devicePixelRatio || 1, quality === 'ultra' ? 2 : 1.5)); rcfg.scale = num('scale', Math.min(1, rcfg.scaleMax)); rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
   const L = (m) => { if (params.has('log')) console.log('LOG ' + m + ' ' + performance.now().toFixed(0)); }; window.__L = L;
   L('gl'); rcfg.prof = params.has('prof');
   // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight
