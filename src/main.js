@@ -1,6 +1,7 @@
 // Entry point: boots WebGL, the world and the UI, and runs the frame loop.
 import { initGL, gl, allPrograms } from './gl.js';
 import { Renderer, rcfg } from './render.js';
+import { world, YEAR, updateWorld } from './galdyn.js';
 import { Nav, findByName, solSystem, systemFor } from './nav.js';
 import { cfg as planetCfg } from './planet.js';
 import { skyCfg } from './sky.js';
@@ -134,7 +135,17 @@ if (params.has('bench')) import('./bench.js').then(m => setTimeout(() => m.runBe
 
 // Scripting / test hooks
 window.cosmos = {
-  nav, renderer, rcfg, V, Q, C, findByName, solSystem, systemFor, ui,
+  nav, renderer, rcfg, V, Q, C, findByName, solSystem, systemFor, ui, world, YEAR,
+  // test helper: stand in deep space near the Sun and look at a named star
+  async lookAtStar(name, auOut = 60, fov = 70) {
+    updateWorld(nav.time);
+    const t = findByName(nav, name); if (!t) return 'no ' + name;
+    const sol = solSystem(); nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null; nav.goto = null;
+    sol.update(nav.time);
+    nav.S = [0, C.AU * auOut, 0]; nav.selected = t;
+    const rel = nav.relTo(t); nav.q = Q.look(rel, [0, 1, 0]); nav.fov = fov * Math.PI / 180;
+    return V.len(rel) / C.PC;
+  },
   frame,
   // test helper: travel to a procedural planet of a given class (searching stars around a point away from the Sun)
   async visitClass(cls, seedShift = 0) {

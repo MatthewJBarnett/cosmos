@@ -7,6 +7,7 @@ import { GLSL_BB } from './stars.js';
 import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
+import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE } from './galdyn.js';
 
 export const skyCfg = { cubeSize: 1024, galBoost: 22, extBoost: 2.5, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
@@ -14,21 +15,49 @@ export const SUN_MAG = -26.74;
 
 // ---------- point sources ----------
 const STAR_VS = `
-layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT;
+layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT; layout(location=2) in vec4 aVel;
 uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uPixScale, uBoost; uniform vec3 uHide;
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
+// motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
+uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight; uniform mat3 uRotC;
+uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[4];
 ${REFRACT_VS}
 out vec3 vCol; out float vSig;
 ${GLSL_BB}
+int snClass(float MV, float T){
+  if (!(MV < -1.2 && (T > 15000. || MV < -4.5))) return -1;
+  return MV < -5.5 ? 0 : MV < -4.5 ? 1 : MV < -3.5 ? 2 : MV < -2.5 ? 3 : MV < -1.6 ? 4 : 5;
+}
 void main(){
-  vec3 p = aPos + uOffset; float d = length(p);
+  vec3 lp = aPos; float w = uWeight;
+  float T = abs(aMT.y);
+  if (uMode == 0) {
+    vec3 u = aPos + aVel.xyz*uPhase;
+    lp = u - uCell*floor(u/uCell);
+    // fade stars about to leave the cell (they re-enter on the opposite face)
+    vec3 dExit = mix(lp, uCell - lp, step(0., aVel.xyz));
+    vec3 dEnt = uCell - dExit;
+    bool wrapped = any(notEqual(floor(u/uCell), vec3(0.)));
+    float m = min(min(dExit.x, dExit.y), dExit.z); if (wrapped) m = min(m, min(min(dEnt.x, dEnt.y), dEnt.z));
+    w *= mix(1., smoothstep(0., 0.04*uCell, m), uWrapFade);
+    if (aMT.y < 0.) w *= uSupp;
+  } else if (uMode == 1) {
+    lp = uRotC*(aPos + aVel.xyz*uCatK);
+    for (int i = 0; i < 4; i++) if (gl_VertexID == uCatDead[i]) w = 0.;
+  }
+  vec3 p = lp + uOffset; float d = length(p);
+  if (uMode == 0) {
+    // massive stars end their lives; seen with the light travel delay
+    int k = snClass(aMT.x, T);
+    if (k >= 0) { float ph = fract(uSNph[k] + aVel.w - d*3.2616/uSNtau[k]); w *= step(ph, ${SN_LIVE.toFixed(4)})*smoothstep(0., 0.002, ph); }
+  }
   float m = aMT.x + 5.*log(max(d, 1e-9))/log(10.) - 5.;
-  float flux = exp(-0.9210340372*(m + 26.74));
+  float flux = exp(-0.9210340372*(m + 26.74))*w;
   if (uTwinkle > 0.) {
     // scintillation: turbulence in the air above an observer on the ground; strongest near the horizon
     float el = dot(p/d, uUpLocal);
     float am = 1./max(el + 0.05, 0.05);
-    float ph = uTime*(9. + fract(aMT.y*0.137)*7.) + fract(aPos.x*13.17 + aPos.z*7.31)*628.;
+    float ph = uTime*(9. + fract(T*0.137)*7.) + fract(aPos.x*13.17 + aPos.z*7.31)*628.;
     float tw = sin(ph) * 0.6 + sin(ph*2.31 + 1.7)*0.4;
     flux *= max(0., 1. + tw*uTwinkle*min(0.15*am, 0.85));
   }
@@ -36,7 +65,7 @@ void main(){
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 5.*uPixScale); peak = I/(6.2832*sig*sig); }
-  vec3 c = bbColor(aMT.y); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec3 c = bbColor(T); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
   vCol = c*min(peak, 30.); vSig = sig;
   gl_Position = uViewProj*vec4(refractLift(p), 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.);
@@ -207,14 +236,21 @@ function init() {
 export function drawStars(field, camLocal, viewProjLocal, o) {
   init();
   const p = pStar.use();
-  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0] });
+  const tyr = world.tyr;
+  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
+    uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
+    uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1]) });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;
   const hide = o.hide;
   for (const c of field.cells.values()) {
     if (!c.vao) continue;
-    const off = [c.origin[0] - camLocal[0], c.origin[1] - camLocal[1], c.origin[2] - camLocal[2]];
-    p.set({ uOffset: off, uHide: hide ? [hide[0] - c.origin[0], hide[1] - c.origin[1], hide[2] - c.origin[2]].map((v, i) => v + off[i]) : [1e9, 1e9, 1e9] });
+    let mode = 2, origin = c.origin, wgt = 1;
+    if (c.catalog) { mode = 1; origin = world.sunP; wgt = world.catW; if (wgt <= 0) continue; }
+    else if (c.vel) mode = 0;
+    const off = [origin[0] - camLocal[0], origin[1] - camLocal[1], origin[2] - camLocal[2]];
+    p.set({ uOffset: off, uHide: hide ? [hide[0] - camLocal[0], hide[1] - camLocal[1], hide[2] - camLocal[2]] : [1e9, 1e9, 1e9], uMode: mode, uWeight: wgt,
+      uCell: c.size || 1, uPhase: mode === 0 ? wrapPhase(c.size, tyr) : 0, uCatK: world.catK });
     gl.bindVertexArray(c.vao.vao); gl.drawArrays(gl.POINTS, 0, c.n); n += c.n;
   }
   return n;
@@ -328,22 +364,26 @@ export class GalaxySky {
 }
 
 // ----- constellation figures (3D lines between catalogue stars, so they distort as you travel) -----
-const CON_VS = `layout(location=0) in vec3 aPos; uniform mat4 uViewProj; uniform vec3 uOffset; out float vD;
-void main(){ vec3 p = aPos + uOffset; vD = length(p); gl_Position = uViewProj*vec4(p, 1.); gl_Position.z = 0.; }`;
+const CON_VS = `layout(location=0) in vec3 aPos; layout(location=1) in vec3 aVel; uniform mat4 uViewProj; uniform vec3 uOffset; uniform mat3 uRotC; uniform float uCatK; out float vD;
+void main(){ vec3 p = uRotC*(aPos + aVel*uCatK) + uOffset; vD = length(p); gl_Position = uViewProj*vec4(p, 1.); gl_Position.z = 0.; }`;
 const CON_FS = `in float vD; out vec4 o; uniform float uAlpha; void main(){ o = vec4(vec3(0.22, 0.42, 0.85)*uAlpha, 0.); }`;
 let pCon = null, conVAO = null, conCount = 0;
+// constellation figures follow the stars' own motions, so they distort over tens of thousands of years
 export function drawConstellations(catalog, sunLocal, camLocal, viewProjLocal, alpha) {
   if (!catalog.ready || alpha <= 0) return;
-  if (!pCon) {
-    pCon = new Program('constellations', CON_VS, CON_FS);
-    const pts = [], d = catalog.data;
-    for (const c of catalog.constellations) for (const [a, b] of c.lines) pts.push(d[a * 5], d[a * 5 + 1], d[a * 5 + 2], d[b * 5], d[b * 5 + 1], d[b * 5 + 2]);
+  if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS);
+  if (!conVAO) {
+    const pts = [], d = catalog.data, v = catalog.vel;
+    const add = (a) => pts.push(d[a * 5], d[a * 5 + 1], d[a * 5 + 2], v[a * 4], v[a * 4 + 1], v[a * 4 + 2]);
+    for (const c of catalog.constellations) for (const [a, b] of c.lines) { add(a); add(b); }
     conVAO = gl.createVertexArray(); gl.bindVertexArray(conVAO);
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0); conCount = pts.length / 3;
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12); conCount = pts.length / 6;
+    gl.bindVertexArray(null);
   }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-  pCon.use().set({ uViewProj: viewProjLocal, uOffset: [sunLocal[0] - camLocal[0], sunLocal[1] - camLocal[1], sunLocal[2] - camLocal[2]], uAlpha: alpha });
+  pCon.use().set({ uViewProj: viewProjLocal, uOffset: [sunLocal[0] - camLocal[0], sunLocal[1] - camLocal[1], sunLocal[2] - camLocal[2]], uAlpha: alpha * world.catW * Math.max(0, Math.min(1, 1 - (Math.abs(world.tyr) - 1e5) / 2e5)), uRotC: new Float32Array(world.rotP), uCatK: world.catK });
   gl.bindVertexArray(conVAO); gl.drawArrays(gl.LINES, 0, conCount);
 }
 

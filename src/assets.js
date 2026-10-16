@@ -67,9 +67,14 @@ export function loadCatalog() {
   catalog.promise = Promise.all([
     fetch('data/stars.bin').then(r => r.arrayBuffer()),
     fetch('data/stars.json').then(r => r.json()),
-  ]).then(([buf, js]) => {
+    fetch('data/stars_vel.bin').then(r => r.ok ? r.arrayBuffer() : null).catch(() => null),
+  ]).then(([buf, js, vbuf]) => {
     catalog.data = new Float32Array(buf);
     catalog.count = catalog.data.length / 5;
+    // space velocities (km/s, heliocentric, same axes); a 4th component holds a per-star hash
+    const v3 = vbuf && vbuf.byteLength === catalog.count * 12 ? new Float32Array(vbuf) : new Float32Array(catalog.count * 3);
+    catalog.vel = new Float32Array(catalog.count * 4);
+    for (let i = 0; i < catalog.count; i++) { catalog.vel[i * 4] = v3[i * 3]; catalog.vel[i * 4 + 1] = v3[i * 3 + 1]; catalog.vel[i * 4 + 2] = v3[i * 3 + 2]; catalog.vel[i * 4 + 3] = ((i * 2654435761) >>> 0) / 4294967296; }
     catalog.named = js.named || [];
     catalog.constellations = js.constellations || [];
     for (const n of catalog.named) catalog.byIndex.set(n.i, n);

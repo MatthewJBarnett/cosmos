@@ -14,10 +14,13 @@ export const REAL_SYSTEMS = {
   'Sirius': { companion: { name: 'Sirius B', MV: 11.18, T: 25000, spect: 'DA2', mass: 1.018, radius: 0.0084, a: 19.8, e: 0.59, period: 50.13 }, planets: [] },
 };
 
-// Nearby stars too faint for the catalogue but famous for their planets: [name, l, b, distance pc, MV, T, spectral type, mass Msun, radius Rsun]
+// Nearby stars too faint for the catalogue but famous for their planets: [name, l, b, distance pc, MV, T, spectral type, mass Msun, radius Rsun,
+// heliocentric space velocity in the galaxy frame (km/s: towards the centre, north, towards l=270)]
 export const EXTRA_STARS = [
-  ['Proxima Centauri', 313.94, -1.93, 1.3020, 15.49, 3042, 'M5.5Ve', 0.1221, 0.1542],
-  ['TRAPPIST-1', 69.71, -56.64, 12.47, 18.32, 2566, 'M8V', 0.0898, 0.1192],
-  ["Barnard's Star", 31.01, 14.06, 1.834, 13.21, 3134, 'M4V', 0.162, 0.187],
+  ['Proxima Centauri', 313.94, -1.93, 1.3020, 15.49, 3042, 'M5.5Ve', 0.1221, 0.1542, [-29.44, 13.79, -1.84]],
+  ['TRAPPIST-1', 69.71, -56.64, 12.47, 18.32, 2566, 'M8V', 0.0898, 0.1192, [-44.9, 14.49, 69.1]],
+  ["Barnard's Star", 31.01, 14.06, 1.834, 13.21, 3134, 'M4V', 0.162, 0.187, [-141.43, 18.61, -5.13]],
+  // Gaia DR3: will pass about 10,000 AU from the Sun in 1.3 million years, through the Oort cloud
+  ['Gliese 710', 27.17737, 6.89768, 19.0, 8.2, 4100, 'K7V', 0.6, 0.62, [-12.4567, -1.6551, 6.3956]],
 ];
 export function extraStarPos(e) { return V.addm(SUN_POS, galDir(e[1], e[2]), e[3]); }

@@ -5,6 +5,7 @@ import { makeStar, bbColor, KIND } from './stars.js';
 import { galDir } from './universe.js';
 import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
+import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -151,12 +152,13 @@ function moonOrbit(aKm, e, inc, parentMass, rng, M0) {
 export class StarSystem {
   constructor(desc) {
     this.desc = desc; this.seed = desc.seed; this.galaxy = desc.galaxy;
-    this.posLocal = desc.pos;                 // pc, galaxy local frame
+    this.posLocal = desc.pos.slice();         // pc, galaxy local (pattern) frame; moves with time
     this.quat = Q.ident();                    // system frame -> galaxy local frame
     this.bodies = []; this.stars = []; this.root = null; this.belts = [];
     if (desc.sol) buildSol(this); else buildProcedural(this);
-    this.worldQ = Q.mul(this.galaxy.quat, this.quat);        // system frame -> universe axes
-    this.posGu = Q.rot(this.galaxy.quat, this.posLocal);     // pc, universe axes, relative to galaxy centre
+    // system frame -> universe axes. Systems keep an inertial orientation while the spiral pattern turns.
+    this.worldQ = Q.mul(galQuat0(this.galaxy), this.quat);
+    this.posGu = Q.rot(galQuat0(this.galaxy), this.posLocal);     // pc, universe axes, relative to galaxy centre
     this.flatten();
     this.update(0);
   }
@@ -191,6 +193,9 @@ export class StarSystem {
   // t: seconds since J2000
   update(t) {
     this.time = t;
+    // the star's motion through the galaxy
+    const tyr = t / YEAR;
+    if (this._ty !== tyr) { this._ty = tyr; this.posLocal = descPosP(this.desc, tyr); this.posGu = Q.rot(galQuat0(this.galaxy), toInertial(this.posLocal, tyr)); }
     const rec = (b) => {
       if (b.ephem === 'planet' && b.parent) {
         const p = planetPos(b.name, t), pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];

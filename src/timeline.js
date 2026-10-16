@@ -1,0 +1,119 @@
+// Deep time: date formatting from seconds to trillions of years, a list of future (and past) events with views,
+// and automatic slow-down so that brief events are not skipped over at high time rates.
+import { V, Q, C, clamp } from './math.js';
+import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
+import { galDir } from './universe.js';
+import { EXTRA_STARS } from './realsystems.js';
+
+const J2000 = Date.UTC(2000, 0, 1, 12);
+export const nowYr = () => (Date.now() - J2000) / 1000 / YEAR;     // years since J2000 of the real present
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function fmtSpan(yr) {
+  const a = Math.abs(yr);
+  if (a < 1) return (a * 365.25).toFixed(0) + ' days';
+  if (a < 1e4) return a.toFixed(a < 10 ? 1 : 0) + ' years';
+  if (a < 1e6) return Math.round(a).toLocaleString('en') + ' years';
+  if (a < 1e9) return (a / 1e6).toPrecision(4) + ' million years';
+  if (a < 1e12) return (a / 1e9).toPrecision(4) + ' billion years';
+  return (a / 1e12).toPrecision(4) + ' trillion years';
+}
+// simulation time (s since J2000) -> readable date
+export function fmtSimDate(t) {
+  const yr = t / YEAR;
+  if (Math.abs(yr) < 7900) {
+    const d = new Date(J2000 + t * 1000);
+    if (!isNaN(d)) { const y = d.getUTCFullYear(); const s = d.toISOString(); return (y < 0 || y > 9999 ? (y < 0 ? (1 - y) + ' BCE ' : y + ' ') + s.slice(s.indexOf('-', 1) + 1, s.indexOf('T')) + ' ' + s.slice(s.indexOf('T') + 1, s.indexOf('T') + 9) : s.replace('T', ' ').slice(0, 19)) + ' UTC'; }
+  }
+  if (Math.abs(yr) < 2.5e5) {
+    const d = new Date(J2000 + t * 1000);
+    if (!isNaN(d)) { const y = d.getUTCFullYear(); return (y > 0 ? 'Year ' + y.toLocaleString('en') : (1 - y).toLocaleString('en') + ' BCE') + ', ' + d.getUTCDate() + ' ' + MON[d.getUTCMonth()]; }
+  }
+  const dy = yr - nowYr();
+  return fmtSpan(dy) + (dy >= 0 ? ' from now' : ' ago');
+}
+export function fmtRate(r) {
+  const a = Math.abs(r), s = r < 0 ? '−' : '';
+  if (a === 1) return s + 'real time';
+  if (a < 60) return s + a + '×';
+  if (a < 3600) return s + (a / 60).toPrecision(3) + ' min/s';
+  if (a < 86400) return s + (a / 3600).toPrecision(3) + ' h/s';
+  if (a < YEAR) return s + (a / 86400).toPrecision(3) + ' d/s';
+  const y = a / YEAR;
+  if (y < 1e3) return s + y.toPrecision(3) + ' yr/s';
+  if (y < 1e6) return s + (y / 1e3).toPrecision(3) + ' kyr/s';
+  if (y < 1e9) return s + (y / 1e6).toPrecision(3) + ' Myr/s';
+  return s + (y / 1e9).toPrecision(3) + ' Gyr/s';
+}
+export const RATES = [1, 10, 60, 600, 3600, 6 * 3600, 86400, 7 * 86400, 30 * 86400, YEAR / 4, YEAR, YEAR * 10, YEAR * 100, YEAR * 1e3, YEAR * 1e4, YEAR * 1e5, YEAR * 1e6, YEAR * 1e7, YEAR * 3e7, YEAR * 1e8, YEAR * 3e8, YEAR * 1e9, YEAR * 1e10];
+export const MAX_T = 1e14 * YEAR;
+
+// ---------- events ----------
+// t: years since J2000 at which the event is seen from the Solar System. rate: time rate (s/s) to slow to.
+// est: the date is a model estimate. go(nav, ui): set up a view.
+const closest = (e) => { const p = V.mul(galDir(e[1], e[2]), e[3]), v = e[9]; const v2 = V.dot(v, v); const t = -V.dot(p, v) / v2 / KMS_PCYR; return { t, d: V.len(V.addm(p, v, KMS_PCYR * t)) }; };
+const extra = (n) => EXTRA_STARS.find(e => e[0] === n);
+
+function nextMidplane() {
+  // next time the Sun crosses the galactic plane going north or south
+  let t = nowYr(), z0 = sunPos(t)[1];
+  for (let k = 1; k < 4000; k++) { const t1 = nowYr() + k * 1e5, z1 = sunPos(t1)[1]; if (z0 * z1 <= 0) return t1 - 1e5 * z1 / (z1 - z0); z0 = z1; }
+  return nowYr() + 1e7;
+}
+
+export function buildEvents() {
+  const now = nowYr(), ev = [];
+  const add = (o) => ev.push(o);
+  const bar = closest(extra("Barnard's Star")), g710 = closest(extra('Gliese 710'));
+  add({ id: 'barnard', t: bar.t, title: "Barnard's Star at its closest", text: `The fastest moving star in our sky passes ${(bar.d * 3.2616).toFixed(2)} light years from the Sun, then recedes.`, view: { star: "Barnard's Star", from: 'sun' }, rate: YEAR * 300 });
+  add({ id: 'vega', t: 11727, title: 'Vega is the pole star', text: 'Precession of Earth\'s axis (a 25,772 year cycle) brings the north celestial pole within 4° of Vega.', view: { pole: true }, rate: YEAR * 50 });
+  add({ id: 'acen', t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });
+  add({ id: 'betelgeuse', t: 1e5, est: true, title: 'Betelgeuse explodes', text: 'The red supergiant in Orion ends as a core collapse supernova. From 168 parsecs it outshines the half Moon for months and stays visible in daylight.', view: { star: 'Betelgeuse', from: 'earth' }, rate: 86400 * 6 });
+  add({ id: 'antares', t: 6e5, est: true, title: 'Antares explodes', text: 'The heart of the Scorpion, a red supergiant 170 parsecs away, becomes a supernova.', view: { star: 'Antares', from: 'earth' }, rate: 86400 * 6 });
+  add({ id: 'g710', t: g710.t, title: 'Gliese 710 passes through the Oort cloud', text: `An orange dwarf passes ${Math.round(g710.d * 206265).toLocaleString('en')} AU from the Sun, shining at magnitude −2.7, and perturbs comets towards the planets.`, view: { star: 'Gliese 710', from: 'sun' }, rate: YEAR * 2000 });
+  add({ id: 'midplane', t: nextMidplane(), title: 'The Sun crosses the galactic plane', text: 'The Sun bobs through the disk every ~38 million years on its orbit around the Galaxy.', view: { galaxy: 'side' }, rate: YEAR * 1e5 });
+  add({ id: 'galyear', t: now + SUN_ORBIT.periodYr, title: 'One galactic year', text: `The Sun completes an orbit around the centre of the Milky Way (${(SUN_ORBIT.periodYr / 1e6).toFixed(0)} million years).`, view: { galaxy: 'top' }, rate: YEAR * 2e6 });
+  add({ id: 'eclipses', t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
+  add({ id: 'oceans', t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
+  add({ id: 'lmc', t: now + 2.4e9, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction drags our largest satellite galaxy into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
+  add({ id: 'm31', t: now + 3.9e9, est: true, title: 'Andromeda\'s first passage', text: 'The Andromeda Galaxy sweeps through the Milky Way\'s halo at ~600 km/s. Tidal tails fling stars across the sky.', view: { andromeda: true }, rate: YEAR * 5e6 });
+  add({ id: 'merge', t: now + 5.9e9, est: true, title: 'Milkomeda', text: 'The two galaxies merge into one giant elliptical galaxy.', view: { andromeda: true }, rate: YEAR * 1e7 });
+  add({ id: 'subgiant', t: now + 5.5e9, title: 'The Sun leaves the main sequence', text: 'Hydrogen in the core runs out. The Sun swells and reddens as a subgiant.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
+  add({ id: 'rgb', t: now + 7.59e9, title: 'The Sun at the tip of the red giant branch', text: 'Radius about 1.2 AU, 2,700 times as bright as today. Mercury and Venus are swallowed; Earth very likely too.', view: { body: 'Sun' }, rate: YEAR * 1e5 });
+  add({ id: 'flash', t: now + 7.6e9, title: 'The helium flash', text: 'Helium ignites in the degenerate core; the Sun shrinks to a ten times brighter horizontal branch star.', view: { body: 'Sun' }, rate: YEAR * 1e4 });
+  add({ id: 'pn', t: now + 7.8e9, title: 'Planetary nebula', text: 'Thermal pulses on the asymptotic giant branch shed the Sun\'s envelope; the hot core lights it up.', view: { body: 'Sun', far: true }, rate: YEAR * 2e3 });
+  add({ id: 'wd', t: now + 7.81e9, title: 'The Sun is a white dwarf', text: 'An Earth-sized ember of carbon and oxygen, 0.54 solar masses, cooling for trillions of years.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
+  add({ id: 'horizon', t: now + 1.5e11, est: true, title: 'The sky beyond the Local Group goes dark', text: 'Accelerating expansion carries every other galaxy beyond our event horizon; their light redshifts away.', view: { universe: true }, rate: YEAR * 1e9 });
+  return ev.sort((a, b) => a.t - b.t);
+}
+
+export class Timeline {
+  constructor(nav, ui) { this.nav = nav; this.ui = ui; this.events = buildEvents(); this.auto = true; this.lastTyr = nav.time / YEAR; this.fired = new Set(); }
+  next(tyr = this.nav.time / YEAR) { return this.events.find(e => e.t > tyr); }
+  // called every frame: slow down ahead of an event so it plays at a watchable rate, then announce it
+  update(dt) {
+    const nav = this.nav, tyr = nav.time / YEAR, prev = this.lastTyr; this.lastTyr = tyr;
+    if (nav.paused || !nav.rate) return;
+    const fwd = nav.rate > 0;
+    for (const e of this.events) {
+      // announce events we just passed
+      if ((prev < e.t && tyr >= e.t) || (prev > e.t && tyr <= e.t)) { if (!this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast((e.est ? 'About now: ' : '') + e.title); } }
+      if (!this.auto) continue;
+      const ahead = fwd ? e.t - tyr : tyr - e.t;
+      const ryr = Math.abs(nav.rate) / YEAR, want = e.rate / YEAR;
+      if (ahead > 0 && ryr > want && ahead < ryr * 2.5) {
+        // approach the event within ~2.5 s, never slower than its own rate
+        const r = Math.max(want, ahead / 1.2);
+        if (r < ryr) nav.rate = Math.sign(nav.rate) * r * YEAR;
+      }
+    }
+  }
+  // jump to just before an event and set up its view
+  go(e) {
+    const nav = this.nav;
+    nav.time = (e.t - Math.min(e.rate / YEAR * 4, Math.max(1e-3, Math.abs(e.t) * 1e-9 + 0.02))) * YEAR;
+    nav.rate = e.rate; nav.paused = false;
+    this.fired.delete(e.id); this.lastTyr = nav.time / YEAR;
+    if (this.onGo) this.onGo(e);
+  }
+}

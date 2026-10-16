@@ -7,6 +7,7 @@ import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
 import { GLSL_BB, bbColor } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
+import { world } from './galdyn.js';
 
 // ---------------- black hole ----------------
 const BH_FS = `
@@ -186,13 +187,13 @@ void main(){
 let pNeb;
 const nebCache = new Map();
 const NEB_CELL = 500;
-const ORION = (() => { const d = galDir(209.0, -19.4); return { pos: V.addm(SUN_POS, d, 412), radius: 7, type: 0, seed: 3.7, name: 'Orion Nebula', colA: [1.0, 0.28, 0.36], colB: [0.35, 0.45, 1.0], lum: 60 }; })();
+const ORION = (() => { const d = galDir(209.0, -19.4); return { pos: V.addm(SUN_POS, d, 412), radius: 7, type: 0, seed: 3.7, name: 'Orion Nebula', colA: [1.0, 0.28, 0.36], colB: [0.35, 0.45, 1.0], lum: 60, life: 3e6 }; })();
 export const REAL_NEBULAE = [ORION,
-  (() => { const d = galDir(6.0, -1.2); return { pos: V.addm(SUN_POS, d, 1250), radius: 16, type: 0, seed: 9.1, name: 'Lagoon Nebula', colA: [1.0, 0.25, 0.35], colB: [0.9, 0.35, 0.5], lum: 40 }; })(),
-  (() => { const d = galDir(63.2, 13.98); return { pos: V.addm(SUN_POS, d, 790), radius: 0.4, type: 1, seed: 5.5, name: 'Ring Nebula', colA: [0.25, 0.85, 0.75], colB: [1.0, 0.3, 0.25], lum: 600 }; })(),
-  (() => { const d = galDir(184.56, -5.78); return { pos: V.addm(SUN_POS, d, 2000), radius: 1.7, type: 2, seed: 2.2, name: 'Crab Nebula', colA: [1.0, 0.45, 0.25], colB: [0.35, 0.7, 1.0], lum: 250 }; })(),
-  (() => { const d = galDir(74.0, -8.6); return { pos: V.addm(SUN_POS, d, 740), radius: 18, type: 2, seed: 6.4, name: 'Veil Nebula', colA: [1.0, 0.3, 0.3], colB: [0.3, 0.75, 1.0], lum: 30 }; })(),
-  (() => { const d = galDir(287.6, -0.6); return { pos: V.addm(SUN_POS, d, 2600), radius: 35, type: 0, seed: 8.8, name: 'Carina Nebula', colA: [1.0, 0.3, 0.33], colB: [0.9, 0.5, 0.4], lum: 45 }; })(),
+  (() => { const d = galDir(6.0, -1.2); return { pos: V.addm(SUN_POS, d, 1250), radius: 16, type: 0, seed: 9.1, name: 'Lagoon Nebula', colA: [1.0, 0.25, 0.35], colB: [0.9, 0.35, 0.5], lum: 40, life: 3e6 }; })(),
+  (() => { const d = galDir(63.2, 13.98); return { pos: V.addm(SUN_POS, d, 790), radius: 0.4, type: 1, seed: 5.5, name: 'Ring Nebula', colA: [0.25, 0.85, 0.75], colB: [1.0, 0.3, 0.25], lum: 600, life: 2.5e4, age: 4000 }; })(),
+  (() => { const d = galDir(184.56, -5.78); return { pos: V.addm(SUN_POS, d, 2000), radius: 1.7, type: 2, seed: 2.2, name: 'Crab Nebula', colA: [1.0, 0.45, 0.25], colB: [0.35, 0.7, 1.0], lum: 250, life: 4e4, age: 970 }; })(),
+  (() => { const d = galDir(74.0, -8.6); return { pos: V.addm(SUN_POS, d, 740), radius: 18, type: 2, seed: 6.4, name: 'Veil Nebula', colA: [1.0, 0.3, 0.3], colB: [0.3, 0.75, 1.0], lum: 30, life: 6e4, age: 15000 }; })(),
+  (() => { const d = galDir(287.6, -0.6); return { pos: V.addm(SUN_POS, d, 2600), radius: 35, type: 0, seed: 8.8, name: 'Carina Nebula', colA: [1.0, 0.3, 0.33], colB: [0.9, 0.5, 0.4], lum: 45, life: 3e6 }; })(),
 ];
 export function nebulaeNear(galaxy, cam, dens) {
   const out = galaxy === MILKY_WAY ? REAL_NEBULAE.slice() : [];
@@ -220,12 +221,27 @@ export function nebulaeNear(galaxy, cam, dens) {
   }
   return out;
 }
+// Real nebulae change with time: H II regions disperse in a few million years, planetary nebulae and supernova
+// remnants expand (radius ~ age for free expansion, ~ age^0.4 once they have swept up their mass) and fade.
+function nebulaAt(nb) {
+  const t = world.tyr; if (!nb.life || !t) return nb;
+  const life = nb.life, a = Math.abs(t);
+  const w = Math.max(0, Math.min(1, 1 - (a - 0.3 * life) / (0.7 * life)));
+  if (w <= 0) return null;
+  let radius = nb.radius;
+  if (nb.age) { const age = Math.max(nb.age + t, 1); radius = nb.radius * Math.pow(age / nb.age, nb.type === 2 && age > 3000 ? 0.4 : 1); if (nb.age + t < 1) return null; }
+  if (w >= 1 && radius === nb.radius) return nb;
+  if (!nb._t) nb._t = Object.assign({}, nb, { base: nb });
+  nb._t.lum = nb.lum * w * (nb.radius / radius) ** 2; nb._t.radius = radius;
+  return nb._t;
+}
 export let visibleNebulae = [];
 export function drawNebulaeAndFx(nav, o) {
   visibleNebulae = [];
   if (!nav.galaxy || !nav.field || !o.camLocal) return;
   if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
-  const list = nebulaeNear(nav.galaxy, o.camLocal, nav.field.dens);
+  const list = nebulaeNear(nav.galaxy, o.camLocal, nav.field.dens).map(nebulaAt).filter(Boolean);
+  if (o.extra) for (const nb of o.extra) list.push(nb);
   const gq = nav.galaxy.quat, vis = [];
   for (const nb of list) {
     const relL = V.sub(nb.pos, o.camLocal), d = V.len(relL);

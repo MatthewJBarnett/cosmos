@@ -10,6 +10,7 @@ import { starFromCatalog } from './stars.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
+import { descPosP, updateWorld, YEAR } from './galdyn.js';
 import { visibleGalaxyCells } from './sky.js';
 
 const PC = C.PC, MPC = C.PC * 1e6;
@@ -17,9 +18,10 @@ const fields = new Map(), systems = new Map();
 
 function hashStrLocal(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function addFixed(f, desc, MV, T) {
-  f.fixed.push({ pos: desc.pos, MV, desc });
   const data = new Float32Array([0, 0, 0, MV, T]);
-  f.cells.set('fixed:' + desc.key, { fixedCell: true, origin: desc.pos, n: 1, data, last: Infinity, vao: makeVAO([{ data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+  const cell = { fixedCell: true, origin: desc.pos.slice(), n: 1, data, last: Infinity, vao: makeVAO([{ data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) };
+  f.fixed.push({ pos: desc.pos.slice(), MV, desc, cell });
+  f.cells.set('fixed:' + desc.key, cell);
 }
 function fieldFor(g) {
   let f = fields.get(g.id);
@@ -29,21 +31,21 @@ function fieldFor(g) {
     addFixed(f, sunDescriptor(g), 4.83, 5772);
     for (const e of EXTRA_STARS) {
       const st = starFromCatalog(e[4], e[5], e[6]); st.mass = e[7] * C.Msun; st.radius = e[8] * C.Rsun; st.lum = 4 * Math.PI * st.radius ** 2 * C.sigma * Math.pow(e[5], 4) / C.Lsun;
-      addFixed(f, { galaxy: g, seed: (hashStrLocal(e[0]) ^ 0x7e) >>> 0, pos: extraStarPos(e), key: g.id + '/x:' + e[0], name: e[0], star: st }, e[4], e[5]);
+      addFixed(f, { galaxy: g, seed: (hashStrLocal(e[0]) ^ 0x7e) >>> 0, pos: extraStarPos(e), motion: { type: 'cat', prel: V.mul(galDir(e[1], e[2]), e[3]), vel: e[9] }, key: g.id + '/x:' + e[0], name: e[0], star: st }, e[4], e[5]);
     }
     // real stars around the Sun (HYG catalogue); procedural stars are suppressed where it is complete
     f.catalogCenter = SUN_POS;
     loadCatalog().then(() => {
       if (!catalog.ready) return;
-      f.cells.set('catalog', { fixedCell: true, catalog: true, origin: SUN_POS, n: catalog.count, data: catalog.data, last: Infinity,
-        vao: makeVAO([{ data: catalog.data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+      f.cells.set('catalog', { fixedCell: true, catalog: true, origin: SUN_POS, n: catalog.count, data: catalog.data, vel: catalog.vel, last: Infinity,
+        vao: makeVAO([{ data: catalog.data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }, { data: catalog.vel, stride: 16, parts: [{ loc: 2, size: 4, offset: 0 }] }]) });
     });
     // Cygnus X-1: stellar black hole with a blue supergiant companion
     const d = galDir(71.33, 3.07);
-    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
+    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), motion: { type: 'circ' }, key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
     // the Crab Pulsar, inside the Crab Nebula (2 kpc): a 33 ms neutron star
     { const dc = galDir(184.56, -5.78), R = 12e3, T = 1.6e6;
-      addFixed(f, { galaxy: g, seed: 0xc4ab, pos: V.addm(SUN_POS, dc, 2000), key: g.id + '/crabpsr', name: 'Crab Pulsar',
+      addFixed(f, { galaxy: g, seed: 0xc4ab, pos: V.addm(SUN_POS, dc, 2000), motion: { type: 'circ' }, key: g.id + '/crabpsr', name: 'Crab Pulsar',
         star: { kind: 4, MV: 16.5, T, mass: 1.4 * C.Msun, radius: R, lum: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, cls: 'Neutron star (pulsar)', period: 0.0337 } }, 16.5, 30000); }
   }
   // central supermassive black hole
@@ -83,6 +85,7 @@ export class Nav {
     this.galaxy = MILKY_WAY; this.field = fieldFor(MILKY_WAY);
     this.system = solSystem();
     this.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; this.rate = 1; this.paused = false;
+    updateWorld(this.time);
     this.speed = 5e6; this.vel = [0, 0, 0]; this.selected = null; this.goto = null; this.anchor = null;
     this.frame = 0; this.altitude = 1e30; this.speedNow = 0; this.onArrive = null;
     this.system.update(this.time);
@@ -107,6 +110,7 @@ export class Nav {
     return extraM ? V.add(r, extraM) : r;
   }
   relTo(t) {
+    if (t.type === 'dir') return V.mul(t.dir, 1e20);
     if (t.type === 'body') {
       const b = t.body, sys = b.system;
       let r;
@@ -115,7 +119,7 @@ export class Nav {
       if (t.offset) r = V.add(r, t.offset);
       return r;
     }
-    if (t.type === 'star') { const g = t.desc.galaxy; return this.relGalactic(g, Q.rot(g.quat, t.desc.pos)); }
+    if (t.type === 'star') { const g = t.desc.galaxy; return this.relGalactic(g, Q.rot(g.quat, descPosP(t.desc))); }
     if (t.type === 'nebula') return this.relGalactic(t.galaxy, Q.rot(t.galaxy.quat, t.neb.pos));
     const cu = this.camU(), g = t.galaxy;
     return [(g.posU[0] - cu[0]) * MPC, (g.posU[1] - cu[1]) * MPC, (g.posU[2] - cu[2]) * MPC];
@@ -300,6 +304,7 @@ export class Nav {
   // ----- per frame -----
   update(dt, input) {
     if (!this.paused) this.time += dt * this.rate;
+    updateWorld(this.time, this.paused ? 0 : dt * this.rate / YEAR);
     if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early
     if (this.selected && this.selected.type === 'body' && this.selected.body.maps) bodyMaps(this.selected.body);
@@ -405,6 +410,7 @@ export class Nav {
       if (d < minR) { this.S = V.add(anchor.wpos, V.mul(rel, minR / d)); d = minR; }
       this.altitude = d - anchor.radius - h;
     }
+    if (this.field) this.field.updateFixed();
     this.transitions();
     if (this.field && this.level !== 'universe') this.field.update(this.camLocal(), this.sync ? 400 : 5);
   }

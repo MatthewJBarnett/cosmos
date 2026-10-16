@@ -12,6 +12,8 @@ import { catalog, loadCatalog } from './assets.js';
 import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
+import { world, YEAR } from './galdyn.js';
+import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -32,17 +34,6 @@ export function fmtSpeed(v) {
   if (v < C.PC * 1e6) return (v / C.PC / 1e3).toPrecision(3) + ' kpc/s';
   return (v / C.PC / 1e6).toPrecision(3) + ' Mpc/s';
 }
-function fmtRate(r) {
-  const a = Math.abs(r), s = r < 0 ? '−' : '';
-  if (a === 1) return s + 'real time';
-  if (a < 60) return s + a + '×';
-  if (a < 3600) return s + (a / 60).toPrecision(3) + ' min/s';
-  if (a < 86400) return s + (a / 3600).toPrecision(3) + ' h/s';
-  if (a < 31557600) return s + (a / 86400).toPrecision(3) + ' d/s';
-  return s + (a / 31557600).toPrecision(3) + ' yr/s';
-}
-const RATES = [1, 10, 60, 600, 3600, 6 * 3600, 86400, 7 * 86400, 30 * 86400, 31557600 / 4, 31557600, 31557600 * 10, 31557600 * 100, 31557600 * 1e3, 31557600 * 1e5, 31557600 * 1e7];
-
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
 export class UI {
@@ -59,12 +50,13 @@ export class UI {
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
-    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
+    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline of future events (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
       <input id="tDateIn" type="datetime-local" step="60" class="hidden">`;
     this.labels = root.appendChild(el('div', 'labels'));
     this.perf = root.appendChild(el('div', 'panel perf hidden'));
     this.marker = root.appendChild(el('div', 'marker'));
     this.sysPanel = root.appendChild(el('div', 'panel sys hidden'));
+    this.linePanel = root.appendChild(el('div', 'panel timeline hidden'));
     this.setPanel = root.appendChild(el('div', 'panel settings hidden'));
     this.help = root.appendChild(el('div', 'panel help hidden'));
     this.help.innerHTML = `<h2>Cosmos</h2><p>A procedural universe at 1:1 scale. Everything you see can be visited.</p>
@@ -74,7 +66,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Data and credits</h3>
@@ -173,6 +165,7 @@ export class UI {
       else if (k === 'c') nav.lookTarget = nav.selected;
       else if (k === 'b') this.saveMark();
       else if (k === 'y') this.toggleOrbit();
+      else if (k === 'u') this.toggle(this.linePanel);
       else if (k === 'e' && e.shiftKey) this.goNextEclipse();
       else if (k >= '0' && k <= '9' && !e.ctrlKey && !e.altKey) this.search(['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'][+k]);
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
@@ -184,7 +177,7 @@ export class UI {
       else if (k === 'o') rcfg.orbits = !rcfg.orbits; else if (k === 'n') this.showLabels = !this.showLabels;
       else if (k === '[') rcfg.exposureBias -= 0.5; else if (k === ']') rcfg.exposureBias += 0.5;
       else if (k === 't') { if (this.tour.active) this.tour.next(); else this.tour.start(); }
-      else if (k === 'escape') { if (this.tour.active) this.tour.stop(); nav.goto = null; [this.sysPanel, this.setPanel, this.help].forEach(p => p.classList.add('hidden')); }
+      else if (k === 'escape') { if (this.tour.active) this.tour.stop(); nav.goto = null; [this.sysPanel, this.setPanel, this.help, this.linePanel].forEach(p => p.classList.add('hidden')); }
       else if (k === 'f3' || (k === 'p' && e.shiftKey)) { e.preventDefault(); rcfg.gpuTimes = !rcfg.gpuTimes; this.perf.classList.toggle('hidden', !rcfg.gpuTimes); }
       else if (k === 'f2') { e.preventDefault(); this.hidden = !this.hidden; this.root.classList.toggle('hide', this.hidden); }
       else if (k === 'p') this.screenshot();
@@ -202,6 +195,9 @@ export class UI {
     $('bHelp').onclick = () => this.toggle(this.help);
     $('bRand').onchange = (e) => { const v = e.target.value; e.target.value = ''; e.target.blur(); if (v) this.explore(v); };
     this.tour = new Tour(nav, this);
+    this.timeline = new Timeline(nav, this);
+    this.timeline.onGo = (e) => this.eventView(e);
+    $('tLine').onclick = () => this.toggle(this.linePanel);
     $('bTour').onclick = () => { if (this.tour.active) this.tour.stop(); else this.tour.start(); };
     $('search').addEventListener('change', e => { this.search(e.target.value); });
     const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
@@ -247,7 +243,7 @@ export class UI {
     if (!this.capEl) this.capEl = this.root.appendChild(el('div', 'panel caption'));
     if (!title) { this.capEl.classList.add('hidden'); return; }
     this.capEl.classList.remove('hidden');
-    this.capEl.innerHTML = `<div class="ct">${title}<span class="dim"> · ${i}/${n}</span></div><div>${text}</div><div class="dim">T next stop · Esc ends the tour</div>`;
+    this.capEl.innerHTML = i === '' ? `<div class="ct">${title}</div><div>${text}</div>` : `<div class="ct">${title}<span class="dim"> · ${i}/${n}</span></div><div>${text}</div><div class="dim">T next stop · Esc ends the tour</div>`;
   }
   locationLink() {
     const nav = this.nav, u = new URL(location.href); u.search = '';
@@ -292,7 +288,7 @@ export class UI {
     const d = Q.rot(Q.conj(b.wrot), V.norm(V.sub(nav.S, b.wpos)));
     return [Math.asin(clamp(d[1], -1, 1)) * 180 / Math.PI, Math.atan2(-d[2], d[0]) * 180 / Math.PI];
   }
-  toggle(p) { const was = p.classList.contains('hidden'); [this.sysPanel, this.setPanel, this.help].forEach(q => q.classList.add('hidden')); if (was) p.classList.remove('hidden'); if (p === this.sysPanel) this.sysKey = null; }
+  toggle(p) { const was = p.classList.contains('hidden'); [this.sysPanel, this.setPanel, this.help, this.linePanel].forEach(q => q.classList.add('hidden')); if (was) p.classList.remove('hidden'); if (p === this.sysPanel) this.sysKey = null; if (p === this.linePanel) this.lineKey = null; }
   stepRate(d) {
     const nav = this.nav, a = Math.abs(nav.rate), sg = nav.rate < 0 ? -1 : 1;
     let i = RATES.findIndex(r => r >= a * 0.999); if (i < 0) i = RATES.length - 1;
@@ -349,12 +345,16 @@ export class UI {
 
   update(dt) {
     if (this.tour) this.tour.update(dt);
+    if (this.timeline) this.timeline.update(dt);
+    // the clock runs from the Big Bang to 100 trillion years from now
+    if (this.nav.time > MAX_T) { this.nav.time = MAX_T; this.nav.paused = true; }
+    if (this.nav.time < -13.79e9 * YEAR) { this.nav.time = -13.79e9 * YEAR; this.nav.paused = true; this.toast('The Big Bang: time cannot run further back'); }
+    this.updateTimeline();
     if (this.hidden) return;
     const nav = this.nav, r = this.r;
     // status
     const loc = nav.level === 'system' ? nav.system.name : nav.level === 'galaxy' ? galaxyName(nav.galaxy) : 'Intergalactic space';
-    const date = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
-    const dstr = isNaN(date) ? 'Year ' + (2000 + nav.time / C.YEAR).toExponential(4) : date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    const dstr = fmtSimDate(nav.time);
     let alt = '';
     if (nav.anchor && nav.altitude < nav.anchor.radius * 30) {
       alt = `<div><b>Altitude</b> ${fmtDist(nav.altitude)} · ${nav.anchor.name}</div>`;
@@ -449,10 +449,11 @@ export class UI {
       // star, constellation and nebula labels only when the sky is dark enough to show them
       const darkSky = r.exposure > 2000;
       if (darkSky && nav.galaxy === MILKY_WAY && nav.level !== 'universe' && catalog.ready) {
-        const cam = nav.camLocal(), gq = nav.galaxy.quat, d = catalog.data;
-        const ds = V.dist(cam, SUN_POS);
-        if (ds < 300) {
-          const rel = (i) => Q.rot(gq, [SUN_POS[0] + d[i * 5] - cam[0], SUN_POS[1] + d[i * 5 + 1] - cam[1], SUN_POS[2] + d[i * 5 + 2] - cam[2]]);
+        const cam = nav.camLocal(), gq = nav.galaxy.quat, d = catalog.data, cc = nav.field && nav.field.cells.get('catalog'), q3 = [0, 0, 0];
+        const ds = V.dist(cam, world.sunP);
+        if (ds < 300 && cc && world.catW > 0.5) {
+          nav.field.cellPhase(cc);
+          const rel = (i) => { nav.field.posOf(cc, i, q3); return Q.rot(gq, [q3[0] - cam[0], q3[1] - cam[1], q3[2] - cam[2]]); };
           if (rcfg.constellations) for (const c of catalog.constellations) {
             if (!c.lines.length) continue;
             let sx = 0, sy = 0, sz = 0, k = 0;
@@ -464,7 +465,7 @@ export class UI {
           for (const n of catalog.named) {
             if (nlab > 25) break;
             const r = rel(n.i), dist = V.len(r), m = d[n.i * 5 + 3] + 5 * Math.log10(Math.max(dist, 1e-6)) - 5;
-            if (m < 1.6 && !/^(HIP|HYG) /.test(n.name)) { put(r, n.name, 'star', 7); nlab++; }
+            if (m < 1.6 && !/^(HIP|HYG) /.test(n.name) && !(nav.field.deadCat && nav.field.deadCat.has(n.i))) { put(r, n.name, 'star', 7); nlab++; }
           }
         }
       }
@@ -488,6 +489,66 @@ export class UI {
     }
     if (!shown) this.marker.style.display = 'none';
     for (let i = n; i < this.labelPool.length; i++) this.labelPool[i].style.display = 'none';
+  }
+  updateTimeline() {
+    if (this.linePanel.classList.contains('hidden')) return;
+    const tyr = this.nav.time / YEAR, tl = this.timeline, nx = tl.next(tyr);
+    const key = (nx ? nx.id : '') + ':' + Math.floor(Date.now() / 500);
+    if (key === this.lineKey) return; this.lineKey = key;
+    const rows = tl.events.map((e, i) => {
+      const dt = e.t - tyr, past = dt < 0;
+      return `<div class="row${past ? ' past' : ''}${e === nx ? ' sel' : ''}" data-i="${i}" title="${e.text.replace(/"/g, '&quot;')}"><span class="nm">${e.title}${e.est ? ' <span class="dim">(estimate)</span>' : ''}</span><span class="ds">${past ? fmtSpan(dt) + ' ago' : 'in ' + fmtSpan(dt)}</span><button data-i="${i}">Go</button></div>`;
+    }).join('');
+    this.linePanel.innerHTML = `<h3>Timeline</h3><div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label><p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
+    this.linePanel.querySelectorAll('button').forEach(b => { b.onclick = () => { tl.go(tl.events[+b.dataset.i]); this.lineKey = null; }; });
+    this.linePanel.querySelector('#tlAuto').onchange = (e) => { tl.auto = e.target.checked; };
+  }
+  // set up the camera for an event from the timeline
+  eventView(e) {
+    const nav = this.nav, v = e.view || {}, sol = solSystem();
+    nav.goto = null; nav.onArrive = null; nav.lookTarget = null; nav.orbit = null; nav.fov = 55 * Math.PI / 180;
+    this.caption(e.title, e.text + (e.est ? ' <span class="dim">Date is an estimate.</span>' : ''), '', '');
+    clearTimeout(this.capTimer); this.capTimer = setTimeout(() => { if (!this.tour.active) this.caption(null); }, 14000);
+    if (v.star) {
+      const t = findByName(nav, v.star); if (!t) return;
+      sol.update(nav.time);
+      const earth = sol.find('Earth'), sun = sol.find('Sun');
+      if (v.from === 'earth') {
+        // stand on the night side of Earth with the star about 35 degrees up
+        const s = V.norm(nav.relGalactic ? nav.relTo(t) : [0, 0, -1]);
+        const toSun = V.norm(V.sub(sun.wpos, earth.wpos));
+        let perp = V.sub(V.mul(toSun, -1), V.mul(s, V.dot(V.mul(toSun, -1), s))); if (V.len(perp) < 1e-3) perp = V.cross(s, [0, 1, 0]);
+        perp = V.norm(perp);
+        const up = V.norm(V.add(V.mul(s, Math.cos(55 * Math.PI / 180)), V.mul(perp, Math.sin(55 * Math.PI / 180))));
+        nav.land(earth, { dir: up });
+        nav.onArrive = () => { nav.lookTarget = t; };
+        nav.selected = t;
+      } else {
+        // deep space just outside the Solar System, looking at the star
+        nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null;
+        nav.S = [0, C.AU * 80, 0]; nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]);
+      }
+      return;
+    }
+    if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }
+    if (v.galaxy) {
+      const g = world && nav.galaxy ? nav.galaxy : null;
+      const mw = findByName(nav, 'Milky Way').galaxy, sunT = { type: 'star', desc: sol.desc };
+      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
+      const sp = Q.rot(mw.quat, world.sunP);
+      if (v.galaxy === 'top') { nav.G = Q.rot(mw.quat, [0, 42000, 0]); nav.q = Q.look(V.mul(nav.G, -1), Q.rot(mw.quat, [1, 0, 0])); }
+      else { const out = V.norm([sp[0], 0, sp[2]]); nav.G = V.add(sp, V.add(V.mul(V.cross(out, [0, 1, 0]), 3500), [0, 600, 0])); nav.q = Q.look(V.sub(sp, nav.G), [0, 1, 0]); }
+      nav.selected = sunT;
+      return;
+    }
+    if (v.andromeda) { const t = findByName(nav, 'Andromeda'); if (t) { nav.selected = t; nav.lookTarget = t; } return; }
+    if (v.pole) {
+      const earth = sol.find('Earth'); sol.update(nav.time);
+      nav.landAt(earth, 48, 0, { hour: 0 });
+      nav.onArrive = () => { nav.lookTarget = { type: 'dir', dir: Q.rot(earth.wrot, [0, 1, 0]) }; };
+      return;
+    }
+    if (v.universe) { const t = findByName(nav, 'Milky Way'); if (t) { nav.selected = t; nav.goTo(t, { dist: 3e6 * C.PC }); } }
   }
   updateSys() {
     if (this.sysPanel.classList.contains('hidden')) return;

@@ -5,6 +5,8 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
+import { world } from './galdyn.js';
+import { updateSupernovae } from './supernova.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS } from './universe.js';
@@ -223,6 +225,13 @@ export class Renderer {
     }
   }
 
+  // The photographed Milky Way is only right near the Sun and near the present: fade it with distance from the Sun
+  // (a few hundred parsecs) and with time (the Sun drifts through the local dust clouds over a few million years).
+  realSkyWeight(camLocal) {
+    const wd = clamp(1 - (V.dist(camLocal, world.sunP) - 150) / 350, 0, 1);
+    const wt = clamp(1 - (Math.abs(world.tyr) - 2e5) / 1.8e6, 0, 1);
+    return wd * wt;
+  }
   // nav: navigation state (camera + world)
   render(nav, dt) {
     this.resize(); this.frameNo++;
@@ -267,7 +276,7 @@ export class Renderer {
       const cn = V.mul(camLocal, 1 / gal.radius);
       insideGal = V.len(cn) < 1.12;
       // near the Sun the photographed sky replaces the model entirely, so the cube needs no updates
-      const fullyReal = gal === MILKY_WAY && rcfg.realSky && V.dist(camLocal, SUN_POS) < 150 && this.galSky.valid;
+      const fullyReal = gal === MILKY_WAY && rcfg.realSky && this.realSkyWeight(camLocal) >= 1 && this.galSky.valid;
       if (insideGal && !fullyReal) this.galSky.update(gal, cn, this.noise3, this.sync);
       // galaxy local -> view
       const gq = gal.quat, r3 = Q.mat3(gq), m = new Float32Array(16);
@@ -299,7 +308,7 @@ export class Renderer {
     gl.depthMask(true); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.depthMask(false);
     // galaxies
-    const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && V.dist(camLocal, SUN_POS) < 300;
+    const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && this.realSkyWeight(camLocal) > 0.3;
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
     if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear }, common));
     T('galaxies');
@@ -309,7 +318,7 @@ export class Renderer {
       const rl = Q.mat3(Q.mul(Q.conj(gal.quat), nav.q));
       // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs
       let wReal = 0;
-      if (gal === MILKY_WAY && rcfg.realSky) wReal = clamp(1 - (V.dist(camLocal, SUN_POS) - 150) / 350, 0, 1);
+      if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal);
       const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal);
       this.galSky.draw(rl, [tanX, tanY], exposure, drewReal ? 1 - wReal : 1);
     }
@@ -338,12 +347,18 @@ export class Renderer {
       if (refrK > 0) upLocal = Q.rot(Q.conj(gal.quat), refrUp);
       nStars = drawStars(nav.field, camLocal, viewProjLocal, Object.assign({ hide, twinkle, upLocal }, common));
     }
+    // supernovae (point sources far brighter than their stars) and their expanding remnants
+    let sne = null;
+    if (gal && nav.field && camLocal && nav.level !== 'universe') {
+      sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
+      if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
+    }
     T('stars');
     if (rcfg.constellations && gal === MILKY_WAY && camLocal) {
-      const ds = V.dist(camLocal, SUN_POS);
-      drawConstellations(catalog, SUN_POS, camLocal, viewProjLocal, 0.35 * clamp(1 - ds / 300, 0, 1));
+      const ds = V.dist(camLocal, world.sunP);
+      drawConstellations(catalog, world.sunP, camLocal, viewProjLocal, 0.35 * clamp(1 - ds / 300, 0, 1));
     }
-    drawNebulaeAndFx(nav, { viewProj, viewProjLocal, camLocal, camRot, tanFov: [tanX, tanY], exposure, noise3: this.noise3, time: nav.time, frame: this.frameNo, pxPerRad });
+    drawNebulaeAndFx(nav, { viewProj, viewProjLocal, camLocal, camRot, tanFov: [tanX, tanY], exposure, noise3: this.noise3, time: nav.time, frame: this.frameNo, pxPerRad, extra: sne ? sne.remnants : null });
 
     // system bodies
     const atmoPasses = [], blackHoles = [];
