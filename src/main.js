@@ -51,6 +51,14 @@ try {
 }
 
 let last = performance.now(), fpsAcc = 0, fpsN = 0, slow = 0, fast = 0;
+// adaptive quality steps (applied only after the render scale has reached its floor)
+const QBASE = { steps: atmoCfg.steps, csteps: atmoCfg.cloudSteps, lod: planetCfg.lodScale, gal: skyCfg.galSteps };
+const QMAX = 3; let qLevel = QMAX;
+function setQuality(l) {
+  const f = [0.5, 0.65, 0.8, 1][l];
+  atmoCfg.steps = Math.max(10, Math.round(QBASE.steps * f)); atmoCfg.cloudSteps = Math.max(10, Math.round(QBASE.csteps * f));
+  planetCfg.lodScale = QBASE.lod * (0.6 + 0.4 * f); skyCfg.galSteps = Math.max(16, Math.round(QBASE.gal * f));
+}
 function frame(dt) {
   nav.update(dt, ui.input(dt)); if (window.__L) window.__L('nav.update');
   renderer.render(nav, dt); if (window.__L) { gl.finish(); window.__L('render'); }
@@ -65,8 +73,16 @@ function loop(now) {
     if (rcfg.autoScale && now > 6000) {
       // aim for a steady 55+ fps; temporal AA hides most of the resolution loss
       if (ui.fps < 48) { slow++; fast = 0; } else if (ui.fps > 57) { fast++; slow = 0; } else { slow = 0; fast = 0; }
-      if (slow >= 2 && rcfg.scale > 0.5) { rcfg.scale = Math.max(0.5, rcfg.scale * (ui.fps < 30 ? 0.8 : 0.9)); slow = 0; }
-      if (fast >= 8 && rcfg.scale < rcfg.scaleMax) { rcfg.scale = Math.min(rcfg.scaleMax, rcfg.scale * 1.08); fast = 0; }
+      if (slow >= 2) {
+        if (rcfg.scale > 0.6) rcfg.scale = Math.max(0.6, rcfg.scale * (ui.fps < 30 ? 0.8 : 0.9));
+        else if (qLevel > 0) setQuality(--qLevel);      // resolution is already low: trim ray march steps and terrain detail
+        slow = 0;
+      }
+      if (fast >= 8) {
+        if (qLevel < QMAX) setQuality(++qLevel);
+        else if (rcfg.scale < rcfg.scaleMax) rcfg.scale = Math.min(rcfg.scaleMax, rcfg.scale * 1.08);
+        fast = 0;
+      }
     }
   }
   try { frame(dt); } catch (e) { console.error(e); ui.fatal(e); return; }
