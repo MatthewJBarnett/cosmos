@@ -5,6 +5,8 @@ import { gl, makeVAO } from './gl.js';
 import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS, galDir } from './universe.js';
 import { visibleNebulae, REAL_NEBULAE } from './exotic.js';
 import { catalog, loadCatalog, bodyMaps } from './assets.js';
+import { EXTRA_STARS, extraStarPos } from './realsystems.js';
+import { starFromCatalog } from './stars.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
@@ -13,6 +15,7 @@ import { visibleGalaxyCells } from './sky.js';
 const PC = C.PC, MPC = C.PC * 1e6;
 const fields = new Map(), systems = new Map();
 
+function hashStrLocal(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function addFixed(f, desc, MV, T) {
   f.fixed.push({ pos: desc.pos, MV, desc });
   const data = new Float32Array([0, 0, 0, MV, T]);
@@ -24,6 +27,10 @@ function fieldFor(g) {
   f = new StarField(g);
   if (g === MILKY_WAY) {
     addFixed(f, sunDescriptor(g), 4.83, 5772);
+    for (const e of EXTRA_STARS) {
+      const st = starFromCatalog(e[4], e[5], e[6]); st.mass = e[7] * C.Msun; st.radius = e[8] * C.Rsun; st.lum = 4 * Math.PI * st.radius ** 2 * C.sigma * Math.pow(e[5], 4) / C.Lsun;
+      addFixed(f, { galaxy: g, seed: (hashStrLocal(e[0]) ^ 0x7e) >>> 0, pos: extraStarPos(e), key: g.id + '/x:' + e[0], name: e[0], star: st }, e[4], e[5]);
+    }
     // real stars around the Sun (HYG catalogue); procedural stars are suppressed where it is complete
     f.catalogCenter = SUN_POS;
     loadCatalog().then(() => {
@@ -413,7 +420,7 @@ export function searchList(nav) {
   for (const b of solSystem().bodies) if (!out.includes(b.name)) out.push(b.name);
   for (const g of REAL_GALAXIES) out.push(g.name);
   for (const x of REAL_NEBULAE) out.push(x.name);
-  out.push('Sagittarius A*', 'Cygnus X-1');
+  out.push('Sagittarius A*', 'Cygnus X-1', 'Proxima Centauri', 'TRAPPIST-1', "Barnard's Star");
   if (catalog.ready) for (const x of catalog.named) if (!/^HIP /.test(x.name)) out.push(x.name);
   return out;
 }

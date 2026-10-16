@@ -3,6 +3,8 @@ import { RNG, hashCombine, makeName } from './rng.js';
 import { V, Q, C, clamp, mix } from './math.js';
 import { makeStar, bbColor, KIND } from './stars.js';
 import { galDir } from './universe.js';
+import { REAL_SYSTEMS } from './realsystems.js';
+import { starFromCatalog } from './stars.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -278,6 +280,20 @@ function buildSol(sys) {
   // Ceres
   const ceres = P('Ceres', 'Dwarf planet', 2.7675, 0.0758, 10.593, 80.3, 153.9, 95.99, 0.00016, 469.7, 9.07, 4, 0.09, 168, { kind: 'dwarf' });
   ceres.surface = surfacePreset('selena', rng, ceres); Object.assign(ceres.surface, { maria: 0.1, colA: [0.1, 0.098, 0.095], colB: [0.075, 0.073, 0.07] });
+  // more minor bodies (orbital elements approximate; phases not exact)
+  const minor = (name, cls, aAU, e, i, node, peri, L, massKg, radKm, rotH, albedo, preset, extra = {}) => {
+    const b = P(name, cls, aAU, e, i, node, peri, L, massKg / C.Mearth, radKm, rotH, rng.range(0, 40), albedo, Math.round(278 / Math.sqrt(aAU) * Math.pow(1 - albedo, 0.25)), Object.assign({ kind: 'dwarf' }, extra));
+    b.surface = surfacePreset(preset, rng, b); b.approxOrbit = true; return b;
+  };
+  minor('Vesta', 'Asteroid', 2.3615, 0.0902, 7.14, 103.7, 255.4, 120, 2.59e20, 262.7, 5.342, 0.42, 'selena');
+  minor('Pallas', 'Asteroid', 2.7709, 0.2305, 34.93, 172.9, 123.8, 40, 2.04e20, 256, 7.81, 0.16, 'selena');
+  minor('Hygiea', 'Asteroid', 3.1422, 0.1125, 3.83, 283.2, 235.5, 300, 8.3e19, 217, 13.8, 0.07, 'selena');
+  minor('Juno', 'Asteroid', 2.669, 0.2562, 12.99, 169.8, 57.7, 210, 2.7e19, 123, 7.21, 0.24, 'asteroid');
+  minor('Eros', 'Near-Earth asteroid', 1.458, 0.2229, 10.83, 304.3, 123.2, 70, 6.69e15, 8.4, 5.27, 0.25, 'asteroid');
+  minor('Bennu', 'Near-Earth asteroid', 1.1264, 0.2037, 6.03, 2.06, 68.3, 160, 7.3e10, 0.245, 4.297, 0.044, 'asteroid');
+  minor('Makemake', 'Dwarf planet', 45.43, 0.161, 28.98, 79.6, 376.8, 160, 3.1e21, 715, 22.8, 0.81, 'ice');
+  minor('Haumea', 'Dwarf planet', 43.12, 0.195, 28.21, 121.9, 362.7, 200, 4.0e21, 780, 3.9, 0.8, 'ice', { oblate: 0.35 });
+  minor('Sedna', 'Trans-Neptunian object', 506, 0.855, 11.93, 144.5, 455.6, 358, 1e21, 500, 10.3, 0.32, 'ice');
   sys.belts.push({ name: 'Asteroid belt', inner: 2.1 * C.AU, outer: 3.3 * C.AU, thick: 0.12, count: 9000, seed: 11, parent: sun });
   // Jupiter
   const jup = P('Jupiter', 'Gas giant', 5.202887, 0.04838624, 1.30439695, 100.47390909, 14.72847983, 34.39644051, 317.83, 69911, 9.925, 3.13, 0.52, 165, { oblate: 0.0649 });
@@ -385,6 +401,13 @@ function buildProcedural(sys) {
   let primary = makeStarBody(st, name, rng);
   let hostMass = st.mass, lum = st.lum, planetParent = primary, maxA = 1e9, minAfac = 1;
   sys.root = primary;
+  const real = REAL_SYSTEMS[name];
+  if (real || d.catIndex !== undefined) {
+    // catalogue stars: no invented companions; known systems get their observed planets only
+    if (real) buildReal(sys, rng, real, primary, st, name);
+    else buildPlanetsOnly(sys, rng, primary, st, name);
+    return;
+  }
   // multiplicity
   const multP = st.kind === KIND.MS ? clamp(0.25 + 0.2 * Math.log10(st.mass / C.Msun + 0.3) + 0.2, 0.2, 0.75) : 0.25;
   const comp = d.companion;
@@ -408,6 +431,12 @@ function buildProcedural(sys) {
     sys.binarySep = sepAU;
   }
   if (st.kind === KIND.BH && primary.accretion) lum = 0.01;
+  proceduralPlanets(sys, rng, st, name, planetParent, hostMass, lum, maxA, minAfac);
+}
+function buildPlanetsOnly(sys, rng, primary, st, name) {
+  proceduralPlanets(sys, rng, st, name, primary, st.mass, st.lum, 1e9, 1);
+}
+function proceduralPlanets(sys, rng, st, name, planetParent, hostMass, lum, maxA, minAfac) {
   // planets
   const sqL = Math.sqrt(Math.max(lum, 1e-5));
   let nPl = st.kind === KIND.MS || st.kind === KIND.BD ? rng.int(0, 10) : rng.int(0, 5);
@@ -443,6 +472,27 @@ function buildProcedural(sys) {
   if (rng.chance(0.5) && nPl > 2) sys.belts.push({ name: name + ' outer belt', inner: a * 1.2 * C.AU, outer: a * 1.8 * C.AU, thick: 0.2, count: 5000, seed: rng.int(1, 9999), parent: planetParent });
 }
 
+function buildReal(sys, rng, real, primary, st, name) {
+  let host = primary, hostMass = st.mass, lum = st.lum;
+  if (real.companion) {
+    const c = real.companion, s2 = starFromCatalog(c.MV, c.T, c.spect);
+    s2.mass = c.mass * C.Msun; s2.radius = c.radius * C.Rsun;
+    s2.lum = 4 * Math.PI * s2.radius ** 2 * C.sigma * Math.pow(c.T, 4) / C.Lsun;
+    const B = makeStarBody(s2, c.name, rng);
+    const bary = body({ name: name + ' barycenter', kind: 'barycenter', cls: 'Barycenter', mass: st.mass + s2.mass, radius: 0 });
+    const a = c.a * C.AU, per = c.period * C.YEAR, node = rng.range(0, 6.28), argp = rng.range(0, 6.28), M0 = rng.range(0, 6.28);
+    primary.orbit = { a: a * s2.mass / (st.mass + s2.mass), e: c.e, inc: 0, node, argp: argp + Math.PI, M0, period: per };
+    B.orbit = { a: a * st.mass / (st.mass + s2.mass), e: c.e, inc: 0, node, argp, M0, period: per };
+    addChild(bary, primary); addChild(bary, B); sys.root = bary; sys.binarySep = c.a;
+  }
+  for (const [pn, P, aAU, e, massE, rE] of real.planets) {
+    const type = rE ? (rE < 1.8 ? 'rock' : rE < 6 ? 'neptune' : 'gas') : (massE < 5 ? 'rock' : massE < 60 ? 'neptune' : 'gas');
+    const p = makePlanet(sys, rng, pn, type, massE, aAU, hostMass, lum, st, host, 'planet');
+    p.orbit.e = e; p.orbit.period = P * 86400;
+    if (rE) p.radius = rE * C.Rearth;
+    p.rings = null; p.real = true; p.observed = true;
+  }
+}
 function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent, kind, moonA) {
   const b = body({ name, kind, mass: massE * C.Mearth });
   // radius from mass
@@ -565,6 +615,8 @@ export function describeBody(b) {
   }
   if (b.rotPeriod) rows.push(['Rotation', Math.abs(b.rotPeriod) < 1 ? fmt(Math.abs(b.rotPeriod) * 1000) + ' ms' : Math.abs(b.rotPeriod) < 86400 * 3 ? fmt(Math.abs(b.rotPeriod) / 3600) + ' h' : fmt(Math.abs(b.rotPeriod) / 86400) + ' d']);
   if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', fmt(b.tilt) + '°']);
+  if (b.approxOrbit) rows.push(['Orbit', 'approximate elements']);
+  if (b.observed) rows.push(['Data', 'observed exoplanet']);
   if (b.orbit) {
     const o = b.orbit;
     rows.push(['Semi-major axis', o.a > 0.01 * C.AU ? fmt(o.a / C.AU, 4) + ' AU' : fmt(o.a / 1e3, 5) + ' km']);
