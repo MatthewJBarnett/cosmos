@@ -235,6 +235,15 @@ void main(){
 }`;
 
 let dummy = null;
+// scale a map so its mean brightness equals the body's real albedo (grayscale mosaics are contrast stretched)
+function mapTint(body, mp) {
+  const m = body.maps; if (!m) return [1, 1, 1];
+  const t = m.tint || [1, 1, 1];
+  if (!m.albedo || !mp || !mp.color || !mp.color.mean) return t;
+  const c = mp.color.mean, l = 0.2126 * c[0] * t[0] + 0.7152 * c[1] * t[1] + 0.0722 * c[2] * t[2];
+  const k = m.albedo / Math.max(l, 1e-3);
+  return [t[0] * k, t[1] * k, t[2] * k];
+}
 function dummyTex() { if (!dummy) dummy = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([128, 128, 128, 255])); return dummy; }
 let progDraw = null, progGen = {}, gridVAO = null, gridCount = 0, genFBO = null, queryFBO = null, queryTex = null;
 const texPool = [];
@@ -318,7 +327,7 @@ class PlanetState {
     const mapOct = Math.ceil(Math.log2(sz / (4 * Math.PI * s.freq)));
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
-      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: (this.body.maps && this.body.maps.tint) || [1, 1, 1],
+      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp),
       uCraterO0: mp && mp.height ? mapOct : 2 });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,

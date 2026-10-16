@@ -1,5 +1,5 @@
 // Loading of real data: planet maps (decoded off the main thread with createImageBitmap) and the star catalogue.
-import { gl } from './gl.js';
+import { gl, Program, FS_VS, drawFS, tex2D, fbo } from './gl.js';
 
 const cache = new Map();
 export const loading = { count: 0 };
@@ -30,6 +30,7 @@ export function loadTexture(url, kind = 'color') {
       }
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       e.tex = t; e.w = img.width; e.h = img.height; e.ready = true;
+      if (kind === 'color') e.mean = meanColor(t, img.width, img.height);
       if (img.close) img.close();
       return e;
     })
@@ -72,4 +73,21 @@ export function loadCatalog() {
     return catalog;
   }).catch(err => { console.warn('star catalogue failed to load', err.message); });
   return catalog.promise;
+}
+
+// mean linear colour of a mipmapped texture, weighted by area on the sphere (equirectangular rows shrink with cos(lat))
+let pMean = null, meanFBO = null, meanTex = null;
+function meanColor(t, w, h) {
+  if (!pMean) {
+    pMean = new Program('mean', FS_VS, `in vec2 vUV; out vec4 o; uniform sampler2D uTex; void main(){ vec3 s = vec3(0.); float ws = 0.;
+      for (int j = 0; j < 32; j++) for (int i = 0; i < 64; i++) { vec2 uv = (vec2(i, j) + 0.5)/vec2(64., 32.); float wt = cos((uv.y - 0.5)*3.14159265); s += textureLod(uTex, uv, 5.).rgb*wt; ws += wt; }
+      o = vec4(s/ws, 1.); }`);
+    meanTex = tex2D(1, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST); meanFBO = fbo([meanTex]);
+  }
+  const prevFB = gl.getParameter(gl.FRAMEBUFFER_BINDING), vp = gl.getParameter(gl.VIEWPORT);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, meanFBO); gl.viewport(0, 0, 1, 1); gl.disable(gl.BLEND);
+  pMean.use().set({ uTex: t }); drawFS();
+  const out = new Float32Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, out);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, prevFB); gl.viewport(vp[0], vp[1], vp[2], vp[3]);
+  return [out[0], out[1], out[2]];
 }

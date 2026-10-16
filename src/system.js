@@ -307,7 +307,7 @@ function buildSol(sys) {
   const ura = P('Uranus', 'Ice giant', 19.18916464, 0.04725744, 0.77263783, 74.01692503, 170.9542763, 313.23810451, 14.54, 25362, -17.24, 97.77, 0.51, 76, { oblate: 0.0229, poleEcl: [77.6, -7.7] });
   ura.surface = gasPreset('uranus', rng, ura);
   ura.atmo = makeAtmosphere(ura, 1e5, { H2: 0.83, He: 0.15, CH4: 0.02 }, { T: 76, top: 500000, hM: 30000, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: [1.5e-6, 2e-7, 5e-8], absH: 0, absW: 400000 });
-  ura.rings = { inner: 38000e3, outer: 51200e3, opacity: 0.25, color: [0.35, 0.35, 0.38], seed: 9, kind: 'narrow' };
+  ura.rings = { inner: 38000e3, outer: 51200e3, opacity: 0.5, color: [0.04, 0.04, 0.045], seed: 9, kind: 'narrow' };
   mkIce(Mn(ura, 'Miranda', 'Ice world', 129390, 0.0013, 4.232, 6.59e19, 235.8, 0.32), { crater: 0.6, cracks: 1, mtnAmp: 4000 });
   mkIce(Mn(ura, 'Ariel', 'Ice world', 191020, 0.0012, 0.26, 1.353e21, 578.9, 0.53), { crater: 0.5, cracks: 0.8 });
   mkIce(Mn(ura, 'Umbriel', 'Ice world', 266300, 0.0039, 0.205, 1.172e21, 584.7, 0.26), { crater: 1, cracks: 0, colA: [0.28, 0.28, 0.29], colB: [0.2, 0.2, 0.21] });
@@ -335,6 +335,8 @@ function buildSol(sys) {
   moon.ephem = 'moon';
   // real surface data where we have it
   const D = 'data/planets/';
+  // normal albedos used to calibrate grayscale mosaics
+  const ALB = { mercury: 0.14, io: 0.62, europa: 0.64, ganymede: 0.42, callisto: 0.2, titan: 0.2, enceladus: 0.95, pluto: 0.5, charon: 0.33, ceres: 0.09 };
   const setMaps = (b, maps) => { b.maps = maps; if (b.surface) b.surface.freq = 1; };
   const tintOf = (c) => { const l = 0.3 * c[0] + 0.5 * c[1] + 0.2 * c[2]; return [c[0] / l * 0.5, c[1] / l * 0.5, c[2] / l * 0.5]; };
   setMaps(earth, { color: D + 'earth_color.jpg', height: D + 'earth_height16.png', hRange: [-11000, 9000], mask: D + 'earth_mask.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
@@ -342,9 +344,9 @@ function buildSol(sys) {
   setMaps(mars, { color: D + 'mars_color.jpg', height: D + 'mars_height16.png', hRange: [-8500, 21500] });
   for (const [b, f, tint] of [[mercury, 'mercury', [0.62, 0.6, 0.57]], [io, 'io', null], [eu, 'europa', [1.0, 0.92, 0.82]], [ga, 'ganymede', [0.9, 0.86, 0.8]], [ca, 'callisto', [0.85, 0.8, 0.74]],
     [titan, 'titan', [1.0, 0.75, 0.45]], [sys.root.children.find(x => x.name === 'Saturn').children.find(x => x.name === 'Enceladus'), 'enceladus', [1, 1, 1]], [pluto, 'pluto', [1.0, 0.82, 0.66]], [ceres, 'ceres', [0.62, 0.6, 0.58]]]) {
-    if (b) setMaps(b, { color: D + f + '_color.jpg', tint: tint || [1, 1, 1] });
+    if (b) setMaps(b, { color: D + f + '_color.jpg', tint: tint || [1, 1, 1], albedo: ALB[f] });
   }
-  const charon = pluto.children.find(x => x.name === 'Charon'); if (charon) setMaps(charon, { color: D + 'charon_color.jpg', tint: [0.8, 0.78, 0.76] });
+  const charon = pluto.children.find(x => x.name === 'Charon'); if (charon) setMaps(charon, { color: D + 'charon_color.jpg', tint: [0.8, 0.78, 0.76], albedo: ALB.charon });
   for (const [b, f] of [[jup, 'jupiter'], [sat, 'saturn'], [ura, 'uranus'], [nep, 'neptune']]) setMaps(b, { color: D + f + '_color.jpg' });
   sat.rings.map = D + 'saturn_rings.png'; sat.rings.mapInner = 69800e3; sat.rings.mapOuter = 140900e3;
   // Earth's prime meridian: Greenwich sidereal angle at J2000 (280.46 deg), local +X starts at the autumnal equinox
