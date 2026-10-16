@@ -280,8 +280,8 @@ function buildSol(sys) {
   const mars = P('Mars', 'Desert', 1.52371034, 0.0933941, 1.84969142, 49.55953891, -23.94362959, -4.55343205, 0.107, 3389.5, 24.6229, 25.19, 0.17, 210, { poleEcl: [352.9, 63.3] });
   mars.surface = surfacePreset('desert', rng, mars); Object.assign(mars.surface, { colA: [0.44, 0.21, 0.09], colB: [0.2, 0.09, 0.045], colLow: [0.11, 0.06, 0.04], colSand: [0.5, 0.27, 0.13], iceLat: 0.955, mtnAmp: 9000, contAmp: 3500 });
   mars.atmo = makeAtmosphere(mars, 636, { CO2: 0.95, N2: 0.03, Ar: 0.02 }, { T: 210, hR: 11100, hM: 11000, top: 120000, mieS: [1.3e-5, 1.05e-5, 0.65e-5], mieA: [0.04e-5, 0.2e-5, 0.6e-5], mieG: [0.72, 0.76, 0.86] });
-  const ph = Mn(mars, 'Phobos', 'Asteroid', 9376, 0.0151, 1.08, 1.0659e16, 11.27, 0.07); ph.surface = surfacePreset('asteroid', rng, ph);
-  const de = Mn(mars, 'Deimos', 'Asteroid', 23463, 0.00033, 0.93, 1.4762e15, 6.2, 0.07); de.surface = surfacePreset('asteroid', rng, de);
+  const ph = Mn(mars, 'Phobos', 'Asteroid', 9376, 0.0151, 1.08, 1.0659e16, 11.27, 0.07); ph.surface = surfacePreset('asteroid', rng, ph); ph.shape = [1.2, 0.8, 0.98];
+  const de = Mn(mars, 'Deimos', 'Asteroid', 23463, 0.00033, 0.93, 1.4762e15, 6.2, 0.07); de.surface = surfacePreset('asteroid', rng, de); de.shape = [1.21, 0.89, 0.98];
   // Ceres
   const ceres = P('Ceres', 'Dwarf planet', 2.7675, 0.0758, 10.593, 80.3, 153.9, 95.99, 0.00016, 469.7, 9.07, 4, 0.09, 168, { kind: 'dwarf' });
   ceres.surface = surfacePreset('selena', rng, ceres); Object.assign(ceres.surface, { maria: 0.1, colA: [0.1, 0.098, 0.095], colB: [0.075, 0.073, 0.07] });
@@ -294,10 +294,10 @@ function buildSol(sys) {
   minor('Pallas', 'Asteroid', 2.7709, 0.2305, 34.93, 172.9, 123.8, 40, 2.04e20, 256, 7.81, 0.16, 'selena');
   minor('Hygiea', 'Asteroid', 3.1422, 0.1125, 3.83, 283.2, 235.5, 300, 8.3e19, 217, 13.8, 0.07, 'selena');
   minor('Juno', 'Asteroid', 2.669, 0.2562, 12.99, 169.8, 57.7, 210, 2.7e19, 123, 7.21, 0.24, 'asteroid');
-  minor('Eros', 'Near-Earth asteroid', 1.458, 0.2229, 10.83, 304.3, 123.2, 70, 6.69e15, 8.4, 5.27, 0.25, 'asteroid');
+  minor('Eros', 'Near-Earth asteroid', 1.458, 0.2229, 10.83, 304.3, 123.2, 70, 6.69e15, 8.4, 5.27, 0.25, 'asteroid', { shape: [2.05, 0.67, 0.67] });
   minor('Bennu', 'Near-Earth asteroid', 1.1264, 0.2037, 6.03, 2.06, 68.3, 160, 7.3e10, 0.245, 4.297, 0.044, 'asteroid');
   minor('Makemake', 'Dwarf planet', 45.43, 0.161, 28.98, 79.6, 376.8, 160, 3.1e21, 715, 22.8, 0.81, 'ice');
-  minor('Haumea', 'Dwarf planet', 43.12, 0.195, 28.21, 121.9, 362.7, 200, 4.0e21, 780, 3.9, 0.8, 'ice', { oblate: 0.35 });
+  minor('Haumea', 'Dwarf planet', 43.12, 0.195, 28.21, 121.9, 362.7, 200, 4.0e21, 780, 3.9, 0.8, 'ice', { shape: [1.35, 0.69, 1.08] });
   minor('Sedna', 'Trans-Neptunian object', 506, 0.855, 11.93, 144.5, 455.6, 358, 1e21, 500, 10.3, 0.32, 'ice');
   sys.belts.push({ name: 'Asteroid belt', inner: 2.1 * C.AU, outer: 3.3 * C.AU, thick: 0.12, count: 9000, seed: 11, parent: sun });
   // Jupiter
@@ -557,7 +557,7 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
       else if (Ts < 255) cls = Ts < 130 && rng.chance(0.6) ? 'titan' : (icy ? 'ice' : 'desert');
       else if (P > 2e6) cls = 'venus'; else cls = 'desert';
     } else cls = icy ? 'ice' : (Teq > 500 && rng.chance(0.25) ? 'io' : 'selena');
-    if (b.radius < 2.5e5) cls = 'asteroid';
+    if (b.radius < 2.5e5) { cls = 'asteroid'; const e1 = rng.range(1, 1.8), e2 = rng.range(0.6, 1); b.shape = [e1 / Math.cbrt(e1 * e2), e2 / Math.cbrt(e1 * e2) * rng.range(0.85, 1), 1 / Math.cbrt(e1 * e2)]; }
     b.temp = Ts;
     b.surface = surfacePreset(cls, rng, b);
     const life = (cls === 'terra' || cls === 'ocean') && rng.chance(0.7);

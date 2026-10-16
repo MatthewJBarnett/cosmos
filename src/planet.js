@@ -25,7 +25,7 @@ layout(location=0) in vec3 aPos;
 uniform sampler2D uHeightTex;
 uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
-uniform float uQcLen, uSize, uRadius, uSea, uOcean, uSkirt, uGrid, uTexStep, uOblate;
+uniform float uQcLen, uSize, uRadius, uSea, uOcean, uSkirt, uGrid, uTexStep, uOblate; uniform vec3 uShape;
 out vec3 vDir; out vec2 vUV; out vec3 vWorld;
 ${LOGDEPTH_VS}
 void main(){
@@ -40,6 +40,7 @@ void main(){
   vec3 dir = cdir + dd;
   vec3 local = uRadius*dd + dir*(h - aPos.z*uSkirt);
   local.y *= 1. - uOblate;
+  local *= uShape;     // triaxial bodies (asteroids, small moons)
   vWorld = uRot*local + uCenterRel;
   vDir = dir; vUV = uv;
   gl_Position = uViewProj*vec4(vWorld, 1.);
@@ -463,6 +464,8 @@ export function drawPlanet(body, o) {
   const rotInv = Q.conj(o.rotQ);
   const camLocal = Q.rot(rotInv, V.mul(o.rel, -1));       // camera in planet frame
   if (body.oblate) camLocal[1] /= (1 - body.oblate);
+  const shp = body.shape || [1, 1, 1];
+  if (body.shape) { camLocal[0] /= shp[0]; camLocal[1] /= shp[1]; camLocal[2] /= shp[2]; }
   const camDist = V.len(camLocal), camDir = V.mul(camLocal, 1 / camDist);
   const hmax = surf.hmax || 0, hmin = surf.hmin || 0;
   const Rmin = R + hmin, alt = Math.max(camDist - (R + st.groundH), 0.5);
@@ -478,9 +481,9 @@ export function drawPlanet(body, o) {
     if (ang - ch.angRad > horizon) return;
     // frustum cull using bounding sphere
     const sizeM = ch.size * R * (1 / ch.qlen);
-    const cW = Q.rot(o.rotQ, body.oblate ? [ch.c[0] * R, ch.c[1] * R * (1 - body.oblate), ch.c[2] * R] : V.mul(ch.c, R));
+    const cW = Q.rot(o.rotQ, [ch.c[0] * R * shp[0], ch.c[1] * R * (1 - (body.oblate || 0)) * shp[1], ch.c[2] * R * shp[2]]);
     const cRel = [cW[0] + o.rel[0], cW[1] + o.rel[1], cW[2] + o.rel[2]];
-    const brad = ch.angRad * R + Math.max(hmax, -hmin);
+    const brad = ch.angRad * R * Math.max(shp[0], shp[1], shp[2]) + Math.max(hmax, -hmin);
     if (ch.level > 0 && !o.sphereVisible(cRel, brad)) return;
     // distance to nearest point of tile
     const F = FACES[ch.face];
@@ -509,7 +512,7 @@ export function drawPlanet(body, o) {
   const atmo = body.atmo && o.atmoLUT;
   p.set(Object.assign({
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: surf.sea || 0, uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
-    uOblate: body.oblate || 0, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
+    uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: surf.lava ? 0.06 : 9e-5, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));

@@ -394,7 +394,10 @@ export class Nav {
         st.groundH = h;
       } else if (anchor.surface) planetState(anchor).groundH = 0;
       anchor._groundH = h;
-      const minR = anchor.kind === 'star' ? anchor.radius * 1.02 : anchor.radius + h + (anchor.surface && anchor.surface.gen === 'terra' ? 1.7 : anchor.radius * 0.001);
+      // radius of the (possibly triaxial) surface under the camera
+      let Rs = anchor.radius;
+      if (anchor.shape) { const dl = Q.rot(Q.conj(anchor.wrot), V.mul(rel, 1 / d)), sh = anchor.shape; Rs = anchor.radius / Math.hypot(dl[0] / sh[0], dl[1] / sh[1], dl[2] / sh[2]); }
+      const minR = anchor.kind === 'star' ? anchor.radius * 1.02 : Rs + h * (Rs / anchor.radius) + (anchor.surface && anchor.surface.gen === 'terra' ? 1.7 : anchor.radius * 0.001);
       if (d < minR) { this.S = V.add(anchor.wpos, V.mul(rel, minR / d)); d = minR; }
       this.altitude = d - anchor.radius - h;
     }
