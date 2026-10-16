@@ -29,6 +29,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Cumulus](docs/cumulus.jpg) Cumulus over the Amazon from 5 km | ![Overcast sunset](docs/overcast_sunset.jpg) Overcast sunset over Norway |
 | ![Mars sunset](docs/mars_sunset.jpg) Blue sunset at Gale crater, Mars | ![Milky Way](docs/milkyway.jpg) The Milky Way's core from the Solar System |
 | ![ISS view](docs/iss_view.jpg) From 400 km over the Atlantic | ![Deep field](docs/web.jpg) Intergalactic deep field |
+| ![Sahara dunes](docs/sahara_dunes.jpg) Grand Erg Oriental, Sahara, from 250 m | |
 
 ## Run
 
@@ -107,7 +108,7 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
 - **Clouds:** volumetric ray marching driven by the real cloud map on Earth (Earth-like exoplanets borrow its
   morphology), cloud cells whose area matches the observed cover, billowy cumulus from GPU-baked Worley noise, light
   marched through the whole layer (overcast bases stay grey at sunset), lightning in storm clouds at night.
-- **Ground:** instanced trees where the land is green (stands, clearings, conifers and broadleaf), boulders on barren
+- **Ground:** dune fields wherever the real map shows sand seas; instanced trees where the land is green (stands, clearings, conifers and broadleaf), boulders on barren
   ground, degraded small craters, ice and snow textures, triaxial shapes for small moons and asteroids.
 - **Oceans:** a directional wind-wave spectrum near the camera that becomes microfacet roughness with distance,
   Fresnel reflection of a horizon-weighted sky, the sun's glitter path, depth-dependent colour.

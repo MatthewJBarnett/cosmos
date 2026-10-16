@@ -148,6 +148,21 @@ float terrainMapped(vec3 d, vec3 P){
   gFine = det;
   float h = hm + det*uMapDetail*rough*coast;
   if (uCrater > 0.) h += craters(d);
+  // sand seas: where the real map shows bright sand, add dune relief (~1.5 km dune ridges, ~350 m secondary dunes)
+  if (uMapCurve > 0.5 && uHasC > 0.5) {
+    int od = int(round(log2(uRadius/(uFreq*1500.))));
+    if (uOMax >= od && od < NOCT - 2) {
+      vec3 mc = textureLod(uCMap, uv, 2.).rgb;
+      float sand = smoothstep(0.18, 0.4, mc.r - mc.b)*smoothstep(0.25, 0.45, dot(mc, vec3(0.3, 0.5, 0.2)))*(1. - gMtn)*land;
+      if (sand > 0.01) {
+        float field = 0.35 + 0.65*smoothstep(-0.5, 0.1, gn(max(od - 5, 0), 33u, d).x);
+        float r1 = 1. - abs(gn(od, 34u, d).x); float r2 = uOMax >= od + 2 ? 1. - abs(gn(od + 2, 35u, d).x) : 0.6;
+        float rip = uOMax >= od + 5 ? gn(od + 5, 36u, d).x : 0.;
+        h += sand*field*(r1*r1*70. + r2*r2*14. + rip*1.5);
+        gDune = max(gDune, sand*field);
+      }
+    }
+  }
   if (uDunes > 0. && uOMax >= 12) {
     int od = int(clamp(round(log2(uRadius/(uFreq*900.))), 10., 20.));
     if (uOMax >= od) { float q = 1. - abs(gn(od, 12u, d).x); float dm = smoothstep(0.1, 0.5, gn(6, 9u, d).x)*(1. - gMtn); gDune = dm; h += dm*q*q*uRadius/(exp2(float(od))*uFreq)*0.2*uDunes; }
