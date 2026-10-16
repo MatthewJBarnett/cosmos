@@ -27,6 +27,8 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Crab Nebula](docs/crab.jpg) Crab Nebula with its pulsar | ![Ocean](docs/ocean.jpg) Open ocean in the late afternoon |
 | ![Blood moon](docs/blood_moon.jpg) Total lunar eclipse, 14 March 2025, found by the eclipse finder | ![Forest](docs/forest.jpg) Black Forest from 60 m |
 | ![Cumulus](docs/cumulus.jpg) Cumulus over the Amazon from 5 km | ![Overcast sunset](docs/overcast_sunset.jpg) Overcast sunset over Norway |
+| ![Mars sunset](docs/mars_sunset.jpg) Blue sunset at Gale crater, Mars | ![Milky Way](docs/milkyway.jpg) The Milky Way's core from the Solar System |
+| ![ISS view](docs/iss_view.jpg) From 400 km over the Atlantic | ![Deep field](docs/web.jpg) Intergalactic deep field |
 
 ## Run
 
