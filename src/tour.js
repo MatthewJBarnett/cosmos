@@ -45,12 +45,14 @@ export const STOPS = [
 
 export class Tour {
   constructor(nav, ui) { this.nav = nav; this.ui = ui; this.i = -1; this.active = false; this.t = 0; this.wait = 0; }
-  start() { this.active = true; this.i = -1; this.next(); }
+  start() { this.active = true; this.i = -1; this.defaultFov = this.nav.fov > 0.3 ? this.nav.fov : 55 * Math.PI / 180; this.next(); }
   stop() { this.active = false; this.ui.caption(null); }
   next() {
     this.i++;
     if (this.i >= STOPS.length) { this.stop(); return; }
     const s = STOPS[this.i];
+    // every stop starts from a normal view (eclipse stops zoom in)
+    this.nav.fov = this.defaultFov || (this.defaultFov = 55 * Math.PI / 180); this.nav.lookTarget = null; this.nav.onArrive = null; this.nav.orbit = null;
     try { s.run(this.nav); } catch (e) { console.warn('tour stop failed', s.title, e); }
     this.t = 0; this.wait = 0;
     this.ui.caption(s.title, s.text, this.i + 1, STOPS.length);

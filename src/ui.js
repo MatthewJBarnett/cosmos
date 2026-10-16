@@ -295,7 +295,7 @@ export class UI {
     let i = RATES.findIndex(r => r >= a * 0.999); if (i < 0) i = RATES.length - 1;
     i = clamp(i + d, 0, RATES.length - 1); nav.rate = RATES[i] * sg; nav.paused = false;
   }
-  search(text) { const t = findByName(this.nav, text); if (t) { this.nav.selected = t; this.nav.goTo(t); } }
+  search(text) { const t = findByName(this.nav, text); if (t) { if (this.nav.fov < 0.3) this.nav.fov = 55 * Math.PI / 180; this.nav.selected = t; this.nav.goTo(t); } }
   // travel to a random interesting place
   // kind: 'star' | 'earthlike' | 'rings' | 'giant-star' | 'galaxy'
   explore(kind = 'star') {
