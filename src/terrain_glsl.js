@@ -426,13 +426,26 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
   if (uHasC > 0.5) {
     // real map, with fine turbulent shear added below its resolution
     vec2 uv = mapUV(P);
-    int o0 = int(uMapOct);
+    int o0 = int(uMapOct) - 1;
+    float px = 1./float(textureSize(uCMap, 0).x);
+    float tex = 0.;
     if (uOMax >= o0) {
-      float px = 1./float(textureSize(uCMap, 0).x);
-      vec2 w = vec2(fbm(o0, uOMax, 51u, d, 0.62), fbm(o0, uOMax, 52u, d, 0.62)*0.3)*px*2.2;
-      uv += w;
+      // turbulent shear below the map's resolution: a few octaves of domain warping, stronger along the bands
+      vec2 w = vec2(0.); float a = 1.;
+      for (int o = o0; o <= min(uOMax, o0 + 7); o++) {
+        vec4 n1 = gn(o, 51u, d + vec3(w.x, 0., w.y)*0.0), n2 = gn(o, 52u, d);
+        w += vec2(n1.x, n2.x*0.35)*a;
+        a *= 0.55;
+      }
+      uv += w*px*3.5;
+      // small vortices and cloud texture
+      tex = fbm(o0 + 1, min(uOMax, o0 + 9), 53u, d, 0.6);
     }
-    return clamp(texture(uCMap, uv).rgb*uMapTint, 0., 1.);
+    vec3 c = texture(uCMap, uv).rgb;
+    // local contrast: cloud texture modulates brightness, more in bright zones (thick ammonia clouds)
+    float l = dot(c, vec3(0.3, 0.5, 0.2));
+    c *= 1. + tex*(0.16 + 0.2*smoothstep(0.35, 0.7, l));
+    return clamp(c*uMapTint, 0., 1.);
   }
   float y = asin(clamp(P.y, -1., 1.));
   // turbulent displacement, stronger where bands shear
