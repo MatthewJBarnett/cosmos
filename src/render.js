@@ -326,7 +326,9 @@ export class Renderer {
         }
       } }
     common.refrK = refrK; common.refrUp = refrUp;
-    if (gal && nav.field) {
+    // no catalogue star can show below this exposure (Sirius would stay under the visibility threshold): skip the pass
+    const starsVisible = exposure * 7.6e-11 / pxSA / (6.2832 * 0.62 * 0.62 * pixScale * pixScale) > 0.0012;
+    if (gal && nav.field && starsVisible) {
       const hide = sys ? sys.posLocal : null;
       // twinkling only for an observer under an atmosphere
       let twinkle = 0, upLocal = null;

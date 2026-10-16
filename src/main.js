@@ -130,6 +130,7 @@ loadCatalog();
 for (let i = 0; i < 3; i++) { try { frame(0.016); } catch (e) { console.error(e); } setLoading(0.9 + i * 0.03); await new Promise(r => setTimeout(r, 0)); }
 hideLoading();
 if (!testMode) requestAnimationFrame(loop);
+if (params.has('bench')) import('./bench.js').then(m => setTimeout(() => m.runBenchmark(window.cosmos), 1500));
 
 // Scripting / test hooks
 window.cosmos = {

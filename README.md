@@ -34,6 +34,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
     ./run.sh show     # also opens it on the desktop session (display :20)
 
 Needs a browser with WebGL2 and float render targets (desktop Chrome, Edge, Firefox or Safari with a GPU).
+Benchmark: open `?bench` to fly through seven scenes and get a copyable report of frame rate and GPU time per pass.
 Quality presets: add `?q=low`, `?q=medium`, `?q=high` (default) or `?q=ultra` (for fast GPUs such as Apple M-series Pro/Max). Dynamic resolution is on by default.
 Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search box accepts), or on a surface with
 `?goto=Earth&land=46.0,7.6&date=2024-06-20T16:30Z` (latitude, longitude). The Link button copies such a URL for where you are.
