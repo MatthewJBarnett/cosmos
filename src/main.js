@@ -7,7 +7,7 @@ import { skyCfg } from './sky.js';
 import { atmoCfg } from './atmosphere.js';
 import { UI } from './ui.js';
 import { loading, loadCatalog, bodyMaps } from './assets.js';
-import { initPlanetPrograms } from './planet.js';
+import { initPlanetPrograms, initTreeProgram } from './planet.js';
 import { initAtmoPrograms } from './atmosphere.js';
 import { initSkyPrograms } from './sky.js';
 import { initExtraPrograms, initRingParticles } from './extras.js';
@@ -41,7 +41,7 @@ try {
   L('gl'); rcfg.prof = params.has('prof');
   // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight
   showLoading('Compiling shaders');
-  initPlanetPrograms(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initRingParticles(); initExoticPrograms();
+  initPlanetPrograms(); initTreeProgram(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initRingParticles(); initExoticPrograms();
   renderer = new Renderer(canvas); L('renderer');
   nav = new Nav(); L('nav');
   ui = new UI(nav, renderer, canvas);

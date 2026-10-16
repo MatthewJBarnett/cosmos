@@ -9,7 +9,7 @@ import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 import { bodyMaps } from './assets.js';
 
-export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1 };
+export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1, trees: true };
 const FACES = [
   { N: [1, 0, 0], A: [0, 0, -1], B: [0, 1, 0] }, { N: [-1, 0, 0], A: [0, 0, 1], B: [0, 1, 0] },
   { N: [0, 1, 0], A: [1, 0, 0], B: [0, 0, -1] }, { N: [0, -1, 0], A: [1, 0, 0], B: [0, 0, 1] },
@@ -278,6 +278,117 @@ void main(){
   }
   oColor = vec4(min(col*uExposure, vec3(60000.)), 1.);
 }`;
+
+
+// ---------------- trees: instanced cylindrical billboards on a world-fixed lattice ----------------
+const TREE_SP = 9;          // lattice spacing in metres (one candidate per cell)
+const TREE_VS = `
+layout(location=0) in vec2 aCorner;
+uniform sampler2D uHeightTex, uAlbTex, uNormTex;
+uniform mat4 uViewProj; uniform mat3 uRot;
+uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
+uniform float uQcLen, uSize, uRadius, uSea, uOcean, uTexSize;
+uniform vec2 uOff, uStep; uniform ivec2 uBase; uniform int uNX;
+out vec2 vC; out vec3 vCol; out vec3 vUp; out vec3 vWorld; out float vKind; out vec3 vRight; out float vSeed;
+${LOGDEPTH_VS}
+uint th(ivec2 c, uint s){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ s*0x9e3779b9u; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; return h; }
+float tr(uint h){ return float(h & 0xffffu)/65535.; }
+void main(){
+  int i = gl_InstanceID; ivec2 cell = ivec2(i % uNX, i / uNX);
+  ivec2 g = uBase + cell;
+  uint h = th(g, 7u);
+  vec2 jit = vec2(tr(h), tr(h >> 16));
+  vec2 uv = uOff + (vec2(cell) + jit)*uStep;
+  vec2 tuv = (uv*(uTexSize - 1.) + 0.5)/uTexSize;
+  vec4 alb = texture(uAlbTex, tuv); vec3 c = alb.rgb*alb.rgb;
+  float hgt = texelFetch(uHeightTex, ivec2(clamp(uv, 0., 1.)*(uTexSize - 1.) + 0.5), 0).r;
+  vec2 nn = texture(uNormTex, tuv).rg;
+  // forest where the ground is green and fairly dark, not too steep, above water
+  float green = clamp((c.g - max(c.r, c.b))*14. + 0.2, 0., 1.) * smoothstep(0.2, 0.05, c.g + c.r);
+  float steep = length(nn);
+  float keep = green*smoothstep(0.55, 0.3, steep)*step(uSea + 1., hgt);
+  float r2 = tr(th(g, 11u));
+  // stands and clearings: smooth value noise over the lattice (~150 m patches)
+  vec2 gp = vec2(g)/16.; ivec2 gi = ivec2(floor(gp)); vec2 gf = fract(gp); gf = gf*gf*(3. - 2.*gf);
+  float n00 = tr(th(gi, 23u)), n10 = tr(th(gi + ivec2(1, 0), 23u)), n01 = tr(th(gi + ivec2(0, 1), 23u)), n11 = tr(th(gi + ivec2(1, 1), 23u));
+  float stand = mix(mix(n00, n10, gf.x), mix(n01, n11, gf.x), gf.y);
+  keep *= smoothstep(0.25, 0.55, stand);
+  if (any(lessThan(uv, vec2(0.))) || any(greaterThan(uv, vec2(1.))) || r2 > keep) { gl_Position = vec4(2., 2., 2., 1.); return; }
+  // position on the sphere (same construction as the terrain)
+  vec3 delta = ((uv.x - 0.5)*uSize)*uFaceA + ((uv.y - 0.5)*uSize)*uFaceB;
+  float s2 = (2.*dot(uQc, delta) + dot(delta, delta))/(uQcLen*uQcLen);
+  float sq = sqrt(1. + s2); float k = -s2/(sq*(1. + sq));
+  vec3 cdir = uQc/uQcLen, dd = cdir*k + delta/(uQcLen*sq), dir = cdir + dd;
+  vec3 local = uRadius*dd + dir*hgt;
+  vec3 base = uRot*local + uCenterRel;
+  vec3 up = normalize(uRot*dir);
+  float H = mix(8., 24., tr(th(g, 13u)))*(0.6 + 0.6*green);
+  // conifers in cold/high places (bluish dark greens), broadleaf elsewhere
+  float conifer = step(0.55, tr(th(g, 17u)) + (c.b - c.r)*6. + 0.25);
+  float W = H*(conifer > 0.5 ? 0.22 : 0.38);
+  vec3 toCam = normalize(-base); vec3 right = normalize(cross(up, toCam));
+  vec3 w = base + right*aCorner.x*W + up*(aCorner.y*0.5 + 0.5)*H;
+  vC = vec2(aCorner.x, aCorner.y*0.5 + 0.5); vUp = up; vRight = right; vWorld = w; vKind = conifer; vSeed = tr(th(g, 29u));
+  vCol = mix(c*vec3(0.55, 0.7, 0.5), vec3(0.025, 0.045, 0.02), 0.5)*mix(0.75, 1.25, tr(th(g, 19u)));
+  gl_Position = uViewProj*vec4(w, 1.); logDepth();
+}`;
+const TREE_FS = `
+in vec2 vC; in vec3 vCol; in vec3 vUp; in vec3 vWorld; in float vKind; in vec3 vRight; in float vSeed;
+uniform float uExposure; uniform sampler2D uIrrLUT; uniform float uHasAtmo;
+${LIGHT_UNIFORMS}
+${LOGDEPTH_FS}
+out vec4 o;
+void main(){
+  // silhouette: trunk plus crown (cone for conifers, ellipsoid for broadleaf), with ragged edges
+  float x = vC.x, y = vC.y;
+  // leaf clusters: a cheap cellular pattern inside the crown, varied per tree
+  vec2 lc = vec2(x*5., y*9.) + vSeed*17.; vec2 li = floor(lc), lf = fract(lc) - 0.5;
+  float cl = 1. - clamp(length(lf + (fract(sin(dot(li, vec2(12.9898, 78.233)))*vec2(43758.5, 24634.6)) - 0.5)*0.6)*1.6, 0., 1.);
+  float rag = 0.8 + 0.2*sin(y*37. + x*13. + vSeed*30.)*sin(x*29. - y*17.) + 0.12*(cl - 0.5);
+  float crown, cx;
+  if (vKind > 0.5) { float hw = (1. - y)*0.95*rag; crown = step(0.12, y)*step(abs(x), hw); cx = x/max(hw, 0.05); }
+  else { vec2 q = vec2(x/0.95, (y - 0.58)/0.42); crown = step(dot(q, q), rag); cx = q.x; }
+  float trunk = step(abs(x), 0.07)*step(y, 0.3);
+  if (crown < 0.5 && trunk < 0.5) discard;
+  logDepth();
+  // pseudo normal of a round crown, lit by the sun with wrap and self shadow towards the bottom
+  vec3 Vv = normalize(-vWorld), side = vRight;
+  vec3 n = normalize(side*cx + Vv*sqrt(max(1. - cx*cx, 0.)) + vUp*(y - 0.45)*0.8);
+  vec3 col = vec3(0.);
+  for (int i = 0; i < uNumLights; i++) {
+    vec3 L = normalize(uLightPos[i] - vWorld);
+    float mus = dot(vUp, L);
+    float dif = max(dot(n, L)*0.8 + 0.2, 0.)*smoothstep(-0.05, 0.1, mus)*(0.55 + 0.6*cl);
+    vec3 amb = uHasAtmo > 0.5 ? texture(uIrrLUT, vec2(mus*0.5 + 0.5, 0.5)).rgb*uLightCol[i] : vec3(0.);
+    float occl = mix(0.35, 1., y)*(0.7 + 0.4*cl);
+    col += (crown > 0.5 ? vCol : vec3(0.05, 0.035, 0.02))*(uLightCol[i]*dif*0.8*(i == 0 ? eclipse(vWorld, 0) : 1.) + amb*occl)/3.14159;
+  }
+  o = vec4(min(col*uExposure, vec3(60000.)), 1.);
+}`;
+let progTree = null, treeVAO = null;
+export function initTreeProgram() { if (!progTree) { progTree = new Program('trees', TREE_VS, TREE_FS); treeVAO = makeVAO([{ data: new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), size: 2, loc: 0 }]); } }
+function drawTrees(body, st, draws, o, R, rot3) {
+  if (!cfg.trees) return;
+  initTreeProgram();
+  const p = progTree.use();
+  let bound = false;
+  for (const d of draws) {
+    const ch = d.ch, sizeM = d.sizeM;
+    if (sizeM > 1400 || V.len(d.cRel) > 4500 + sizeM) continue;
+    const F = FACES[ch.face];
+    // lattice in face coordinates (a, b) with spacing ~TREE_SP metres; base indices in double precision
+    const step = TREE_SP / (R / ch.qlen);
+    const ia0 = Math.floor(ch.a0 / step), ib0 = Math.floor(ch.b0 / step);
+    const nx = Math.min(160, Math.ceil(ch.size / step) + 1);
+    if (!bound) {
+      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex() }, o.light));
+      gl.bindVertexArray(treeVAO.vao); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); bound = true;
+    }
+    p.set({ uHeightTex: ch.tex.h, uAlbTex: ch.tex.a, uNormTex: ch.tex.n, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size,
+      uOff: [(ia0 * step - ch.a0) / ch.size, (ib0 * step - ch.b0) / ch.size], uStep: [step / ch.size, step / ch.size], uBase: [ia0 % 1000003, ib0 % 1000003], uNX: nx });
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, nx * nx);
+  }
+}
 
 let dummy = null;
 // scale a map so its mean brightness equals the body's real albedo (grayscale mosaics are contrast stretched)
@@ -554,6 +665,7 @@ export function drawPlanet(body, o) {
     p.set({ uHeightTex: ch.tex.h, uNormTex: ch.tex.n, uAlbTex: ch.tex.a, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size, uSkirt: d.sizeM * 0.06, uChunkM: d.sizeM, uChunkA: ch.size * R, uDetailO: om });
     gl.drawElements(gl.TRIANGLES, gridCount, gl.UNSIGNED_INT, 0);
   }
+  if (surf.gen === 'terra' && (surf.veg > 0 || (body.maps && st.maps))) drawTrees(body, st, draws, o, R, rot3);
   st.drawn = draws.length;
   return st;
 }

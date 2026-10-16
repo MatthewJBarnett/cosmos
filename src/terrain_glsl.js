@@ -295,7 +295,7 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     float n1 = fbm(o0, min(uOMax, o0 + 4), 61u, d, 0.6), n2 = uOMax >= o0 + 4 ? fbm(o0 + 4, uOMax, 62u, d, 0.55) : 0.;
     float patches = smoothstep(-0.25, 0.25, n1 + 0.5*n2);
     // vegetation: forest and meadow patches
-    vec3 forest = m*vec3(0.5, 0.62, 0.45), meadow = m*vec3(1.3, 1.22, 0.9);
+    vec3 forest = m*vec3(0.5, 0.62, 0.45), meadow = m*vec3(1.55, 1.45, 0.95);
     float fields = uOMax >= o0 + 7 ? smoothstep(0.1, 0.35, abs(gn(o0 + 7, 63u, d).x)) : 0.5;   // field mosaic at ~100s of metres
     meadow *= 0.85 + 0.3*fields;
     vec3 veg = mix(forest, meadow, patches);
