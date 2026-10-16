@@ -1,6 +1,6 @@
 // HUD, input handling, object info, search, time controls and labels.
 import { V, Q, C, clamp } from './math.js';
-import { targetName, findByName, searchList, solSystem } from './nav.js';
+import { targetName, findByName, searchList, solSystem, systemFor } from './nav.js';
 import { describeBody } from './system.js';
 import { starName } from './system.js';
 import { galaxyName, REAL_GALAXIES } from './universe.js';
@@ -54,7 +54,7 @@ export class UI {
     this.top = root.appendChild(el('div', 'panel top'));
     this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
       <select id="places" title="Places"><option value="">Places…</option></select>
-      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
+      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
     this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
@@ -190,7 +190,7 @@ export class UI {
     $('bSys').onclick = () => this.toggle(this.sysPanel);
     $('bSet').onclick = () => this.toggle(this.setPanel);
     $('bHelp').onclick = () => this.toggle(this.help);
-    $('bRand').onclick = () => this.explore();
+    $('bRand').onchange = (e) => { const v = e.target.value; e.target.value = ''; e.target.blur(); if (v) this.explore(v); };
     this.tour = new Tour(nav, this);
     $('bTour').onclick = () => { if (this.tour.active) this.tour.stop(); else this.tour.start(); };
     $('search').addEventListener('change', e => { this.search(e.target.value); });
@@ -272,15 +272,24 @@ export class UI {
   }
   search(text) { const t = findByName(this.nav, text); if (t) { this.nav.selected = t; this.nav.goTo(t); } }
   // travel to a random interesting place
-  explore() {
+  // kind: 'star' | 'earthlike' | 'rings' | 'giant-star' | 'galaxy'
+  explore(kind = 'star') {
     const nav = this.nav, rng = new RNG((Math.random() * 1e9) | 0);
-    if (nav.field && nav.level !== 'universe') {
-      // pick a random star in view range and visit one of its planets
-      const cam = nav.camLocal(); let tries = 0, desc = null;
-      while (tries++ < 60 && !desc) { const d = nav.field.pick(cam, rng.dir(), 0.25); if (d && !d.sol && (!nav.system || d.key !== nav.system.desc.key)) desc = d; }
-      if (desc) { nav.goTo({ type: 'star', desc }); return; }
+    if (kind === 'galaxy' || !nav.field || nav.level === 'universe') { nav.goTo({ type: 'galaxy', galaxy: rng.pick(REAL_GALAXIES.filter(g => g !== nav.galaxy)) }); return; }
+    const cam = nav.camLocal();
+    const want = kind === 'earthlike' ? (b) => (b.cls === 'Terra' || b.cls === 'Ocean world') && b.life
+      : kind === 'rings' ? (b) => b.kind === 'planet' && b.rings && b.rings.opacity > 0.5
+      : null;
+    // search outward through stars around the camera; generating a system is cheap, so look at many
+    for (let tries = 0; tries < 4000; tries++) {
+      const d = nav.field.pick(cam, rng.dir(), 0.3);
+      if (!d || d.sol || (nav.system && d.key === nav.system.desc.key)) continue;
+      if (kind === 'giant-star') { if (d.star.kind === 1 || d.star.kind === 2) { nav.goTo({ type: 'star', desc: d }); this.toast('Heading to ' + d.star.cls + ' star'); return; } continue; }
+      if (!want) { nav.goTo({ type: 'star', desc: d }); return; }
+      const sys = systemFor(d), b = sys.bodies.find(want);
+      if (b) { nav.goTo({ type: 'star', desc: d }); nav.onArrive = () => { nav.goTo({ type: 'body', body: b }); }; this.toast('Found ' + b.name + ' (' + b.cls + ')'); return; }
     }
-    nav.goTo({ type: 'galaxy', galaxy: rng.pick(REAL_GALAXIES) });
+    this.toast('Nothing like that nearby, try again');
   }
   ray(x, y) {
     const r = this.canvas.getBoundingClientRect(), nx = (x - r.left) / r.width * 2 - 1, ny = 1 - (y - r.top) / r.height * 2;

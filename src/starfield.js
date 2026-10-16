@@ -115,7 +115,7 @@ export class StarField {
     if (cell.catalog) {
       const d = cell.data, n = catalog.byIndex.get(i);
       return { galaxy: this.g, seed: hashCombine(this.g.seed, 0xca7, i), pos: [cell.origin[0] + d[i * 5], cell.origin[1] + d[i * 5 + 1], cell.origin[2] + d[i * 5 + 2]],
-        star: starFromCatalog(d[i * 5 + 3], d[i * 5 + 4], n && n.spect), key: this.g.id + '/cat:' + i, name: n ? n.name : 'CAT ' + (i + 1), catIndex: i, named: n || null };
+        star: starFromCatalog(d[i * 5 + 3], d[i * 5 + 4], n && n.spect), key: this.g.id + '/cat:' + i, name: n ? n.name : 'HYG ' + (i + 1), catIndex: i, named: n || null };
     }
     const d = cell.data, a = cell.aux;
     const star = makeStar(d[i * 5 + 3], a[i * 3], a[i * 3 + 1], a[i * 3 + 2] > 0.5);

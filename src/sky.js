@@ -67,7 +67,7 @@ void main(){
   vec3 c = aCen.xyz + uOffset; float d = length(c);
   float rad = aCen.w*1.08;
   float px = rad/d*uPxPerRad;
-  float expand = max(1., 1.6/px);
+  float expand = max(1., 2.6/px);   // unresolved galaxies still cover a few pixels: seeing and the PSF smear them
   vec3 f = c/d; vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
   vec3 w = c + (r*aCorner.x + u*aCorner.y)*rad*expand;
   if (d < rad*0.92) w = c + f*0.0;   // camera inside: handled by the sky cubemap
@@ -88,8 +88,19 @@ void main(){
   Gal g = Gal(vP0.x, vP0.y, vP0.z, vP0.w, vP1.x, vP1.y, vP1.z, vP1.w, vP2.x, vP2.y, vP2.z, vP2.w, vLum.x);
   vec3 rdW = normalize(vWorld);
   if (vLum.y > 1.001) {
-    float t = distance(vWorld, vCen)/(vRad*1.08*vLum.y);   // 0..1 across the drawn quad
-    float gsn = exp(-t*t*5.5);
+    // unresolved: an ellipse with the galaxy's projected shape (disk normal from its orientation)
+    vec3 f = normalize(vCen);
+    vec3 nrm = qrot(vQuat, vec3(0., 1., 0.));
+    float axr = g.type < 0.5 ? g.flatn : (g.type > 3.5 ? 0.5 : 0.12);
+    float ci = abs(dot(nrm, f));                       // 1 face-on, 0 edge-on
+    float ratio = max(axr, ci);
+    vec3 major = normalize(cross(nrm, f) + vec3(1e-6));
+    vec3 off = (vWorld - vCen)/(vRad*1.08*vLum.y);
+    vec3 offp = off - f*dot(off, f);
+    float x = dot(offp, major), y = length(offp - major*x);
+    float t2 = x*x + (y*y)/(ratio*ratio);
+    float gsn = exp(-t2*3.2)/ratio;
+    float t = sqrt(t2);
     float tot = (g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)/(vLum.y*vLum.y)*1.6;
     vec3 col = mix(vec3(1.0, 0.82, 0.6), vec3(0.8, 0.86, 1.0), clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.));
     o = vec4(col*tot*gsn*g.lum*uScale, 1.); return;

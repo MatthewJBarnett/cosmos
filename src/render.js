@@ -498,7 +498,7 @@ export class Renderer {
     // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
     let deep = 0;
     if (nav.level === 'universe') deep = 1; else if (gal) deep = clamp((V.len(nav.camG()) / gal.radius - 1.3) / 2, 0, 1);
-    this.maxExposure = rcfg.maxExposure * (1 + 150 * deep); this.deep = deep;
+    this.maxExposure = rcfg.maxExposure * (1 + 25 * deep); this.deep = deep;
     // an accretion disk is small and extremely bright: meter on it rather than on the dark sky around it
     this.meterTop = !!(sys && blackHoles.length && blackHoles.some(b => b.accretion && b.dist < b.radius * 400));
     // total solar eclipse in view: expose for the corona, not the darkened sky
