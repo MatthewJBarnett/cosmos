@@ -81,8 +81,9 @@ uniform sampler2D uHeightTex, uNormTex, uAlbTex, uIrrLUT;
 uniform sampler3D uNoise3;
 uniform mat3 uRot;
 uniform vec3 uFaceA;
+uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind;
-uniform vec2 uDetailO;
+uniform vec2 uDetailO; uniform float uChunkA;
 uniform int uKind;
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows;
 ${LIGHT_UNIFORMS}
@@ -125,8 +126,8 @@ void main(){
     // fine surface grain close to the camera (pebbles, soil clumps), fading with distance
     float near = clamp(1. - dist/900., 0., 1.);
     if (near > 0. && water < 1.) {
-      vec2 wp = vUV*uChunkM + uDetailO;
-      vec3 n1 = texture(uNoise3, vec3(wp*0.11, 0.37)).rgb - 0.5, n2 = texture(uNoise3, vec3(wp*0.9, 0.71)).rgb - 0.5, n3 = texture(uNoise3, vec3(wp*6.3, 0.13)).rgb - 0.5;
+      vec2 wp = vUV*uChunkA + uDetailO;   // frequencies are whole cycles per 4096 m so tile wraps are seamless
+      vec3 n1 = texture(uNoise3, vec3(wp*(450./4096.), 0.37)).rgb - 0.5, n2 = texture(uNoise3, vec3(wp*(3686./4096.), 0.71)).rgb - 0.5, n3 = texture(uNoise3, vec3(wp*(25805./4096.), 0.13)).rgb - 0.5;
       vec3 T1 = normalize(uRot*normalize(uFaceA - dir*dot(dir, uFaceA))), T2 = cross(up, T1);
       vec2 g = n1.xy*0.5 + n2.xy*0.35*clamp(1. - dist/200., 0., 1.) + n3.xy*0.3*clamp(1. - dist/30., 0., 1.);
       N = normalize(N + (T1*g.x + T2*g.y)*0.55*near);
@@ -137,20 +138,29 @@ void main(){
   vec3 wN = up;
   float rough = 0.2;
   if (water > 0.) {
-    // animated wave normals at close range, statistical roughness far away
-    vec2 wp = vUV*uChunkM + uDetailO;
-    float fade = clamp(60./ (dist*0.004 + 1.) , 0., 1.);
+    // wave field: a small directional spectrum (wind sea) for near range, statistical roughness far away
+    // continuous across tiles: face coordinates in metres, wrapped every 4096 m; all wave vectors are
+    // whole numbers of cycles per 4096 m so the wrap is invisible
+    vec2 wp = vUV*uChunkA + uDetailO;
     vec3 T1 = normalize(uRot*normalize(uFaceA - dir*dot(dir, uFaceA))), T2 = cross(up, T1);
     vec2 g = vec2(0.);
-    float a = 1.; float sc = 1./180.;
-    for (int i = 0; i < 4; i++) {
-      vec3 q = vec3(wp*sc + uTime*0.012*float(i+1), uTime*0.02 + float(i)*0.37);
-      vec3 n = texture(uNoise3, q).rgb - 0.5;
-      g += n.xy*a; a *= 0.6; sc *= 2.7;
+    float pixM = dist*uPixAngle;            // metres per pixel here
+    for (int i = 0; i < 9; i++) {
+      float fi = float(i);
+      float lam = 70.*pow(0.62, fi);          // 70 m down to ~1.5 m
+      if (lam < pixM*2.) break;
+      float ang = (0.4 + fi*2.39996)*0.35;      // spread around the wind direction
+      vec2 cyc = floor(vec2(cos(ang), sin(ang))*4096./lam + 0.5);
+      float k = 6.2832*length(cyc)/4096.; vec2 kd = normalize(cyc); float w = sqrt(9.81*k);
+      float amp = 0.075/k*(1. - smoothstep(lam*1.5, lam*3., pixM*4.));
+      float ph = dot(kd, wp)*k - w*uTime + fi*1.7;
+      g += kd*(amp*k*cos(ph));
     }
-    float amt = clamp(900./ (dist + 30.), 0., 1.);
-    wN = normalize(up + (T1*g.x + T2*g.y)*0.22*amt);
-    rough = mix(0.16, 0.035, amt);
+    vec3 nz = textureLod(uNoise3, vec3(wp*(176./4096.) + uTime*0.03, uTime*0.02), 0.).rgb - 0.5;
+    g += nz.xy*0.08*clamp(1. - pixM/6., 0., 1.);
+    wN = normalize(up - (T1*g.x + T2*g.y));
+    // unresolved waves become microfacet roughness
+    rough = clamp(0.035 + pixM*0.0004, 0.035, 0.2);
   }
   float emisNight = 1.;
   for (int i = 0; i < uNumLights; i++) {
@@ -227,7 +237,10 @@ void main(){
       vec3 scat = uWaterKind > 0.5 ? vec3(0.03, 0.02, 0.008) : vec3(0.0025, 0.014, 0.034);
       vec3 tr = exp(-absorb*depth*1.2);
       vec3 body = (alb.rgb*tr + scat*(1. - tr)) * (lc*sunT*max(mus, 0.) + amb) / 3.14159;
-      vec3 refl = amb/3.14159 * 1.3 * F;
+      vec3 Rr = reflect(-Vv, wN); float ry = max(dot(Rr, up), 0.);
+      float horiz = 1. + 2.2*pow(1. - ry, 5.);
+      vec3 skyR = amb/3.14159*horiz + lc*sunT*0.012*pow(max(dot(Rr, L), 0.), 6.);
+      vec3 refl = skyR*F;
       vec3 wcol = body*(1. - F) + refl + lc*sunT*spec*nlw;
       land = mix(land, wcol, water);
     }
@@ -493,9 +506,9 @@ export function drawPlanet(body, o) {
   const atmo = body.atmo && o.atmoLUT;
   p.set(Object.assign({
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: surf.sea || 0, uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
-    uOblate: body.oblate || 0, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
+    uOblate: body.oblate || 0, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: surf.lava ? 0.06 : 9e-5, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
-    uNoise3: o.noise3, uShadows: cfg.shadows ? 1 : 0,
+    uNoise3: o.noise3, uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
@@ -504,7 +517,7 @@ export function drawPlanet(body, o) {
     const ch = d.ch, F = FACES[ch.face];
     // origin of this tile in metres along the face, wrapped, for stable small scale effects
     const om = [((ch.a0 + 1) * R) % 4096, ((ch.b0 + 1) * R) % 4096];
-    p.set({ uHeightTex: ch.tex.h, uNormTex: ch.tex.n, uAlbTex: ch.tex.a, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size, uSkirt: d.sizeM * 0.06, uChunkM: d.sizeM, uDetailO: om });
+    p.set({ uHeightTex: ch.tex.h, uNormTex: ch.tex.n, uAlbTex: ch.tex.a, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size, uSkirt: d.sizeM * 0.06, uChunkM: d.sizeM, uChunkA: ch.size * R, uDetailO: om });
     gl.drawElements(gl.TRIANGLES, gridCount, gl.UNSIGNED_INT, 0);
   }
   st.drawn = draws.length;

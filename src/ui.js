@@ -54,7 +54,7 @@ export class UI {
     this.top = root.appendChild(el('div', 'panel top'));
     this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
       <select id="places" title="Places"><option value="">Places…</option></select>
-      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
+      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
     this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
@@ -72,7 +72,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Data and credits</h3>
@@ -165,6 +165,7 @@ export class UI {
       if (k === 'tab') { e.preventDefault(); this.toggle(this.sysPanel); }
       else if (k === 'g') nav.goTo(nav.selected);
       else if (k === 'c') nav.lookTarget = nav.selected;
+      else if (k === 'b') this.saveMark();
       else if (k >= '0' && k <= '9' && !e.ctrlKey && !e.altKey) this.search(['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'][+k]);
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
       else if (k === ' ') { e.preventDefault(); nav.paused = !nav.paused; }
@@ -210,15 +211,24 @@ export class UI {
       din.classList.toggle('hidden'); if (!din.classList.contains('hidden')) din.focus();
     };
     din.onchange = () => { const t = Date.parse(din.value + 'Z'); if (!isNaN(t)) nav.time = (t - Date.UTC(2000, 0, 1, 12)) / 1000; };
+    const marks = $('marks');
+    const loadMarks = () => { try { return JSON.parse(localStorage.getItem('cosmos.marks') || '[]'); } catch (e) { return []; } };
+    const fillMarks = () => { const m = loadMarks(); marks.innerHTML = '<option value="">Saved…</option><option value="+">+ Save this view (B)</option>' + m.map((x, i) => `<option value="${i}">${x.name}</option>`).join('') + (m.length ? '<option value="-">Clear saved views</option>' : ''); };
+    this.saveMark = () => {
+      const link = this.locationLink(); if (!link) return;
+      const name = (nav.selected ? targetName(nav.selected) : 'View') + ' · ' + new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000).toISOString().slice(0, 10);
+      const m = loadMarks(); m.push({ name, link, q: nav.q }); try { localStorage.setItem('cosmos.marks', JSON.stringify(m.slice(-40))); } catch (e) { }
+      fillMarks(); this.toast('Saved: ' + name);
+    };
+    marks.onchange = () => {
+      const v = marks.value; marks.value = ''; marks.blur();
+      if (v === '+') this.saveMark();
+      else if (v === '-') { try { localStorage.removeItem('cosmos.marks'); } catch (e) { } fillMarks(); }
+      else if (v !== '') { const m = loadMarks()[+v]; if (m) this.applyLink(m.link); }
+    };
+    fillMarks();
     $('bShare').onclick = () => {
-      const u = new URL(location.href); u.search = '';
-      const t = nav.selected || (nav.anchor ? { type: 'body', body: nav.anchor } : null);
-      const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
-      if (!isNaN(d)) u.searchParams.set('date', d.toISOString().slice(0, 16) + 'Z');
-      const ll = this.latLon();
-      if (ll && nav.altitude < nav.anchor.radius * 0.05) { u.searchParams.set('goto', nav.anchor.name); u.searchParams.set('land', ll[0].toFixed(3) + ',' + ll[1].toFixed(3)); }
-      else if (t) u.searchParams.set('goto', targetName(t));
-      const txt = u.toString();
+      const txt = this.locationLink();
       (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => this.toast('Link copied'), () => prompt('Link to this place', txt));
     };
   }
@@ -227,6 +237,25 @@ export class UI {
     if (!title) { this.capEl.classList.add('hidden'); return; }
     this.capEl.classList.remove('hidden');
     this.capEl.innerHTML = `<div class="ct">${title}<span class="dim"> · ${i}/${n}</span></div><div>${text}</div><div class="dim">T next stop · Esc ends the tour</div>`;
+  }
+  locationLink() {
+    const nav = this.nav, u = new URL(location.href); u.search = '';
+    const t = nav.selected || (nav.anchor ? { type: 'body', body: nav.anchor } : null);
+    const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
+    if (!isNaN(d)) u.searchParams.set('date', d.toISOString().slice(0, 16) + 'Z');
+    const ll = this.latLon();
+    if (ll && nav.altitude < nav.anchor.radius * 0.05) { u.searchParams.set('goto', nav.anchor.name); u.searchParams.set('land', ll[0].toFixed(3) + ',' + ll[1].toFixed(3)); }
+    else if (t) u.searchParams.set('goto', targetName(t));
+    return u.toString();
+  }
+  applyLink(link) {
+    const nav = this.nav, p = new URL(link).searchParams;
+    if (p.has('date')) { const t = Date.parse(p.get('date')); if (!isNaN(t)) nav.time = (t - Date.UTC(2000, 0, 1, 12)) / 1000; }
+    if (p.has('goto')) {
+      const t = findByName(nav, p.get('goto'));
+      if (t && p.has('land') && t.type === 'body') { const [la, lo] = p.get('land').split(',').map(Number); nav.landAt(t.body, la, lo); }
+      else if (t) { nav.selected = t; nav.goTo(t); }
+    }
   }
   toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
   // planetographic latitude/longitude of the camera over the anchor body (degrees)
