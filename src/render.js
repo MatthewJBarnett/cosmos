@@ -281,7 +281,11 @@ export class Renderer {
     let nStars = 0;
     if (gal && nav.field) {
       const hide = sys ? sys.posLocal : null;
-      nStars = drawStars(nav.field, camLocal, viewProjLocal, Object.assign({ hide }, common));
+      // twinkling only for an observer under an atmosphere
+      let twinkle = 0, upLocal = null;
+      const an = nav.anchor;
+      if (an && an.atmo && nav.altitude < an.atmo.hR * 2 && an.atmo.P > 3e4) { twinkle = 1; upLocal = Q.rot(Q.conj(gal.quat), V.norm(V.sub(nav.S, an.wpos))); }
+      nStars = drawStars(nav.field, camLocal, viewProjLocal, Object.assign({ hide, twinkle, upLocal }, common));
     }
     T('stars');
     if (rcfg.constellations && gal === MILKY_WAY && camLocal) {

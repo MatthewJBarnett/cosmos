@@ -15,12 +15,21 @@ export const SUN_MAG = -26.74;
 const STAR_VS = `
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT;
 uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uPixScale, uBoost; uniform vec3 uHide;
+uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 out vec3 vCol; out float vSig;
 ${GLSL_BB}
 void main(){
   vec3 p = aPos + uOffset; float d = length(p);
   float m = aMT.x + 5.*log(max(d, 1e-9))/log(10.) - 5.;
   float flux = exp(-0.9210340372*(m + 26.74));
+  if (uTwinkle > 0.) {
+    // scintillation: turbulence in the air above an observer on the ground; strongest near the horizon
+    float el = dot(p/d, uUpLocal);
+    float am = 1./max(el + 0.05, 0.05);
+    float ph = uTime*(9. + fract(aMT.y*0.137)*7.) + fract(aPos.x*13.17 + aPos.z*7.31)*628.;
+    float tw = sin(ph) * 0.6 + sin(ph*2.31 + 1.7)*0.4;
+    flux *= max(0., 1. + tw*uTwinkle*min(0.15*am, 0.85));
+  }
   float I = flux/uPxSA*uExposure*uBoost;     // energy in units of one fully lit pixel
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
@@ -195,7 +204,7 @@ function init() {
 export function drawStars(field, camLocal, viewProjLocal, o) {
   init();
   const p = pStar.use();
-  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost });
+  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0] });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;
   const hide = o.hide;
