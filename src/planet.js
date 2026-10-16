@@ -72,7 +72,7 @@ float eclipse(vec3 p, int i){
     vec3 O = uOcc[k].xyz - p; float d = length(O);
     if (d > dl*0.999) continue;     // also skips the light's own body (planetshine sources)
     float ao = uOcc[k].w/d;
-    float sep = acos(clamp(dot(O/d, L), -1., 1.));
+    vec3 On = O/d; float sep = atan(length(cross(On, L)), dot(On, L));   // precise for tiny angles (acos is not)
     float cover = smoothstep(as + ao, abs(ao - as), sep) * min(1., (ao*ao)/(as*as));
     vis *= 1. - cover;
   }

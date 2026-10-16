@@ -168,5 +168,4 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - No vegetation, rocks or other meshes on the ground.
 - Earth's cloud cover is a single static snapshot (it drifts slowly but does not evolve).
 - Aurora seen from orbit is streaky; from the ground it looks right.
-- In the very dark sky of a total eclipse a faint X-shaped sampling pattern can show.
 - Eclipse timing and paths are good to tens of kilometres, not to the second (no nutation, truncated lunar series).
