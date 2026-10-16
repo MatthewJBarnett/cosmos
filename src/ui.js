@@ -11,6 +11,7 @@ import { visibleNebulae } from './exotic.js';
 import { catalog, loadCatalog } from './assets.js';
 import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
+import { nextEclipse } from './eclipses.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -58,7 +59,7 @@ export class UI {
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
-    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
+    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
       <input id="tDateIn" type="datetime-local" step="60" class="hidden">`;
     this.labels = root.appendChild(el('div', 'labels'));
     this.perf = root.appendChild(el('div', 'panel perf hidden'));
@@ -73,7 +74,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Data and credits</h3>
@@ -170,6 +171,7 @@ export class UI {
       else if (k === 'c') nav.lookTarget = nav.selected;
       else if (k === 'b') this.saveMark();
       else if (k === 'y') this.toggleOrbit();
+      else if (k === 'e' && e.shiftKey) this.goNextEclipse();
       else if (k >= '0' && k <= '9' && !e.ctrlKey && !e.altKey) this.search(['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'][+k]);
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
       else if (k === ' ') { e.preventDefault(); nav.paused = !nav.paused; }
@@ -210,6 +212,7 @@ export class UI {
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
     $('tNow').onclick = () => { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; };
+    $('tEcl').onclick = () => this.goNextEclipse();
     const din = $('tDateIn');
     $('tDate').onclick = () => {
       const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
@@ -262,6 +265,22 @@ export class UI {
       if (t && p.has('land') && t.type === 'body') { const [la, lo] = p.get('land').split(',').map(Number); nav.landAt(t.body, la, lo); }
       else if (t) { nav.selected = t; nav.goTo(t); }
     }
+  }
+  // find the next central solar or umbral lunar eclipse after the current time and watch it from the best place
+  goNextEclipse() {
+    const nav = this.nav, sol = solSystem();
+    const from = this.lastEclipse && Math.abs(nav.time - this.lastEclipse.t) < 3 * 3600 ? this.lastEclipse.t + 3 * 86400 : nav.time;
+    const r = nextEclipse(sol, from);
+    if (!r) { this.toast('No eclipse found in the next two years'); return; }
+    this.lastEclipse = r;
+    const e = sol.find('Earth'), target = sol.find(r.kind === 'solar' ? 'Sun' : 'Moon');
+    nav.time = r.t - (r.kind === 'solar' ? 240 : 1800); nav.paused = false; nav.rate = r.kind === 'solar' ? 4 : 60;
+    sol.update(nav.time);
+    nav.landAt(e, r.lat, r.lon, {});
+    nav.onArrive = () => { nav.lookTarget = { type: 'body', body: target }; nav.fov = r.kind === 'solar' ? 0.05 : 0.04; nav.selected = { type: 'body', body: target }; };
+    const d = new Date(Date.UTC(2000, 0, 1, 12) + r.t * 1000).toISOString().slice(0, 16).replace('T', ' ');
+    const where = Math.abs(r.lat).toFixed(1) + '° ' + (r.lat >= 0 ? 'N' : 'S') + ', ' + Math.abs(r.lon).toFixed(1) + '° ' + (r.lon >= 0 ? 'E' : 'W');
+    this.toast((r.total ? 'Total ' : r.kind === 'solar' ? 'Annular or hybrid ' : 'Partial ') + r.kind + ' eclipse, ' + d + ' UTC, from ' + where);
   }
   toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
   // planetographic latitude/longitude of the camera over the anchor body (degrees)

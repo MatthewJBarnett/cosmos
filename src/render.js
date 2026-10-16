@@ -364,7 +364,15 @@ export class Renderer {
             const toS = V.norm(V.sub(sun.body.wpos, o.wpos)), toB = V.norm(V.sub(b.wpos, o.wpos));
             const al = Math.acos(clamp(V.dot(toS, toB), -1, 1));
             const ph = (Math.sin(al) + (Math.PI - al) * Math.cos(al)) / Math.PI;
-            const E = (o.albedo || 0.2) * 0.67 * ph * (sun.body.lum / (dS * dS)) * (o.radius / dOB) ** 2;
+            let E = (o.albedo || 0.2) * 0.67 * ph * (sun.body.lum / (dS * dS)) * (o.radius / dOB) ** 2;
+            // a source that is itself in eclipse (the Moon during a lunar eclipse) gives almost no light
+            for (const q of sys.bodies) {
+              if (q === o || q.kind === 'star' || q.kind === 'barycenter' || !q.radius) continue;
+              const toQ = V.sub(q.wpos, o.wpos), dq = V.len(toQ); if (dq > dS * C.AU) continue;
+              const toSun = V.norm(V.sub(sun.body.wpos, o.wpos)), sep = Math.atan2(V.len(V.cross(V.mul(toQ, 1 / dq), toSun)), V.dot(V.mul(toQ, 1 / dq), toSun));
+              const aq = q.radius / dq, as = sun.body.radius / (dS * C.AU);
+              if (sep < aq + as) E *= aq > as && sep < aq - as ? 2e-4 : clamp((sep - (aq - as)) / (2 * as), 0.05, 1);
+            }
             if (E < 1e-7) continue;
             const tint = bodyTint(o), c = sun.col, k = E / sun.E;
             L.push({ rel: o.rel || V.sub(o.wpos, nav.S), rad: o.radius, col: [c[0] * k * tint[0], c[1] * k * tint[1], c[2] * k * tint[2]], E, body: o, shine: true });
@@ -393,7 +401,8 @@ export class Renderer {
         }
         occ.sort((x, y) => y.ang - x.ang);
         const ou = new Float32Array(24); const no = Math.min(occ.length, 6);
-        for (let i = 0; i < no; i++) { const o = occ[i].o; ou.set(V.sub(o.wpos, nav.S), i * 4); ou[i * 4 + 3] = o.radius; }
+        // negative radius marks occluders with a substantial atmosphere (their umbra is lit by refracted red light)
+        for (let i = 0; i < no; i++) { const o = occ[i].o; ou.set(V.sub(o.wpos, nav.S), i * 4); ou[i * 4 + 3] = o.atmo && o.atmo.P > 1e4 ? -o.radius : o.radius; }
         const u = { uNumLights: L.length, uLightPos: lp, uLightCol: lc, uLightRad: lr, uNumOcc: no, uOcc: ou, uPlanetRel: b.rel, uHasRings: 0, uRingN: [0, 1, 0], uRingIn: 0, uRingOut: 1, uRingTex: this.noiseDummy() };
         if (b.rings) { const rt = drawRings.texture(b); Object.assign(u, { uHasRings: 1, uRingN: Q.rot(b.wrot, [0, 1, 0]), uRingIn: b.rings.inner, uRingOut: b.rings.outer, uRingTex: rt }); }
         return u;
@@ -594,7 +603,7 @@ export class Renderer {
     const lum = [];
     for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / ex; lum.push(isFinite(l) ? l : 0); }
     lum.sort((a, b) => a - b);
-    this.lumHi = lum[Math.floor(lum.length * 0.97)]; this.lumTop = lum[Math.floor(lum.length * 0.996)];
+    this.lumHi = lum[Math.floor(lum.length * 0.99)]; this.lumTop = lum[Math.floor(lum.length * 0.996)];
     this.lumMed = lum[Math.floor(lum.length * 0.5)];
     let s = 0; for (const l of lum) s += l; this.lumAvg = s / lum.length;
   }

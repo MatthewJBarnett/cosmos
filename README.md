@@ -25,6 +25,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Io shadow](docs/io_shadow.jpg) Io's shadow on Jupiter, 20 October 2026 | ![Winter](docs/winter.jpg) Europe in January |
 | ![Halley](docs/halley.jpg) Halley's Comet, February 1986: dust and ion tails | ![Alps at dusk](docs/alps_dusk.jpg) Dusk over the Alps |
 | ![Crab Nebula](docs/crab.jpg) Crab Nebula with its pulsar | ![Ocean](docs/ocean.jpg) Open ocean in the late afternoon |
+| ![Blood moon](docs/blood_moon.jpg) Total lunar eclipse, 14 March 2025, found by the eclipse finder | ![Forest](docs/forest.jpg) Black Forest from 60 m |
 
 ## Run
 
@@ -52,6 +53,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time |
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
+| Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
 | B | Save the current view (Saved menu) |
 | Tab | System browser |
 | O, N, K | Orbits, labels, constellation figures |
@@ -76,6 +78,9 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
   Io, Europa, Ganymede, Callisto, Titan, Enceladus, Pluto, Charon, Ceres, the giant planets and Saturn's rings.
   Grayscale mosaics are calibrated to each body's real albedo. Procedural detail continues below map resolution
   (forest and fields, rock on steep slopes, snow line, ridges).
+- **Eclipse finder (Shift+E):** finds every central solar and umbral lunar eclipse (2024 to 2026 checked against NASA:
+  all present, times within about a minute) and takes you to watch it. The eclipsed Moon is lit red by light refracted
+  through Earth's atmosphere.
 - **Ephemerides:** planets from JPL approximate elements with secular rates, the Moon from Meeus' lunar theory,
   Jupiter's Galilean moons from Meeus ch. 44, IAU pole directions and prime meridians, Earth rotation from sidereal
   time. Phases and eclipses happen when they really do: eclipse paths land within ~20 to 65 km of NASA's

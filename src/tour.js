@@ -20,6 +20,8 @@ export const STOPS = [
       const p = V.add(o, V.mul(d, -b - Math.sqrt(Math.max(h, 0)))), L = Q.rot(Q.conj(e.rotQ), V.norm(p));
       nav.landAt(e, Math.asin(L[1]) * 180 / Math.PI, Math.atan2(-L[2], L[0]) * 180 / Math.PI);
       nav.onArrive = () => { nav.lookTarget = { type: 'body', body: s }; }; } },
+  { title: 'Total lunar eclipse, 14 March 2025', text: 'The Moon in Earth\'s shadow is lit only by sunlight bent through Earth\'s atmosphere, every sunrise and sunset at once, so it glows red.',
+    run: (nav) => { nav.time = iso('2025-03-14T06:30:00Z'); const ui = window.cosmos && window.cosmos.ui; if (ui) ui.goNextEclipse(); } },
   { title: 'Earthrise', text: 'From the lunar surface near the limb, Earth hangs low over the horizon. Earthshine lights the night side of the Moon.',
     run: (nav) => { nav.paused = false; nav.rate = 1; nav.time = iso('2024-05-15T12:00:00Z'); const m = body(nav, 'Moon'); nav.landAt(m, 5, 84, {});
       nav.onArrive = () => { nav.lookTarget = { type: 'body', body: body(nav, 'Earth') }; }; } },
