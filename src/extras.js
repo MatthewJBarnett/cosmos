@@ -203,3 +203,9 @@ export function drawBelts(sys, nav, o) {
     gl.bindVertexArray(belt.vao.vao); gl.drawArrays(gl.POINTS, 0, belt.count);
   }
 }
+
+export function initExtraPrograms() {
+  if (!pRing) { pRing = new Program('rings', RING_VS, RING_FS); const S = 256, v = new Float32Array((S + 1) * 2 * 3); for (let i = 0; i <= S; i++) { const a = i / S * Math.PI * 2; v.set([Math.cos(a), Math.sin(a), 0, Math.cos(a), Math.sin(a), 1], i * 6); } ringVAO = makeVAO([{ data: v, size: 3, loc: 0 }]); ringCount = (S + 1) * 2; }
+  if (!pLine) { pLine = new Program('lines', LINE_VS, LINE_FS); lineVAO = gl.createVertexArray(); gl.bindVertexArray(lineVAO); lineBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12); gl.bindVertexArray(null); }
+  if (!pBelt) pBelt = new Program('belt', BELT_VS, BELT_FS);
+}

@@ -289,3 +289,10 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
   }
   gl.disable(gl.DEPTH_TEST);
 };
+
+export function initExoticPrograms() {
+  if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
+  if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
+  if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
+  if (!pCor) pCor = new Program('corona', COR_VS, COR_FS);
+}

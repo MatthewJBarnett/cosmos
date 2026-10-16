@@ -105,7 +105,12 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   // break the weather map up with mid-scale structure (tens to hundreds of km)
   float mid = textureLod(uNoise3, pl/1.7e6 + 0.11, max(lod - 7., 0.)).g*0.55 + textureLod(uNoise3, pl/4.3e5 + 0.37, max(lod - 5., 0.)).b*0.45;
   if (cMapped < 0.5) cov = clamp(cov*(0.35 + 1.3*smoothstep(0.25, 0.62, mid)), 0., 1.);
-  else cov = clamp(cov*(0.8 + 0.4*mid), 0., 1.);
+  else {
+    // break the ~10 km map pixels into fractal cloud fields at 1-20 km scales
+    float e1 = textureLod(uNoise3, pl/90000. + 0.53, max(lod - 3., 0.)).r, e2 = textureLod(uNoise3, pl/24000. + 0.21, max(lod - 1.5, 0.)).g;
+    float e = e1*0.6 + e2*0.4;
+    cov = smoothstep(0.25, 0.75, cov + (e - 0.5)*0.9*(1. - cov*0.5));
+  }
   if (cov < 0.01) return 0.;
   float topH = mix(0.35, 1.0, wm.g*cov);
   float prof = smoothstep(0., 0.07, hfrac) * smoothstep(topH, topH*0.45, hfrac);
@@ -115,7 +120,7 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float big = textureLod(uNoise3, pl/170000. + 0.2, lod - 4.).a;
     float n = textureLod(uNoise3, q + vec3(uTime*0.0004, 0., 0.), lod).r*0.6 + textureLod(uNoise3, q*3.1 + 0.3, lod + 1.6).g*0.28 + textureLod(uNoise3, q*9.7, lod + 3.3).b*0.12;
     n = mix(n, big, 0.35);
-    if (cMapped > 0.5) d = clamp(d*(0.5 + 1.0*n) - (1. - cov)*0.2*n, 0., 1.);   // the map already says where clouds are: modulate, don't erode
+    if (cMapped > 0.5) { float er = n*0.6*(1. - cov*0.55); d = clamp((d - er)/(1. - er + 1e-3), 0., 1.); }   // the map already says where clouds are: modulate, don't erode
     else d = clamp((d - n*0.8*(1.05 - cov*0.6))*2.2, 0., 1.);
   } else d = cMapped > 0.5 ? d*0.6 : clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
   // optical thickness spans thin veils to dense towers
@@ -316,6 +321,7 @@ void main(){
 }`;
 
 let pVol, pResolve, pUp;
+export function initAtmoPrograms() { init(); }
 function init() {
   if (pTrans) return;
   pTrans = new Program('atmo-trans', FS_VS, ATMO_TRANS_FS);

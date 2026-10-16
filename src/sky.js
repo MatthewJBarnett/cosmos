@@ -160,6 +160,7 @@ uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform floa
 void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, clamp(c.a, 0., 1.)); }`;
 
 let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
+export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); }
 function init() {
   if (pStar) return;
   pStar = new Program('stars', STAR_VS, STAR_FS);

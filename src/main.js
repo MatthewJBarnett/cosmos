@@ -1,15 +1,27 @@
 // Entry point: boots WebGL, the world and the UI, and runs the frame loop.
-import { initGL, gl } from './gl.js';
+import { initGL, gl, allPrograms } from './gl.js';
 import { Renderer, rcfg } from './render.js';
 import { Nav, findByName, solSystem, systemFor } from './nav.js';
 import { cfg as planetCfg } from './planet.js';
 import { skyCfg } from './sky.js';
 import { atmoCfg } from './atmosphere.js';
 import { UI } from './ui.js';
-import { loading } from './assets.js';
+import { loading, loadCatalog } from './assets.js';
+import { initPlanetPrograms } from './planet.js';
+import { initAtmoPrograms } from './atmosphere.js';
+import { initSkyPrograms } from './sky.js';
+import { initExtraPrograms } from './extras.js';
+import { initExoticPrograms } from './exotic.js';
 import { V, Q, C } from './math.js';
 
 const params = new URLSearchParams(location.search);
+function showLoading(msg) {
+  let d = document.getElementById('loading');
+  if (!d) { d = document.createElement('div'); d.id = 'loading'; document.body.appendChild(d); }
+  d.innerHTML = '<div class="ld-title">COSMOS</div><div class="ld-msg">' + msg + '</div><div class="ld-bar"><div></div></div>';
+}
+function setLoading(frac) { const b = document.querySelector('#loading .ld-bar div'); if (b) b.style.width = (frac * 100).toFixed(0) + '%'; }
+function hideLoading() { const d = document.getElementById('loading'); if (d) { d.classList.add('done'); setTimeout(() => d.remove(), 900); } }
 const num = (k, d) => params.has(k) ? +params.get(k) : d;
 const canvas = document.getElementById('gl');
 let renderer, nav, ui;
@@ -24,7 +36,11 @@ try {
   atmoCfg.cloudRes = num('cloudres', atmoCfg.cloudRes); atmoCfg.steps = num('asteps', atmoCfg.steps); atmoCfg.cloudSteps = num('csteps', atmoCfg.cloudSteps);
   rcfg.scale = num('scale', Math.min(window.devicePixelRatio || 1, 1.5)); rcfg.scaleMax = rcfg.scale; rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
   const L = (m) => { if (params.has('log')) console.log('LOG ' + m + ' ' + performance.now().toFixed(0)); }; window.__L = L;
-  L('gl'); rcfg.prof = params.has('prof'); renderer = new Renderer(canvas); L('renderer');
+  L('gl'); rcfg.prof = params.has('prof');
+  // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight
+  showLoading('Compiling shaders');
+  initPlanetPrograms(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initExoticPrograms();
+  renderer = new Renderer(canvas); L('renderer');
   nav = new Nav(); L('nav');
   ui = new UI(nav, renderer, canvas);
 } catch (e) {
@@ -46,9 +62,10 @@ function loop(now) {
     ui.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
     // dynamic resolution keeps the frame rate usable on slower GPUs
     if (rcfg.autoScale && now > 6000) {
-      if (ui.fps < 24) { slow++; fast = 0; } else if (ui.fps > 50) { fast++; slow = 0; } else { slow = 0; fast = 0; }
-      if (slow >= 3 && rcfg.scale > 0.4) { rcfg.scale = Math.max(0.4, rcfg.scale * 0.85); slow = 0; }
-      if (fast >= 10 && rcfg.scale < rcfg.scaleMax) { rcfg.scale = Math.min(rcfg.scaleMax, rcfg.scale * 1.1); fast = 0; }
+      // aim for a steady 55+ fps; temporal AA hides most of the resolution loss
+      if (ui.fps < 48) { slow++; fast = 0; } else if (ui.fps > 57) { fast++; slow = 0; } else { slow = 0; fast = 0; }
+      if (slow >= 2 && rcfg.scale > 0.5) { rcfg.scale = Math.max(0.5, rcfg.scale * (ui.fps < 30 ? 0.8 : 0.9)); slow = 0; }
+      if (fast >= 8 && rcfg.scale < rcfg.scaleMax) { rcfg.scale = Math.min(rcfg.scaleMax, rcfg.scale * 1.08); fast = 0; }
     }
   }
   try { frame(dt); } catch (e) { console.error(e); ui.fatal(e); return; }
@@ -62,6 +79,21 @@ if (params.has('goto')) {
   else if (t) { nav.selected = t; nav.goTo(t, { dur: 0.01 }); }
 }
 const testMode = params.has('test');
+async function waitPrograms() {
+  const t0 = performance.now();
+  for (;;) {
+    const n = allPrograms.filter(p => p.done).length;
+    setLoading(n / allPrograms.length * 0.9);
+    if (n === allPrograms.length || performance.now() - t0 > 60000) break;
+    await new Promise(r => setTimeout(r, 30));
+  }
+  for (const p of allPrograms) p.finish();
+}
+await waitPrograms();
+loadCatalog();
+// draw a few frames behind the loading screen so the first visible frame is complete
+for (let i = 0; i < 3; i++) { try { frame(0.016); } catch (e) { console.error(e); } setLoading(0.9 + i * 0.03); await new Promise(r => setTimeout(r, 0)); }
+hideLoading();
 if (!testMode) requestAnimationFrame(loop);
 
 // Scripting / test hooks

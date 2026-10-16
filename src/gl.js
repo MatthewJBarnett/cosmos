@@ -17,31 +17,46 @@ const HEADER = '#version 300 es\nprecision highp float;\nprecision highp int;\np
   // and some GPUs (Apple) return garbage there, which poisoned the HDR buffer with infinities.
   '#define texture(s, c) textureLod(s, c, 0.0)\n';
 
-function compile(type, src, name) {
+function compileShader(type, src) {
   const s = gl.createShader(type);
   gl.shaderSource(s, HEADER + src);
   gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    const log = gl.getShaderInfoLog(s);
-    const lines = (HEADER + src).split('\n');
-    const m = /ERROR: \d+:(\d+)/.exec(log);
-    let ctx = '';
-    if (m) { const n = +m[1]; ctx = lines.slice(Math.max(0, n - 4), n + 2).map((l, i) => (Math.max(0, n - 4) + i + 1) + ': ' + l).join('\n'); }
-    console.error('Shader compile error [' + name + ']\n' + log + '\n' + ctx);
-    throw new Error('Shader compile error [' + name + ']: ' + log);
-  }
   return s;
 }
+function shaderError(s, src, name) {
+  const log = gl.getShaderInfoLog(s);
+  const lines = (HEADER + src).split('\n');
+  const m = /ERROR: \d+:(\d+)/.exec(log);
+  let ctx = '';
+  if (m) { const n = +m[1]; ctx = lines.slice(Math.max(0, n - 4), n + 2).map((l, i) => (Math.max(0, n - 4) + i + 1) + ': ' + l).join('\n'); }
+  console.error('Shader compile error [' + name + ']\n' + log + '\n' + ctx);
+  return new Error('Shader compile error [' + name + ']: ' + log);
+}
 
+// All programs ever created, so the app can compile them up front (in parallel where supported).
+export const allPrograms = [];
+let parallelExt = undefined;
 export class Program {
   constructor(name, vs, fs) {
-    this.name = name; const __t = performance.now();
+    if (parallelExt === undefined) parallelExt = gl.getExtension('KHR_parallel_shader_compile');
+    this.name = name; this.vsSrc = vs; this.fsSrc = fs;
     const p = this.p = gl.createProgram();
-    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs, name + '.vs'));
-    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs, name + '.fs'));
+    this.vs = compileShader(gl.VERTEX_SHADER, vs); this.fs = compileShader(gl.FRAGMENT_SHADER, fs);
+    gl.attachShader(p, this.vs); gl.attachShader(p, this.fs);
     gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); throw new Error('Link error [' + name + ']: ' + gl.getProgramInfoLog(p)); }
-    if (window.__L) window.__L('compiled ' + name + ' in ' + (performance.now() - __t).toFixed(0));
+    this.linked = false;
+    allPrograms.push(this);
+  }
+  // non-blocking: true once the driver has finished compiling and linking
+  get done() { return this.linked || !parallelExt || gl.getProgramParameter(this.p, parallelExt.COMPLETION_STATUS_KHR); }
+  finish() {
+    if (this.linked) return;
+    const p = this.p;
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      if (!gl.getShaderParameter(this.vs, gl.COMPILE_STATUS)) throw shaderError(this.vs, this.vsSrc, this.name + '.vs');
+      if (!gl.getShaderParameter(this.fs, gl.COMPILE_STATUS)) throw shaderError(this.fs, this.fsSrc, this.name + '.fs');
+      console.error(gl.getProgramInfoLog(p)); throw new Error('Link error [' + this.name + ']: ' + gl.getProgramInfoLog(p));
+    }
     this.u = {}; this.types = {}; this.texUnit = {};
     const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
     let unit = 0;
@@ -56,10 +71,12 @@ export class Program {
     // even ones a draw leaves unset, or strict drivers reject the draw call.
     gl.useProgram(p);
     for (const nm in this.texUnit) gl.uniform1i(this.u[nm], this.texUnit[nm]);
+    this.linked = true;
   }
-  use() { gl.useProgram(this.p); return this; }
+  use() { if (!this.linked) this.finish(); gl.useProgram(this.p); return this; }
   // set uniforms from object; textures given as {tex, target}
   set(vals) {
+    if (!this.linked) this.finish();
     for (const k in vals) {
       const loc = this.u[k]; if (loc === undefined || loc === null) continue;
       const v = vals[k], t = this.types[k];

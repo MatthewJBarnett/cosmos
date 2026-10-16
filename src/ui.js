@@ -91,20 +91,27 @@ export class UI {
     const fillSearch = () => { document.getElementById('searchlist').innerHTML = searchList(nav).map(n => `<option value="${n}">`).join(''); };
     fillSearch(); loadCatalog().then(fillSearch);
   }
+  saveSettings() {
+    try { localStorage.setItem('cosmos.settings', JSON.stringify({ exposureBias: rcfg.exposureBias, bloom: rcfg.bloom, clouds: rcfg.clouds, orbits: rcfg.orbits, fxaa: rcfg.fxaa, flare: rcfg.flare, autoScale: rcfg.autoScale, constellations: rcfg.constellations, labels: this.showLabels, fov: this.nav.fov })); } catch (e) { }
+  }
+  loadSettings() {
+    try { const o = JSON.parse(localStorage.getItem('cosmos.settings') || 'null'); if (!o) return; for (const k of ['exposureBias', 'bloom', 'clouds', 'orbits', 'fxaa', 'flare', 'autoScale', 'constellations']) if (o[k] !== undefined) rcfg[k] = o[k]; if (o.labels !== undefined) this.showLabels = o.labels; if (o.fov) this.nav.fov = o.fov; } catch (e) { }
+  }
   buildSettings() {
+    this.loadSettings();
     const s = this.setPanel;
     s.innerHTML = `<h3>Settings</h3>
-      <label>Exposure bias <input type="range" id="sExp" min="-6" max="6" step="0.25" value="0"><span id="sExpV">0 EV</span></label>
+      <label>Exposure bias <input type="range" id="sExp" min="-6" max="6" step="0.25" value="${rcfg.exposureBias}"><span id="sExpV">${rcfg.exposureBias} EV</span></label>
       <label>Bloom <input type="range" id="sBloom" min="0" max="0.2" step="0.005" value="${rcfg.bloom}"></label>
-      <label>Field of view <input type="range" id="sFov" min="5" max="110" step="1" value="55"><span id="sFovV">55°</span></label>
+      <label>Field of view <input type="range" id="sFov" min="5" max="110" step="1" value="${Math.round(this.nav.fov * 180 / Math.PI)}"><span id="sFovV">${Math.round(this.nav.fov * 180 / Math.PI)}°</span></label>
       <label>Render scale <input type="range" id="sScale" min="0.4" max="2" step="0.1" value="${rcfg.scale}"><span id="sScaleV">${rcfg.scale}</span></label>
-      <label><input type="checkbox" id="sClouds" checked> Volumetric clouds</label>
-      <label><input type="checkbox" id="sOrbits" checked> Orbits</label>
-      <label><input type="checkbox" id="sLabels" checked> Labels</label>
-      <label><input type="checkbox" id="sConst"> Constellations</label>
+      <label><input type="checkbox" id="sClouds" ${rcfg.clouds ? 'checked' : ''}> Volumetric clouds</label>
+      <label><input type="checkbox" id="sOrbits" ${rcfg.orbits ? 'checked' : ''}> Orbits</label>
+      <label><input type="checkbox" id="sLabels" ${this.showLabels ? 'checked' : ''}> Labels</label>
+      <label><input type="checkbox" id="sConst" ${rcfg.constellations ? 'checked' : ''}> Constellations</label>
       <label><input type="checkbox" id="sAuto" checked> Auto exposure</label>
-      <label><input type="checkbox" id="sFxaa" checked> Anti-aliasing</label>
-      <label><input type="checkbox" id="sFlare" checked> Lens flare</label>
+      <label><input type="checkbox" id="sFxaa" ${rcfg.taa ? 'checked' : ''}> Temporal anti-aliasing</label>
+      <label><input type="checkbox" id="sFlare" ${rcfg.flare ? 'checked' : ''}> Lens flare</label>
       <label><input type="checkbox" id="sAutoScale" ${rcfg.autoScale ? 'checked' : ''}> Dynamic resolution</label>
       <label>Quality <select id="sQual"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim">(reloads)</span></label>`;
     const q = (id) => s.querySelector('#' + id);
@@ -117,10 +124,11 @@ export class UI {
     q('sLabels').onchange = (e) => { this.showLabels = e.target.checked; };
     q('sConst').onchange = (e) => { rcfg.constellations = e.target.checked; };
     q('sAuto').onchange = (e) => { rcfg.autoExposure = e.target.checked; rcfg.manualExposure = this.r.exposure; };
-    q('sFxaa').onchange = (e) => { rcfg.fxaa = e.target.checked; };
+    q('sFxaa').onchange = (e) => { rcfg.taa = e.target.checked; };
     q('sFlare').onchange = (e) => { rcfg.flare = e.target.checked; };
     q('sAutoScale').onchange = (e) => { rcfg.autoScale = e.target.checked; };
     q('sQual').value = rcfg.quality || 'high';
+    s.addEventListener('input', () => this.saveSettings()); s.addEventListener('change', () => this.saveSettings());
     q('sQual').onchange = (e) => { const u = new URL(location.href); u.searchParams.set('q', e.target.value); location.href = u.toString(); };
   }
   bind() {

@@ -240,6 +240,7 @@ let progDraw = null, progGen = {}, gridVAO = null, gridCount = 0, genFBO = null,
 const texPool = [];
 let frame = 0;
 
+export function initPlanetPrograms() { init(); }
 function init() {
   if (progDraw) return;
   progDraw = new Program('planet', DRAW_VS, DRAW_FS);
