@@ -125,6 +125,7 @@ export class UI {
       <label><input type="checkbox" id="sTrees" ${planetCfg.trees ? 'checked' : ''}> Trees</label>
       <label><input type="checkbox" id="sFlare" ${rcfg.flare ? 'checked' : ''}> Lens flare</label>
       <label><input type="checkbox" id="sAutoScale" ${rcfg.autoScale ? 'checked' : ''}> Dynamic resolution</label>
+      <button id="sBench" style="margin:6px 0">Run benchmark (about 2 min)</button>
       <label>Quality <select id="sQual"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select> <span class="dim">(reloads)</span></label>`;
     const q = (id) => s.querySelector('#' + id);
     q('sExp').oninput = (e) => { rcfg.exposureBias = +e.target.value; q('sExpV').textContent = e.target.value + ' EV'; };
@@ -140,6 +141,7 @@ export class UI {
     q('sFlare').onchange = (e) => { rcfg.flare = e.target.checked; };
     q('sTrees').onchange = (e) => { planetCfg.trees = e.target.checked; };
     q('sAutoScale').onchange = (e) => { rcfg.autoScale = e.target.checked; };
+    q('sBench').onclick = () => { this.setPanel.classList.add('hidden'); import('./bench.js').then(m => m.runBenchmark(window.cosmos)); };
     q('sQual').value = rcfg.quality || 'high';
     s.addEventListener('input', () => this.saveSettings()); s.addEventListener('change', () => this.saveSettings());
     q('sQual').onchange = (e) => { const u = new URL(location.href); u.searchParams.set('q', e.target.value); location.href = u.toString(); };
