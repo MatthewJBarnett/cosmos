@@ -115,9 +115,10 @@ void main(){
     return;
   }
   vec3 N = up;
+  float aoT = 1.;
   float water = 0., depth = 0.;
   if (uKind == 0) {
-    vec2 nn = texture(uNormTex, tuv).rg;
+    vec3 nt = texture(uNormTex, tuv).rgb; vec2 nn = nt.rg; aoT = nt.b;
     vec3 T1 = normalize(uFaceA - dir*dot(dir, uFaceA)), T2 = cross(dir, T1);
     N = normalize(uRot*(dir*sqrt(max(0., 1. - dot(nn, nn))) + T1*nn.x + T2*nn.y));
     if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea - h; water = smoothstep(0., 0.4, depth); }
@@ -208,7 +209,8 @@ void main(){
       }
       shade *= 1. - clamp(occ, 0., 1.)*0.92;
     }
-    vec3 land = alb.rgb * (lc*sunT*shade + amb) / 3.14159;
+    float ao = mix(1., aoT, 1. - water);
+    vec3 land = alb.rgb * (lc*sunT*shade*mix(1., ao, 0.35) + amb*ao) / 3.14159;
     if (uSpec > 0.) { vec3 H = normalize(L + Vv); land += lc*sunT*uSpec*0.04*ggx(max(dot(N, H), 0.), 0.35)*max(nl, 0.); }
     if (water > 0.) {
       vec3 H = normalize(L + Vv);
@@ -245,7 +247,7 @@ function mapTint(body, mp) {
   return [t[0] * k, t[1] * k, t[2] * k];
 }
 function dummyTex() { if (!dummy) dummy = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([128, 128, 128, 255])); return dummy; }
-let progDraw = null, progGen = {}, gridVAO = null, gridCount = 0, genFBO = null, queryFBO = null, queryTex = null;
+let progAO = null, progDraw = null, progGen = {}, gridVAO = null, gridCount = 0, genFBO = null, queryFBO = null, queryTex = null;
 const texPool = [];
 let frame = 0;
 
@@ -257,6 +259,18 @@ function init() {
   progGen.terra = new Program('gen-terra', FS_VS, '#define HAS_RELIEF\n' + pre + GEN_TERRA + GEN_MAIN);
   progGen.gas = new Program('gen-gas', FS_VS, pre + GEN_GAS + GEN_MAIN);
   progGen.star = new Program('gen-star', FS_VS, pre + GEN_STAR + GEN_MAIN);
+  progAO = new Program('tile-ao', FS_VS, `in vec2 vUV; out vec4 o; uniform sampler2D uHeightTex; uniform float uTexel, uTexSize;
+    void main(){
+      ivec2 p = ivec2(gl_FragCoord.xy); ivec2 mx = ivec2(int(uTexSize) - 1);
+      float h0 = texelFetch(uHeightTex, p, 0).r, occ = 0.;
+      for (int k = 0; k < 8; k++) {
+        float a = float(k)*0.7853982 + 0.39; vec2 d = vec2(cos(a), sin(a));
+        float best = 0.;
+        for (int r = 1; r <= 16; r *= 2) { ivec2 q = clamp(p + ivec2(d*float(r)), ivec2(0), mx); float dh = texelFetch(uHeightTex, q, 0).r - h0; best = max(best, dh/(float(r)*uTexel)); }
+        occ += best/sqrt(1. + best*best);
+      }
+      o = vec4(0., 0., clamp(1. - occ/8.*0.9, 0.2, 1.), 0.);
+    }`);
   // shared grid with skirt ring
   const G = (cfg.T - 1) / 3; cfg.G = G;
   const n = G + 3, verts = new Float32Array(n * n * 3), idx = new Uint32Array((n - 1) * (n - 1) * 6);
@@ -276,7 +290,7 @@ function init() {
 function allocTex() {
   if (texPool.length) return texPool.pop();
   const T = cfg.T;
-  return { h: tex2D(T, T, gl.R32F, gl.RED, gl.FLOAT, gl.NEAREST), n: tex2D(T, T, gl.RG16F, gl.RG, gl.HALF_FLOAT, gl.LINEAR), a: tex2D(T, T, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR) };
+  return { h: tex2D(T, T, gl.R32F, gl.RED, gl.FLOAT, gl.NEAREST), n: tex2D(T, T, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR), a: tex2D(T, T, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR) };
 }
 
 class Chunk {
@@ -347,6 +361,17 @@ class PlanetState {
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
     this.genUniforms(prog, ch, cfg.T);
     drawFS();
+    if (this.surf.gen === 'terra') {
+      // ambient occlusion from the baked heights, written into the normal texture's blue channel only
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ch.tex.n, 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, null, 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, null, 0);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+      gl.colorMask(false, false, true, false);
+      progAO.use().set({ uHeightTex: ch.tex.h, uTexel: ch.size / (cfg.T - 1) * this.body.radius / ch.qlen, uTexSize: cfg.T });
+      drawFS();
+      gl.colorMask(true, true, true, true);
+    }
     ch.ready = true; ch.queued = false; this.count++;
   }
   // Non-blocking version for per-frame use: returns the most recent completed result (or null) and starts a new query.

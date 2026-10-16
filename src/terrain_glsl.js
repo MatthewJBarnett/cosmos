@@ -94,14 +94,18 @@ float craters(vec3 d){
     for (int c = 0; c < 8; c++) {
       ivec3 cc = ivec3(c & 1, (c >> 1) & 1, (c >> 2) & 1);
       uint hs = hashu(ic + cc, 77u);
-      if (float(hs & 255u) > 255. * uCrater * 0.55) continue;
+      // small craters are gardened away quickly: fewer survive, most are old and soft
+      float small = smoothstep(9., 17., float(o));
+      if (float(hs & 255u) > 255. * uCrater * mix(0.55, 0.3, small)) continue;
       vec3 rnd = vec3(float((hs>>8)&255u), float((hs>>16)&255u), float((hs>>24)&255u)) / 255.;
       float rad = 0.14 + 0.3*rnd.z*rnd.z;
       vec3 cen = vec3(cc) + 0.5 + (rnd - 0.5)*(1. - 2.*rad)*vec3(1.,1.,0.5);
       float t = length(w - cen)/rad;
       if (t < 3.) {
-        float age = fract(rnd.x*7.31 + rnd.y*3.7);
-        h += craterProfile(t, big) * rad / f * mix(1.0, 0.35, age);
+        float age = pow(fract(rnd.x*7.31 + rnd.y*3.7), mix(1., 0.35, small));
+        // degraded craters: shallower and with the rim smoothed into the surroundings
+        float tt = mix(t, t*0.85 + 0.15*smoothstep(0., 2., t), age);
+        h += craterProfile(tt, big) * rad / f * mix(1.0, 0.18, age);
         gFresh += (1.-age)*(1.-age) * exp(-t*t*0.9) * smoothstep(0.7, 0.0, age);
       }
     }
@@ -150,8 +154,35 @@ float terrainMapped(vec3 d, vec3 P){
   return h;
 }
 
+// scattered boulders, a few metres across, where the ground is barren
+float boulders(vec3 d){
+  int ob = int(round(log2(uRadius/(3.*uFreq))));
+  if (uOMax < ob || ob >= NOCT) return 0.;
+  float field = smoothstep(-0.1, 0.5, gn(max(ob - 9, 0), 71u, d).x + 0.4*gn(max(ob - 6, 0), 72u, d).x) * (1. - 0.75*uVeg) * (uOcean > 0.5 ? 0.5 : 1.);
+  if (field < 0.02) return 0.;
+  float h = 0.;
+  for (int lv = 0; lv < 2; lv++) {
+    int o = ob + lv;
+    if (o > uOMax || o >= NOCT) break;
+    float f = exp2(float(o))*uFreq;
+    vec3 x = uOF[o] + d*f;
+    vec3 i = floor(x - 0.5), w = x - i; ivec3 ic = ivec3(i) + uOC[o];
+    for (int c = 0; c < 8; c++) {
+      ivec3 cc = ivec3(c & 1, (c >> 1) & 1, (c >> 2) & 1);
+      uint hs = hashu(ic + cc, 73u + uint(lv));
+      if (float(hs & 255u) > 255.*field*0.35) continue;
+      vec3 rnd = vec3(float((hs>>8)&255u), float((hs>>16)&255u), float((hs>>24)&255u))/255.;
+      float rad = 0.12 + 0.3*rnd.z*rnd.z;
+      vec3 cen = vec3(cc) + 0.5 + (rnd - 0.5)*(1. - 2.*rad);
+      vec3 q = (w - cen)/rad; q.y *= 1.3;
+      float t2 = dot(q, q);
+      if (t2 < 1.) h = max(h, sqrt(1. - t2)*rad/f*0.75);
+    }
+  }
+  return h*uRadius*field;
+}
 float terrain(vec3 d, vec3 P){
-  if (uHasH > 0.5) return terrainMapped(d, P);
+  if (uHasH > 0.5) return terrainMapped(d, P) + boulders(d);
   vec3 w = vec3(gn(1,101u,d).x, gn(1,102u,d).x, gn(1,103u,d).x)*0.5;
   if (uOMax >= 3) w += vec3(gn(3,104u,d).x, gn(3,105u,d).x, gn(3,106u,d).x)*0.12;
   vec3 dw = d + w*uWarp;
@@ -229,7 +260,7 @@ float terrain(vec3 d, vec3 P){
     h += gCrack * uHillAmp * 0.6 * (uLava > 0.5 ? -2. : 1.);
   }
   if (uCrater > 0.) h += craters(d);
-  return h;
+  return h + boulders(d);
 }
 
 vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis);
