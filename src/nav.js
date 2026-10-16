@@ -173,7 +173,7 @@ export class Nav {
   land(body, opt = {}) {
     if (!body || !body.surface) return;
     // real elevation data must be loaded before we can pick a landing height
-    if (body.maps && !opt.noWait && !bodyMaps(body)) {
+    if (body.maps && !opt.noWait && (!bodyMaps(body) || body.maps._state.preview)) {
       this.pendingLand = { body, opt, t: 0 }; this.selected = { type: 'body', body }; return;
     }
     const sys = body.system; const rel = this.relTo({ type: 'body', body });
@@ -300,7 +300,7 @@ export class Nav {
   // ----- per frame -----
   update(dt, input) {
     if (!this.paused) this.time += dt * this.rate;
-    if (this.pendingLand) { const p = this.pendingLand; p.t += dt; if (bodyMaps(p.body) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
+    if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early
     if (this.selected && this.selected.type === 'body' && this.selected.body.maps) bodyMaps(this.selected.body);
     const sys = this.system;

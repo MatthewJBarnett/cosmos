@@ -46,13 +46,17 @@ export function bodyMaps(body) {
   if (!m) return null;
   if (m._state) return m._state.ready ? m._state : null;
   const st = m._state = { ready: false };
-  const jobs = [];
-  for (const k of ['color', 'height', 'mask', 'lights', 'clouds']) {
-    if (!m[k]) continue;
-    const e = loadTexture(m[k], k === 'height' || k === 'mask' ? 'data' : k === 'color' ? 'color' : 'gray');
-    st[k] = e; jobs.push(e.promise);
-  }
-  Promise.all(jobs).then(() => { st.ready = true; body.mapsVersion = (body.mapsVersion || 0) + 1; });
+  const kindOf = (k) => k === 'height' || k === 'mask' ? 'data' : k === 'color' ? 'color' : 'gray';
+  const loadSet = (src, keys) => Promise.all(keys.filter(k => src[k]).map(k => { const e = loadTexture(src[k], kindOf(k)); return e.promise.then(() => e); }));
+  const all = ['color', 'height', 'mask', 'lights', 'clouds'];
+  const apply = (src, list) => { for (const k of all) { if (!src[k]) continue; const e = loadTexture(src[k], kindOf(k)); if (e.ready) st[k] = e; } };
+  const finish = () => { st.ready = true; body.mapsVersion = (body.mapsVersion || 0) + 1; };
+  if (m.lo) {
+    // small previews first (about 1 MB), then the full maps
+    const loKeys = Object.keys(m.lo);
+    loadSet(Object.assign({}, m, m.lo), all).then(() => { apply(Object.assign({}, m, m.lo)); finish(); st.preview = true; })
+      .then(() => loadSet(m, loKeys)).then(() => { apply(m); st.preview = false; finish(); });
+  } else loadSet(m, all).then(() => { apply(m); finish(); });
   return null;
 }
 

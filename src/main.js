@@ -122,7 +122,8 @@ loadCatalog();
     showLoading('Downloading ' + sel.name + ' data');
     bodyMaps(sel);
     const t0 = performance.now(), n0 = Math.max(1, loading.count);
-    while (loading.count > 0 && performance.now() - t0 < 25000) { setLoading(0.15 + 0.75 * (1 - loading.count / n0)); await new Promise(r => setTimeout(r, 100)); }
+    // wait for the small preview maps only; the full maps stream in while you look around
+    while (!bodyMaps(sel) && performance.now() - t0 < 25000) { setLoading(0.15 + 0.75 * Math.min(1, (performance.now() - t0) / 3000)); await new Promise(r => setTimeout(r, 100)); }
   }
 }
 // draw a few frames behind the loading screen so the first visible frame is complete
