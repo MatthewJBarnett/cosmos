@@ -78,8 +78,8 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
   Io, Europa, Ganymede, Callisto, Titan, Enceladus, Pluto, Charon, Ceres, the giant planets and Saturn's rings.
   Grayscale mosaics are calibrated to each body's real albedo. Procedural detail continues below map resolution
   (forest and fields, rock on steep slopes, snow line, ridges).
-- **Eclipse finder (Shift+E):** finds every central solar and umbral lunar eclipse (2024 to 2026 checked against NASA:
-  all present, times within about a minute) and takes you to watch it. The eclipsed Moon is lit red by light refracted
+- **Eclipse finder (Shift+E):** finds solar and lunar eclipses, including partial and penumbral ones (2024 to 2026 checked
+  against NASA: times within about a minute) and takes you to watch it. The eclipsed Moon is lit red by light refracted
   through Earth's atmosphere.
 - **Ephemerides:** planets from JPL approximate elements with secular rates, the Moon from Meeus' lunar theory,
   Jupiter's Galilean moons from Meeus ch. 44, IAU pole directions and prime meridians, Earth rotation from sidereal
@@ -174,5 +174,4 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Earth's cloud cover is a single static snapshot (it drifts slowly but does not evolve).
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
-  The finder lists central solar eclipses and umbral lunar eclipses, not purely partial solar ones.
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.

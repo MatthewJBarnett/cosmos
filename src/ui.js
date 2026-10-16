@@ -280,7 +280,8 @@ export class UI {
     nav.onArrive = () => { nav.lookTarget = { type: 'body', body: target }; nav.fov = r.kind === 'solar' ? 0.05 : 0.04; nav.selected = { type: 'body', body: target }; };
     const d = new Date(Date.UTC(2000, 0, 1, 12) + r.t * 1000).toISOString().slice(0, 16).replace('T', ' ');
     const where = Math.abs(r.lat).toFixed(1) + '° ' + (r.lat >= 0 ? 'N' : 'S') + ', ' + Math.abs(r.lon).toFixed(1) + '° ' + (r.lon >= 0 ? 'E' : 'W');
-    this.toast((r.total ? 'Total ' : r.kind === 'solar' ? 'Annular or hybrid ' : 'Partial ') + r.kind + ' eclipse, ' + d + ' UTC, from ' + where);
+    const label = r.total ? 'Total ' : r.kind === 'solar' ? (r.central ? 'Annular or hybrid ' : 'Partial ') : (r.central ? 'Partial ' : 'Penumbral ');
+    this.toast(label + r.kind + ' eclipse, ' + d + ' UTC, from ' + where);
   }
   toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
   // planetographic latitude/longitude of the camera over the anchor body (degrees)

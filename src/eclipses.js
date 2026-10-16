@@ -27,12 +27,14 @@ export function nextEclipse(sys, t0, kind = 'any', maxDays = 800) {
       const solar = cur > 0;
       const f = solar ? solarMiss : lunarMiss;
       const tm = golden(f, t - 2 * step, t + 2 * step), miss = f(tm);
-      if ((solar && miss < 1.0) || (!solar && miss < 1.6)) {
+      // solar: the penumbra reaches Earth out to ~1.55 Earth radii from the axis (partial eclipses)
+      if ((solar && miss < 1.5) || (!solar && miss < 1.6)) {
         sys.update(tm);
         let lat, lon;
         if (solar) {
           const d = V.norm(V.sub(m.pos, s.pos)), o = V.sub(m.pos, e.pos), b = V.dot(o, d), h = b * b - (V.dot(o, o) - e.radius ** 2);
-          const p = h > 0 ? V.add(o, V.mul(d, -b - Math.sqrt(h))) : V.add(o, V.mul(d, -b));
+          // central: where the axis meets the ground; partial: the surface point closest to the axis
+          const p = h > 0 ? V.add(o, V.mul(d, -b - Math.sqrt(h))) : V.mul(V.norm(V.add(o, V.mul(d, -b))), e.radius);
           const L = Q.rot(Q.conj(e.rotQ), V.norm(p)); lat = Math.asin(L[1]) * 180 / Math.PI; lon = Math.atan2(-L[2], L[0]) * 180 / Math.PI;
         } else {
           const L = Q.rot(Q.conj(e.rotQ), V.norm(V.sub(m.pos, e.pos))); lat = Math.asin(L[1]) * 180 / Math.PI; lon = Math.atan2(-L[2], L[0]) * 180 / Math.PI;
@@ -41,7 +43,7 @@ export function nextEclipse(sys, t0, kind = 'any', maxDays = 800) {
         let total;
         if (solar) { const dMoon = V.dist(m.pos, e.pos) - e.radius, ang = Math.atan(m.radius / dMoon) - Math.atan(s.radius / V.dist(s.pos, e.pos)); total = ang > 0 && miss < 1; }
         else total = miss < 1 - m.radius / (e.radius * 0.73);
-        result = { kind: solar ? 'solar' : 'lunar', t: tm, lat, lon, total, miss };
+        result = { kind: solar ? 'solar' : 'lunar', t: tm, lat, lon, total, miss, central: solar ? miss < 1 : miss < 1 + m.radius / (e.radius * 0.73) };
       }
     }
     prev = cur;

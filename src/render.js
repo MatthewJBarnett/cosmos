@@ -500,7 +500,9 @@ export class Renderer {
       T('atmo');
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
       drawComets(sys, nav, { camRot, tanFov: [tanX, tanY], exposure, time: nav.time, noise3: this.noise3, depth: this.depthTex, fcoef });
-      if (rcfg.orbits) { gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); drawOrbits(sys, nav, { viewProj, fcoef, selected: nav.selected }); }
+      // orbit lines would cut across a real-looking sky: hide them when standing (or flying low) under an atmosphere
+      const onGround = nav.anchor && nav.anchor.atmo && nav.altitude < 1e5;
+      if (rcfg.orbits && !onGround) { gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); drawOrbits(sys, nav, { viewProj, fcoef, selected: nav.selected }); }
       // black holes bend the finished image
       for (const b of blackHoles) {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
