@@ -9,7 +9,7 @@ import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 import { bodyMaps } from './assets.js';
 
-export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1, trees: true };
+export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1, trees: true, treeRange: 1800, treeBudget: 60000 };
 const FACES = [
   { N: [1, 0, 0], A: [0, 0, -1], B: [0, 1, 0] }, { N: [-1, 0, 0], A: [0, 0, 1], B: [0, 1, 0] },
   { N: [0, 1, 0], A: [1, 0, 0], B: [0, 0, -1] }, { N: [0, -1, 0], A: [1, 0, 0], B: [0, 0, 1] },
@@ -288,7 +288,7 @@ uniform sampler2D uHeightTex, uAlbTex, uNormTex;
 uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
 uniform float uQcLen, uSize, uRadius, uSea, uOcean, uTexSize;
-uniform vec2 uOff, uStep; uniform ivec2 uBase; uniform int uNX;
+uniform vec2 uOff, uStep; uniform ivec2 uBase; uniform int uNX; uniform float uRange;
 out vec2 vC; out vec3 vCol; out vec3 vUp; out vec3 vWorld; out float vKind; out vec3 vRight; out float vSeed;
 ${LOGDEPTH_VS}
 uint th(ivec2 c, uint s){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ s*0x9e3779b9u; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; return h; }
@@ -326,6 +326,8 @@ void main(){
   // conifers in cold/high places (bluish dark greens), broadleaf elsewhere
   float conifer = step(0.55, tr(th(g, 17u)) + (c.b - c.r)*6. + 0.25);
   float W = H*(conifer > 0.5 ? 0.22 : 0.38);
+  // fade out towards the end of the tree range so there is no visible edge
+  if (r2 > keep*smoothstep(uRange, uRange*0.6, length(base))) { gl_Position = vec4(2., 2., 2., 1.); return; }
   vec3 toCam = normalize(-base); vec3 right = normalize(cross(up, toCam));
   vec3 w = base + right*aCorner.x*W + up*(aCorner.y*0.5 + 0.5)*H;
   vC = vec2(aCorner.x, aCorner.y*0.5 + 0.5); vUp = up; vRight = right; vWorld = w; vKind = conifer; vSeed = tr(th(g, 29u));
@@ -372,16 +374,27 @@ function drawTrees(body, st, draws, o, R, rot3) {
   initTreeProgram();
   const p = progTree.use();
   let bound = false;
-  for (const d of draws) {
+  // camera position in face coordinates, to restrict each tile's lattice to the part within range
+  const camL = Q.rot(Q.conj(o.rotQ), V.mul(o.rel, -1));
+  const RANGE = cfg.treeRange;
+  let budget = cfg.treeBudget;
+  const near = draws.slice().sort((x, y) => V.len(x.cRel) - V.len(y.cRel));
+  for (const d of near) {
     const ch = d.ch, sizeM = d.sizeM;
-    if (sizeM > 1400 || V.len(d.cRel) > 4500 + sizeM) continue;
+    if (sizeM > 2000 || V.len(d.cRel) > RANGE + sizeM) continue;
     const F = FACES[ch.face];
+    const dn = V.dot(camL, F.N); if (dn <= 0) continue;
+    const ca = V.dot(camL, F.A) / dn, cb = V.dot(camL, F.B) / dn;
     // lattice in face coordinates (a, b) with spacing ~TREE_SP metres; base indices in double precision
-    const step = TREE_SP / (R / ch.qlen);
-    const ia0 = Math.floor(ch.a0 / step), ib0 = Math.floor(ch.b0 / step);
-    const nx = Math.min(160, Math.ceil(ch.size / step) + 1);
+    const step = TREE_SP / (R / ch.qlen), rng = RANGE / (R / ch.qlen);
+    const a0 = Math.max(ch.a0, ca - rng), a1 = Math.min(ch.a0 + ch.size, ca + rng), b0 = Math.max(ch.b0, cb - rng), b1 = Math.min(ch.b0 + ch.size, cb + rng);
+    if (a1 <= a0 || b1 <= b0) continue;
+    const ia0 = Math.floor(a0 / step), ib0 = Math.floor(b0 / step);
+    const nx = Math.min(220, Math.ceil((Math.max(a1 - a0, b1 - b0)) / step) + 1);
+    if (nx * nx > budget) break;
+    budget -= nx * nx;
     if (!bound) {
-      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex() }, o.light));
+      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex(), uRange: RANGE }, o.light));
       gl.bindVertexArray(treeVAO.vao); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); bound = true;
     }
     p.set({ uHeightTex: ch.tex.h, uAlbTex: ch.tex.a, uNormTex: ch.tex.n, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size,

@@ -5,6 +5,7 @@ import { describeBody } from './system.js';
 import { starName } from './system.js';
 import { galaxyName, REAL_GALAXIES } from './universe.js';
 import { rcfg } from './render.js';
+import { cfg as planetCfg } from './planet.js';
 import { RNG } from './rng.js';
 import { visibleNebulae } from './exotic.js';
 import { catalog, loadCatalog } from './assets.js';
@@ -120,6 +121,7 @@ export class UI {
       <label><input type="checkbox" id="sConst" ${rcfg.constellations ? 'checked' : ''}> Constellations</label>
       <label><input type="checkbox" id="sAuto" checked> Auto exposure</label>
       <label><input type="checkbox" id="sFxaa" ${rcfg.taa ? 'checked' : ''}> Temporal anti-aliasing</label>
+      <label><input type="checkbox" id="sTrees" ${planetCfg.trees ? 'checked' : ''}> Trees</label>
       <label><input type="checkbox" id="sFlare" ${rcfg.flare ? 'checked' : ''}> Lens flare</label>
       <label><input type="checkbox" id="sAutoScale" ${rcfg.autoScale ? 'checked' : ''}> Dynamic resolution</label>
       <label>Quality <select id="sQual"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select> <span class="dim">(reloads)</span></label>`;
@@ -135,6 +137,7 @@ export class UI {
     q('sAuto').onchange = (e) => { rcfg.autoExposure = e.target.checked; rcfg.manualExposure = this.r.exposure; };
     q('sFxaa').onchange = (e) => { rcfg.taa = e.target.checked; };
     q('sFlare').onchange = (e) => { rcfg.flare = e.target.checked; };
+    q('sTrees').onchange = (e) => { planetCfg.trees = e.target.checked; };
     q('sAutoScale').onchange = (e) => { rcfg.autoScale = e.target.checked; };
     q('sQual').value = rcfg.quality || 'high';
     s.addEventListener('input', () => this.saveSettings()); s.addEventListener('change', () => this.saveSettings());

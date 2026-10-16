@@ -28,6 +28,10 @@ let renderer, nav, ui;
 try {
   initGL(canvas);
   const quality = params.get('q') || 'high';
+  // trees cost the most on weak GPUs: fewer and closer on lower presets
+  if (quality === 'low') { planetCfg.trees = false; }
+  if (quality === 'medium') { planetCfg.treeRange = 1100; planetCfg.treeBudget = 30000; }
+  if (quality === 'ultra') { planetCfg.treeRange = 2800; planetCfg.treeBudget = 120000; }
   if (quality === 'low') { planetCfg.T = 97; atmoCfg.steps = 14; atmoCfg.cloudSteps = 14; skyCfg.cubeSize = 512; atmoCfg.cloudRes = 384; skyCfg.galSteps = 40; }
   else if (quality === 'medium') { planetCfg.T = 145; atmoCfg.steps = 20; atmoCfg.cloudSteps = 22; skyCfg.cubeSize = 768; atmoCfg.cloudRes = 512; }
   else if (quality === 'ultra') { planetCfg.T = 241; planetCfg.maxChunks = 420; planetCfg.genPerFrame = 4; atmoCfg.steps = 36; atmoCfg.cloudSteps = 44; skyCfg.cubeSize = 1536; atmoCfg.cloudRes = 1024; skyCfg.galSteps = 96; }
