@@ -184,6 +184,9 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float wb = wn.r*0.7 + textureLod(uWorley3, pl/2600. + 0.37, lod + 1.8).g*0.3;
     n = mix(n, 1. - wb, 0.55*(1. - hfrac*0.4));
     float er = (n - 0.3)*0.9; d = clamp((d - er)*1.6, 0., 1.);   // billowy edges; the coverage already matches the map
+    // overcast is not uniform: stratocumulus rolls and cells, thinner gaps between them
+    float sc = textureLod(uWorley3, pl/6500. + 0.11, lod).r;
+    d *= mix(1., 0.25 + 1.1*smoothstep(0.3, 0.8, sc), smoothstep(0.6, 0.95, cov));
   } else d = d*0.6;
   // optical thickness spans thin veils to dense towers
   return d*(0.3 + 1.6*wm.g);
@@ -244,8 +247,14 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
             vec3 L = normalize(uLightPos[li] - (p + uPlanetRel));
             float mu = dot(up, L);
             // optical depth towards the light
-            float od = 0.; float ls = (cTop - cBase)*0.22;
-            for (int k = 0; k < 4; k++) { float hh; od += cloudDensity(p + L*ls*(float(k) + 0.6), true, 0., hh)*cDens*0.0045*ls; }
+            // march towards the light through the rest of the cloud layer: for a low sun this path is long
+            float slab = max(cTop - (r - aR0), 200.)/max(mu, 0.04);
+            float pathL = min(slab, 60000.);
+            float od = 0., prevS = 0.;
+            for (int k = 0; k < 5; k++) {
+              float sk = pathL*pow((float(k) + 0.6)/5., 2.);
+              float hh; od += cloudDensity(p + L*sk, true, 2., hh)*cDens*0.0045*(sk - prevS + pathL*0.04); prevS = sk;
+            }
             vec3 sunT = atmoSunTrans(r, mu);
             float c = dot(rd, L);
             // multiple scattering approximation (octaves)
