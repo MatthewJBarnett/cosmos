@@ -398,7 +398,7 @@ function makeStarBody(star, name, rng) {
   const b = body({ name, kind: 'star', cls: star.cls, star, mass: star.mass, radius: star.radius, temp: star.T, lum: star.lum, tilt: rng.range(0, 30), poleLon: rng.range(0, 360) });
   b.rotPeriod = star.kind === KIND.NS ? rng.logRange(0.002, 4) : star.kind === KIND.WD ? rng.logRange(600, 86400) : rng.logRange(0.5, 40) * C.DAY * Math.sqrt(star.radius / C.Rsun);
   if (star.kind === KIND.BH) { b.cls = star.cls || 'Black hole'; b.blackHole = true; b.accretion = star.accretion !== undefined ? star.accretion : (rng.chance(0.6) ? rng.range(0.3, 1) : 0); b.rotPeriod = 0; }
-  else if (star.kind === KIND.NS) { b.neutron = true; b.pulsar = rng.chance(0.7); }
+  else if (star.kind === KIND.NS) { b.neutron = true; b.pulsar = star.period ? true : rng.chance(0.7); if (star.period) b.rotPeriod = star.period; }
   b.surface = { gen: 'star', seed: [rng.range(0, 1000), rng.range(0, 1000), rng.range(0, 1000)], freq: 1, T: star.T, spots: star.T < 6500 && star.kind <= 2 ? rng.range(0.1, 1) : 0, hmin: 0, hmax: 0, gran: (star.kind === KIND.GIANT || star.kind === KIND.SUPERGIANT) && star.T < 6500 ? 3 : 0 };
   return b;
 }

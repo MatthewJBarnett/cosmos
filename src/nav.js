@@ -41,6 +41,10 @@ function fieldFor(g) {
     // Cygnus X-1: stellar black hole with a blue supergiant companion
     const d = galDir(71.33, 3.07);
     addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
+    // the Crab Pulsar, inside the Crab Nebula (2 kpc): a 33 ms neutron star
+    { const dc = galDir(184.56, -5.78), R = 12e3, T = 1.6e6;
+      addFixed(f, { galaxy: g, seed: 0xc4ab, pos: V.addm(SUN_POS, dc, 2000), key: g.id + '/crabpsr', name: 'Crab Pulsar',
+        star: { kind: 4, MV: 16.5, T, mass: 1.4 * C.Msun, radius: R, lum: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, cls: 'Neutron star (pulsar)', period: 0.0337 } }, 16.5, 30000); }
   }
   // central supermassive black hole
   {
@@ -468,7 +472,7 @@ export function searchList(nav) {
   for (const b of solSystem().bodies) if (!out.includes(b.name)) out.push(b.name);
   for (const g of REAL_GALAXIES) out.push(g.name);
   for (const x of REAL_NEBULAE) out.push(x.name);
-  out.push('Sagittarius A*', 'Cygnus X-1', 'Proxima Centauri', 'TRAPPIST-1', "Barnard's Star");
+  out.push('Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar', 'Proxima Centauri', 'TRAPPIST-1', "Barnard's Star");
   if (catalog.ready) for (const x of catalog.named) if (!/^HIP /.test(x.name)) out.push(x.name);
   return out;
 }
