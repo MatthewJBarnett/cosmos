@@ -66,7 +66,7 @@ uniform int uNumOcc; uniform vec4 uOcc[6];
 uniform float uHasRings, uRingIn, uRingOut; uniform vec3 uRingN, uPlanetRel; uniform sampler2D uRingTex;
 // fraction of light i visible from world point p (camera relative), accounting for eclipses by other bodies
 // set by eclipse(): fraction of the light hidden by bodies with an atmosphere (refracted, reddened light fills their umbra)
-float gEclAtm = 0.;
+float gEclAtm = 0., gEclEdge = 0.;
 float eclipse(vec3 p, int i){
   vec3 L = uLightPos[i] - p; float dl = length(L); L /= dl;
   float as = uLightRad[i]/dl, vis = 1.;
@@ -77,7 +77,7 @@ float eclipse(vec3 p, int i){
     float ao = abs(uOcc[k].w)/d;
     vec3 On = O/d; float sep = atan(length(cross(On, L)), dot(On, L));   // precise for tiny angles (acos is not)
     float cover = smoothstep(as + ao, abs(ao - as), sep) * min(1., (ao*ao)/(as*as));
-    if (uOcc[k].w < 0.) gEclAtm = max(gEclAtm, cover);
+    if (uOcc[k].w < 0.) { gEclAtm = max(gEclAtm, cover); gEclEdge = clamp(sep/max(ao - as, 1e-6), 0., 1.); }
     vis *= 1. - cover;
   }
   return vis;
@@ -186,7 +186,7 @@ void main(){
     float vis = i == 0 ? eclipse(vWorld, i) * ringShadow(vWorld, L) : 1.;
     vec3 lc = uLightCol[i] * vis;
     // light refracted through the occluder's atmosphere: deep red, ~1e-4 of direct sunlight (Danjon 2-3)
-    if (i == 0) lc += uLightCol[i]*gEclAtm*vec3(1.0, 0.22, 0.05)*1.2e-4;
+    if (i == 0) lc += uLightCol[i]*gEclAtm*mix(vec3(1.0, 0.18, 0.04)*0.6e-4, vec3(1.0, 0.35, 0.12)*3e-4, gEclEdge*gEclEdge);
     float mus = dot(up, L);
     vec3 sunT = vec3(1.), amb = vec3(0.);
     if (uHasAtmo > 0.5) {
