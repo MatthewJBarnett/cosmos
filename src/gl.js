@@ -175,3 +175,28 @@ export class AsyncRead {
     return true;
   }
 }
+
+// GPU pass timing with EXT_disjoint_timer_query_webgl2 (where the browser exposes it).
+export class GpuTimer {
+  constructor() { this.ext = gl.getExtension('EXT_disjoint_timer_query_webgl2'); this.pending = []; this.cur = null; this.results = {}; this.free = []; }
+  get ok() { return !!this.ext; }
+  begin(name) {
+    if (!this.ext) return;
+    this.end();
+    const q = this.free.pop() || gl.createQuery();
+    gl.beginQuery(this.ext.TIME_ELAPSED_EXT, q); this.cur = { q, name };
+  }
+  end() { if (!this.ext || !this.cur) return; gl.endQuery(this.ext.TIME_ELAPSED_EXT); this.pending.push(this.cur); this.cur = null; }
+  poll() {
+    if (!this.ext) return;
+    const disjoint = gl.getParameter(this.ext.GPU_DISJOINT_EXT);
+    while (this.pending.length) {
+      const p = this.pending[0];
+      if (!gl.getQueryParameter(p.q, gl.QUERY_RESULT_AVAILABLE)) break;
+      const ns = gl.getQueryParameter(p.q, gl.QUERY_RESULT);
+      if (!disjoint) { const old = this.results[p.name]; this.results[p.name] = old === undefined ? ns / 1e6 : old * 0.9 + ns / 1e6 * 0.1; }
+      this.pending.shift(); this.free.push(p.q);
+    }
+    if (this.pending.length > 64) { this.pending.length = 0; }
+  }
+}

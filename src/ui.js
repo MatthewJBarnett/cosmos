@@ -56,8 +56,10 @@ export class UI {
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
-    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><span id="tText"></span>`;
+    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
+      <input id="tDateIn" type="datetime-local" step="60" class="hidden">`;
     this.labels = root.appendChild(el('div', 'labels'));
+    this.perf = root.appendChild(el('div', 'panel perf hidden'));
     this.marker = root.appendChild(el('div', 'marker'));
     this.sysPanel = root.appendChild(el('div', 'panel sys hidden'));
     this.setPanel = root.appendChild(el('div', 'panel settings hidden'));
@@ -70,7 +72,7 @@ export class UI {
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
       <tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
-      <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2</td><td>Hide interface</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
+      <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table><p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
     setTimeout(() => this.hint.classList.add('fade'), 9000);
@@ -156,6 +158,7 @@ export class UI {
       else if (k === 'o') rcfg.orbits = !rcfg.orbits; else if (k === 'n') this.showLabels = !this.showLabels;
       else if (k === '[') rcfg.exposureBias -= 0.5; else if (k === ']') rcfg.exposureBias += 0.5;
       else if (k === 'escape') { nav.goto = null; [this.sysPanel, this.setPanel, this.help].forEach(p => p.classList.add('hidden')); }
+      else if (k === 'f3' || (k === 'p' && e.shiftKey)) { e.preventDefault(); rcfg.gpuTimes = !rcfg.gpuTimes; this.perf.classList.toggle('hidden', !rcfg.gpuTimes); }
       else if (k === 'f2') { e.preventDefault(); this.hidden = !this.hidden; this.root.classList.toggle('hide', this.hidden); }
       else if (k === 'p') this.screenshot();
       else if (k === '/') { e.preventDefault(); document.getElementById('search').focus(); }
@@ -179,6 +182,31 @@ export class UI {
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
     $('tNow').onclick = () => { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; };
+    const din = $('tDateIn');
+    $('tDate').onclick = () => {
+      const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
+      if (!isNaN(d)) din.value = d.toISOString().slice(0, 16);
+      din.classList.toggle('hidden'); if (!din.classList.contains('hidden')) din.focus();
+    };
+    din.onchange = () => { const t = Date.parse(din.value + 'Z'); if (!isNaN(t)) nav.time = (t - Date.UTC(2000, 0, 1, 12)) / 1000; };
+    $('bShare').onclick = () => {
+      const u = new URL(location.href); u.search = '';
+      const t = nav.selected || (nav.anchor ? { type: 'body', body: nav.anchor } : null);
+      const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
+      if (!isNaN(d)) u.searchParams.set('date', d.toISOString().slice(0, 16) + 'Z');
+      const ll = this.latLon();
+      if (ll && nav.altitude < nav.anchor.radius * 0.05) { u.searchParams.set('goto', nav.anchor.name); u.searchParams.set('land', ll[0].toFixed(3) + ',' + ll[1].toFixed(3)); }
+      else if (t) u.searchParams.set('goto', targetName(t));
+      const txt = u.toString();
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => this.toast('Link copied'), () => prompt('Link to this place', txt));
+    };
+  }
+  toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
+  // planetographic latitude/longitude of the camera over the anchor body (degrees)
+  latLon() {
+    const nav = this.nav, b = nav.anchor; if (!b || !b.wrot) return null;
+    const d = Q.rot(Q.conj(b.wrot), V.norm(V.sub(nav.S, b.wpos)));
+    return [Math.asin(clamp(d[1], -1, 1)) * 180 / Math.PI, Math.atan2(-d[2], d[0]) * 180 / Math.PI];
   }
   toggle(p) { const was = p.classList.contains('hidden'); [this.sysPanel, this.setPanel, this.help].forEach(q => q.classList.add('hidden')); if (was) p.classList.remove('hidden'); if (p === this.sysPanel) this.sysKey = null; }
   stepRate(d) {
@@ -234,11 +262,22 @@ export class UI {
     const date = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
     const dstr = isNaN(date) ? 'Year ' + (2000 + nav.time / C.YEAR).toExponential(4) : date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
     let alt = '';
-    if (nav.anchor && nav.altitude < nav.anchor.radius * 30) alt = `<div><b>Altitude</b> ${fmtDist(nav.altitude)} · ${nav.anchor.name}</div>`;
+    if (nav.anchor && nav.altitude < nav.anchor.radius * 30) {
+      alt = `<div><b>Altitude</b> ${fmtDist(nav.altitude)} · ${nav.anchor.name}</div>`;
+      const ll = this.latLon();
+      if (ll && nav.altitude < nav.anchor.radius * 0.5 && nav.anchor.kind !== 'star') alt += `<div><b>Position</b> ${Math.abs(ll[0]).toFixed(3)}° ${ll[0] >= 0 ? 'N' : 'S'}, ${Math.abs(ll[1]).toFixed(3)}° ${ll[1] >= 0 ? 'E' : 'W'}</div>`;
+    }
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
     document.getElementById('tPause').textContent = nav.paused ? '▶' : '⏸';
     this.updateInfo(); this.updateLabels(); this.updateSys();
+    if (rcfg.gpuTimes) {
+      const t = r.gpuTimer;
+      let html = `<b>${Math.round(this.fps)} fps</b> · ${r.w}×${r.h} (scale ${rcfg.scale.toFixed(2)})<br>`;
+      if (t && t.ok) { let tot = 0; for (const [k, v] of Object.entries(t.results)) { if (k === 'end') continue; tot += v; html += `${k}: ${v.toFixed(2)} ms<br>`; } html += `<b>GPU total ${tot.toFixed(1)} ms</b>`; }
+      else html += 'GPU timer queries are not available in this browser.';
+      this.perf.innerHTML = html;
+    }
   }
   updateInfo() {
     const nav = this.nav, t = nav.selected;
@@ -283,7 +322,9 @@ export class UI {
         const cu = nav.camU();
         for (const g of REAL_GALAXIES) { const rel = V.sub(g.posU, cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name, 'galaxy', 10); }
       }
-      if (nav.galaxy === MILKY_WAY && nav.level !== 'universe' && catalog.ready) {
+      // star, constellation and nebula labels only when the sky is dark enough to show them
+      const darkSky = r.exposure > 2000;
+      if (darkSky && nav.galaxy === MILKY_WAY && nav.level !== 'universe' && catalog.ready) {
         const cam = nav.camLocal(), gq = nav.galaxy.quat, d = catalog.data;
         const ds = V.dist(cam, SUN_POS);
         if (ds < 300) {
@@ -303,7 +344,7 @@ export class UI {
           }
         }
       }
-      if (nav.level !== 'universe' && nav.galaxy) {
+      if (darkSky && nav.level !== 'universe' && nav.galaxy) {
         for (const v of visibleNebulae) if (v.px > 6 && v.px < 500 && v.nb.name) put(v.rel, v.nb.name, 'galaxy', Math.min(v.px, 60) + 6);
       }
     }

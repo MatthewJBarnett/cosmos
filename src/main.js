@@ -55,8 +55,12 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 // optional start location and date: ?goto=Saturn&date=2017-06-01
-if (params.has('date')) { const d = Date.parse(params.get('date')); if (!isNaN(d)) nav.time = (d - Date.UTC(2000, 0, 1, 12)) / 1000; }
-if (params.has('goto')) { const t = findByName(nav, params.get('goto')); if (t) { nav.selected = t; nav.goTo(t, { dur: 0.01 }); } }
+if (params.has('date')) { const ds = params.get('date'); const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(ds) || ds.length <= 10 ? ds : ds + 'Z'); if (!isNaN(d)) nav.time = (d - Date.UTC(2000, 0, 1, 12)) / 1000; }
+if (params.has('goto')) {
+  const t = findByName(nav, params.get('goto'));
+  if (t && params.has('land') && t.type === 'body') { const [la, lo] = params.get('land').split(',').map(Number); nav.landAt(t.body, la, lo, { dur: 0.01 }); }
+  else if (t) { nav.selected = t; nav.goTo(t, { dur: 0.01 }); }
+}
 const testMode = params.has('test');
 if (!testMode) requestAnimationFrame(loop);
 

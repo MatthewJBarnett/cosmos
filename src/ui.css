@@ -55,3 +55,7 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .pad { position: absolute; right: 12px; bottom: 70px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
 .pad button { width: 52px; height: 52px; font-size: 20px; border-radius: 50%; touch-action: none; }
 .label.const { color: rgba(120, 160, 235, 0.75); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.perf { right: 14px; bottom: 70px; font: 12px/1.5 ui-monospace, Menlo, monospace; min-width: 220px; }
+#tDateIn { background: rgba(20, 26, 36, 0.95); color: #dfe6ee; border: 1px solid rgba(160, 190, 230, 0.3); border-radius: 5px; padding: 4px 6px; font: inherit; color-scheme: dark; }
+.toast { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); background: rgba(20, 30, 45, 0.9); padding: 8px 16px; border-radius: 16px; transition: opacity 1.5s; }
+.toast.fade { opacity: 0; }

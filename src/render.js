@@ -1,5 +1,5 @@
 // Frame pipeline: HDR scene (sky, stars, system bodies, atmospheres) then bloom, exposure and tone mapping.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead, GpuTimer } from './gl.js';
 import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
@@ -101,6 +101,8 @@ export function makeNoise3D() {
   return t;
 }
 
+// label of the pass that starts after each marker
+const NEXT = { bake: 'setup', pre: 'galaxies', galaxies: 'galaxy sky', galsky: 'stars', stars: 'nebulae + planets', planets: 'rings, points', 'rings+pts': 'atmosphere', atmo: 'orbits, black holes', 'orbits+bh': 'post', post: 'end' };
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -160,7 +162,9 @@ export class Renderer {
     const common = { exposure, pxSA, pixScale, pxPerRad, noise3: this.noise3, sync: this.sync };
 
     const prof = rcfg.prof ? [] : null; let pt = performance.now();
-    const T = (n) => { if (prof) { const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING); gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, new Float32Array(4)); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); const t = performance.now(); prof.push(n + ':' + (t - pt).toFixed(0)); pt = t; } };
+    const gt = rcfg.gpuTimes ? (this.gpuTimer || (this.gpuTimer = new GpuTimer())) : null;
+    if (gt) { gt.poll(); gt.begin('bake'); }
+    const T = (n) => { if (gt) gt.begin(NEXT[n] || n); if (prof) { const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING); gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, new Float32Array(4)); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); const t = performance.now(); prof.push(n + ':' + (t - pt).toFixed(0)); pt = t; } };
     planetHousekeeping(); T('bake');
 
     // ---- pre-pass work that needs its own framebuffers ----
@@ -367,6 +371,7 @@ export class Renderer {
     if (useFxaa) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); this.pFxaa.use().set({ uTex: this.ldrTex, uTexel: [1 / w, 1 / h] }); drawFS(); }
 
     T('post');
+    if (gt) gt.end();
     this.prevCam = { q: nav.q.slice(), tanFov: [tanX, tanY], S: nav.S.slice(), sys, level: nav.level };
     if (prof) console.log('LOG prof ' + prof.join(' '));
     // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
