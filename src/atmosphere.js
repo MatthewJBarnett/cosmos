@@ -161,7 +161,9 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     // The map gives the fraction of sky covered within each ~10 km pixel. Turn that into cloud cells:
     // a fractal field thresholded so that the covered area matches the map. Cumulus where cover is
     // broken, stratiform where it is near total.
-    float e1 = textureLod(uNoise3, pl/52000. + 0.53, max(lod - 2.5, 0.)).r, e2 = textureLod(uNoise3, pl/15000. + 0.21, max(lod - 1., 0.)).g, e3 = textureLod(uNoise3, pl/5200. + 0.7, lod).b;
+    // cells drift with the wind (whole numbers of texture periods per simulated day, so the daily time wrap is seamless)
+    float day = uTime/86400.;
+    float e1 = textureLod(uNoise3, pl/52000. + 0.53 + vec3(10., 0., 3.)*day, max(lod - 2.5, 0.)).r, e2 = textureLod(uNoise3, pl/15000. + 0.21 + vec3(30., 0., 11.)*day, max(lod - 1., 0.)).g, e3 = textureLod(uNoise3, pl/5200. + 0.7 + vec3(100., 0., 37.)*day, lod).b;
     float S = e1*0.5 + e2*0.33 + e3*0.17;
     float soft = mix(0.06, 0.2, cov);
     float thr = 0.5 + (0.5 - cov)*0.75;

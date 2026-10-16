@@ -26,6 +26,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Halley](docs/halley.jpg) Halley's Comet, February 1986: dust and ion tails | ![Alps at dusk](docs/alps_dusk.jpg) Dusk over the Alps |
 | ![Crab Nebula](docs/crab.jpg) Crab Nebula with its pulsar | ![Ocean](docs/ocean.jpg) Open ocean in the late afternoon |
 | ![Blood moon](docs/blood_moon.jpg) Total lunar eclipse, 14 March 2025, found by the eclipse finder | ![Forest](docs/forest.jpg) Black Forest from 60 m |
+| ![Cumulus](docs/cumulus.jpg) Cumulus over the Amazon from 5 km | ![Overcast sunset](docs/overcast_sunset.jpg) Overcast sunset over Norway |
 
 ## Run
 
@@ -177,7 +178,8 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Real elevation is ~10 km per pixel, so features like the Grand Canyon are not resolved; detail below that is procedural.
 - Terrain shadows reach two tile levels out, so the very longest shadows at sunrise can still end abruptly.
 - Trees are camera-facing billboards (conifers and broadleaf); there are no rocks, buildings or grass meshes.
-- Earth's cloud cover is a single static snapshot (it drifts slowly but does not evolve).
+- Earth's cloud cover is a single observed snapshot: individual cloud cells drift and change with the wind, but the
+  weather systems themselves stay where the map put them.
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.

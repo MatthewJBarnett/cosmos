@@ -103,7 +103,7 @@ uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind;
 uniform vec2 uDetailO; uniform float uChunkA;
 uniform int uKind;
-uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows;
+uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
 ${GLSL_BB}
@@ -199,7 +199,8 @@ void main(){
         vec3 pl = uCloudRotInv*pc;
         float cov = texture(uCloudMap, pl).r;
         // same cloud cells as the volumetric layer, so shadows fall where the clouds are
-        float S = textureLod(uNoise3, pl/52000. + 0.53, 0.).r*0.5 + textureLod(uNoise3, pl/15000. + 0.21, 0.).g*0.33 + textureLod(uNoise3, pl/5200. + 0.7, 0.).b*0.17;
+        float day = uCloudTime/86400.;
+        float S = textureLod(uNoise3, pl/52000. + 0.53 + vec3(10., 0., 3.)*day, 0.).r*0.5 + textureLod(uNoise3, pl/15000. + 0.21 + vec3(30., 0., 11.)*day, 0.).g*0.33 + textureLod(uNoise3, pl/5200. + 0.7 + vec3(100., 0., 37.)*day, 0.).b*0.17;
         float soft = mix(0.06, 0.2, cov), thr = 0.5 + (0.5 - cov)*0.75;
         float fade = clamp(dist/2.5e6, 0., 1.);       // from far away, average coverage reads better than cells
         float sh = mix(smoothstep(thr - soft, thr + soft, S)*smoothstep(0.02, 0.25, cov), smoothstep(0.15, 0.75, cov), fade);
@@ -672,7 +673,7 @@ export function drawPlanet(body, o) {
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
-  p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1 });
+  p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1, uCloudTime: o.time % 86400 });
   for (const d of draws) {
     const ch = d.ch, F = FACES[ch.face];
     // origin of this tile in metres along the face, wrapped, for stable small scale effects
