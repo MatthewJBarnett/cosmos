@@ -43,9 +43,10 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
 // ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
 uniform sampler2D uCMap, uHMap, uMMap, uLMap;
 uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
-uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve;
+uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason;
 const float MPI = 3.14159265358979;
-vec2 mapUV(vec3 P){ vec3 n = normalize(P); return vec2(atan(-n.z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
+// (z is nudged away from exactly 0: some GPUs return garbage for atan(-0, x), which put a seam on the prime meridian)
+vec2 mapUV(vec3 P){ vec3 n = normalize(P); float z = abs(n.z) < 1e-9 ? -1e-9 : n.z; return vec2(atan(-z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
 float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
 // smooth (cubic B-spline) height lookup so map pixels never show as facets
 float heightMap(vec2 uv){
@@ -312,6 +313,20 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     float snowT = smoothstep(snowLine - 300., snowLine + 400., h + n1*250.)*(1. - smoothstep(0.55, 0.8, slope));
     det = mix(det, vec3(0.82, 0.85, 0.9)*(0.92 + 0.08*n2), max(snowy, snowT)*fine*(1. - rock*0.6));
     c = mix(m, det, fine);
+  }
+  // seasonal snow (the base map is a July image): snow line follows the date, lower at altitude
+  if (uSeason > -1.5 && gLand > 0.5) {
+    float latD = degrees(asin(clamp(P.y, -1., 1.)));
+    float wN = clamp(-uSeason, 0., 1.), wS = clamp(uSeason, 0., 1.);
+    float nz = fbm(max(o0 - 3, 1), min(uOMax, o0 + 3), 64u, d, 0.6)*6.;
+    // continentality: fraction of water within ~600 km pushes the winter snow line poleward (maritime climates)
+    float wf = uHasM > 0.5 ? textureLod(uMMap, uv, 6.).r : 0.3;
+    float above = latD > 0. ? latD - mix(72., 43. + 20.*wf, wN) : -latD - mix(62., 50. + 12.*wf, wS);
+    above += max(h, 0.)/130. + nz;
+    float sn = smoothstep(-1.5, 2.5, above)*(1. - smoothstep(0.55, 0.85, slope));
+    float green = clamp((m.g - max(m.r, m.b))*6. + 0.3, 0., 1.);
+    vec3 snowC = mix(vec3(0.8, 0.83, 0.88), vec3(0.32, 0.35, 0.38), green*0.75);   // forests stick out of the snow
+    c = mix(c, snowC, sn);
   }
   float rock2 = smoothstep(0.45, 0.8, slope);
   c = mix(c, c*vec3(0.85, 0.82, 0.8), rock2*0.4*(1. - fine));

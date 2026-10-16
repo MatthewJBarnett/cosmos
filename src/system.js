@@ -220,6 +220,11 @@ export class StarSystem {
       if (b.iauW) b.rotAngle = ((b.iauW[0] + b.iauW[1] * (t / 86400)) % 360) * D2R + (b.iauPhi || 0);
       // Earth: sidereal angle is measured from the equinox of date; our frame is the J2000 equinox (precession in RA)
       if (b.precessRA) b.rotAngle -= b.precessRA * (t / 3155760000);
+      if (b.seasonal && this.stars[0]) {
+        // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)
+        const sd = V.norm(V.sub(this.stars[0].pos, b.pos));
+        b.season = V.dot(sd, Q.rot(b.axisQ, [0, 1, 0])) / Math.sin(b.tilt * D2R);
+      }
       if (b.faceParent && b.parent && b.axisQ) {
         // point longitude 0 at the parent (mean sub-planet point of a tidally locked moon)
         const toP = Q.rot(Q.conj(b.axisQ), V.sub(b.parent.pos, b.pos));
@@ -343,7 +348,7 @@ function buildSol(sys) {
   mkIce(eris, { crater: 0.3, cracks: 0.2, colA: [0.92, 0.92, 0.9], colB: [0.85, 0.85, 0.84] });
   // real ephemerides and pole directions
   for (const b of [sun, ...sun.children, ...sun.children.flatMap(x => x.children)]) if (POLES[b.name] && b.name !== 'Earth') b.poleRD = POLES[b.name];
-  earth.poleRD = [0, 90];
+  earth.poleRD = [0, 90]; earth.seasonal = true;
   // geomagnetic north pole (2025): 80.8 N, 72.6 W
   { const la = 80.8 * D2R, lo = -72.6 * D2R; earth.magPole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; earth.aurora = 1; }
   for (const b of [sun, ...sun.children]) if (PRIME[b.name]) b.iauW = PRIME[b.name];

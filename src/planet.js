@@ -359,7 +359,7 @@ class PlanetState {
     const mapOct = Math.ceil(Math.log2(sz / (4 * Math.PI * s.freq)));
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
-      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
+      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uSeason: this.body.seasonal && mp ? (this.season = this.body.season || 0) : -2, uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
       uCraterO0: mp && mp.height ? mapOct : 2 });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
@@ -444,7 +444,9 @@ export function planetState(body) {
   let s = states.get(body.uid);
   const maps = bodyMaps(body);
   if (s && s.mapsVersion !== (body.mapsVersion || 0)) { s.dispose(); states.delete(body.uid); s = null; }
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.mapsVersion = body.mapsVersion || 0; states.set(body.uid, s); }
+  // seasonal surfaces are rebaked when the season has moved on (rate limited)
+  if (s && body.seasonal && s.maps && Math.abs((body.season || 0) - (s.season || 0)) > 0.12 && performance.now() - (s.born || 0) > 4000) { s.dispose(); states.delete(body.uid); s = null; }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }
