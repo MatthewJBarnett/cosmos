@@ -78,7 +78,7 @@ void main(){
 const COMP_FS = `
 in vec2 vUV;
 uniform sampler2D uScene, uDepth;
-uniform sampler3D uNoise3;
+uniform sampler3D uNoise3, uWorley3;
 uniform samplerCube uCloudMap; uniform sampler2D uCloudTex2;
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
@@ -179,6 +179,10 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float big = textureLod(uNoise3, pl/170000. + 0.2, lod - 4.).a;
     float n = textureLod(uNoise3, q + vec3(uTime*0.0004, 0., 0.), lod).r*0.6 + textureLod(uNoise3, q*3.1 + 0.3, lod + 1.6).g*0.28 + textureLod(uNoise3, q*9.7, lod + 3.3).b*0.12;
     n = mix(n, big, 0.35);
+    // billowy cauliflower structure from cellular noise, mostly at the base and sides of convective cells
+    vec4 wn = textureLod(uWorley3, pl/9000. + vec3(uTime*0.0002, 0., 0.), lod);
+    float wb = wn.r*0.7 + textureLod(uWorley3, pl/2600. + 0.37, lod + 1.8).g*0.3;
+    n = mix(n, 1. - wb, 0.55*(1. - hfrac*0.4));
     float er = (n - 0.3)*0.9; d = clamp((d - er)*1.6, 0., 1.);   // billowy edges; the coverage already matches the map
   } else d = d*0.6;
   // optical thickness spans thin veils to dense towers
@@ -578,7 +582,7 @@ export function drawAtmosphere(body, o) {
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
     uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? 1 : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
-    cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
+    cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
   drawFS();

@@ -127,6 +127,41 @@ void main(){
 }`;
 const COPY_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; void main(){ o = texture(uTex, vUV); }`;
 
+// Tileable 3D Worley (cellular) noise baked on the GPU, slice by slice: billowy structure for cumulus clouds.
+// R: inverted Worley fbm (3 octaves), G: Perlin-Worley mix, B/A: higher frequency Worley.
+export function makeWorley3D(N = 64) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_3D, t);
+  gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, N, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  const p = new Program('worley3d', FS_VS, `in vec2 vUV; out vec4 o; uniform float uZ, uN;
+    vec3 h3(vec3 c){ c = mod(c, uN); return fract(sin(vec3(dot(c, vec3(127.1, 311.7, 74.7)), dot(c, vec3(269.5, 183.3, 246.1)), dot(c, vec3(113.5, 271.9, 124.6))))*43758.5453); }
+    float worley(vec3 p, float cells){
+      vec3 x = p*cells, i = floor(x), f = x - i; float d = 1e9;
+      for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int xx = -1; xx <= 1; xx++) {
+        vec3 c = vec3(xx, y, z); vec3 q = mod(i + c, cells); vec3 r = c + h3(q + cells*7.) - f; d = min(d, dot(r, r));
+      }
+      return 1. - clamp(sqrt(d), 0., 1.);
+    }
+    void main(){
+      vec3 p = vec3(vUV, (uZ + 0.5)/uN);
+      float w1 = worley(p, 4.), w2 = worley(p, 8.), w3 = worley(p, 16.), w4 = worley(p, 32.);
+      float fbm = w1*0.625 + w2*0.25 + w3*0.125;
+      o = vec4(fbm, w2*0.6 + w3*0.4, w3*0.6 + w4*0.4, w4);
+    }`);
+  p.finish();
+  const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.viewport(0, 0, N, N); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+  p.use();
+  for (let z = 0; z < N; z++) {
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, t, 0, z);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    p.set({ uZ: z, uN: N }); drawFS();
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb);
+  gl.bindTexture(gl.TEXTURE_3D, t); gl.generateMipmap(gl.TEXTURE_3D);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.REPEAT); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.REPEAT);
+  return t;
+}
 export function makeNoise3D() {
   const N = 64, data = new Uint8Array(N * N * N * 4), rng = new RNG(12345);
   const lat = (P) => { const a = new Float32Array(P * P * P * 4); for (let i = 0; i < a.length; i++) a[i] = rng.f(); return a; };
@@ -157,7 +192,7 @@ export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.pDown = new Program('down', FS_VS, DOWN_FS); this.pUp = new Program('up', FS_VS, UP_FS); this.pTone = new Program('tone', FS_VS, TONE_FS); this.pCopy = new Program('copy', FS_VS, COPY_FS); this.pFxaa = new Program('fxaa', FS_VS, FXAA_FS); this.pTAA = new Program('taa', FS_VS, TAA_FS); this.taaIdx = 0; this.taaValid = false;
-    this.noise3 = makeNoise3D();
+    this.noise3 = makeNoise3D(); this.worley3 = makeWorley3D();
     this.galSky = new GalaxySky();
     this.volTAA = new VolumetricTAA(); this.prevCam = null;
     this.exposure = 1; this.frameNo = 0; this.meter = new Float32Array(64 * 36 * 4);
@@ -443,14 +478,14 @@ export class Renderer {
         }
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-        const ao = { planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
+        const ao = { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
         if (b === primary) {
           this.volTAA.draw(b, Object.assign(ao, { w, h, prev, key: b.uid + ':' + w + 'x' + h, outFBO: this.hdrNoDepth, scissor: [sx, sy, sw, sh], noHist: rcfg.volNoHist }));
           continue;
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawAtmosphere(b, { planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
+        drawAtmosphere(b, { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
