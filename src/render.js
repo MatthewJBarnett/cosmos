@@ -292,8 +292,25 @@ export class Renderer {
           const d = V.dist(l.body.wpos, b.wpos) / C.AU; const E = l.lum / (d * d);
           const c = l.color, y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
           return { rel: l.rel, rad: l.body.radius, col: [c[0] / y * E, c[1] / y * E, c[2] / y * E], E, body: l.body };
-        }).sort((a, c) => c.E - a.E).slice(0, 3);
-        return L;
+        }).sort((a, c) => c.E - a.E);
+        // planetshine: sunlight reflected by a nearby large body (earthshine on the Moon, moonlight on Earth)
+        if (b.kind !== 'star' && L.length) {
+          const sun = L[0];
+          const cands = [];
+          if (b.parent && b.parent.kind !== 'star' && b.parent.kind !== 'barycenter') cands.push(b.parent);
+          for (const ch of b.children) if (ch.radius > 2e5) cands.push(ch);
+          for (const o of cands) {
+            const dOB = V.dist(o.wpos, b.wpos), dS = V.dist(sun.body.wpos, o.wpos) / C.AU;
+            const toS = V.norm(V.sub(sun.body.wpos, o.wpos)), toB = V.norm(V.sub(b.wpos, o.wpos));
+            const al = Math.acos(clamp(V.dot(toS, toB), -1, 1));
+            const ph = (Math.sin(al) + (Math.PI - al) * Math.cos(al)) / Math.PI;
+            const E = (o.albedo || 0.2) * 0.67 * ph * (sun.body.lum / (dS * dS)) * (o.radius / dOB) ** 2;
+            if (E < 1e-7) continue;
+            const tint = bodyTint(o), c = sun.col, k = E / sun.E;
+            L.push({ rel: o.rel || V.sub(o.wpos, nav.S), rad: o.radius, col: [c[0] * k * tint[0], c[1] * k * tint[1], c[2] * k * tint[2]], E, body: o, shine: true });
+          }
+        }
+        return L.slice(0, 3);
       };
       const lightUniforms = (b, L) => {
         const lp = new Float32Array(9), lc = new Float32Array(9), lr = new Float32Array(3);
@@ -348,7 +365,14 @@ export class Renderer {
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);
         }
         b._ringOnly = false;
-        if (b.atmo && b.pxRadius > 2 && !rcfg.noAtmo) atmoPasses.push(b);
+        if (b.atmo && b.pxRadius > 2 && !rcfg.noAtmo) {
+          // the atmosphere only needs planetshine when the camera is on the night side (it doubles the cost)
+          const sunL = L.find(l => !l.shine), up = V.norm(V.mul(b.rel, -1));
+          const night = sunL && V.dot(up, V.norm(V.sub(sunL.rel, b.rel))) < -0.15;
+          const AL = night ? L : L.filter(l => !l.shine);
+          b._alu = AL.length === L.length ? lu : lightUniforms(b, AL);
+          atmoPasses.push(b);
+        }
       }
       T('planets');
       // rings, belts (blended, depth tested)
@@ -382,14 +406,14 @@ export class Renderer {
         }
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-        const ao = { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
+        const ao = { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
         if (b === primary) {
           this.volTAA.draw(b, Object.assign(ao, { w, h, prev, key: b.uid + ':' + w + 'x' + h, outFBO: this.hdrNoDepth, scissor: [sx, sy, sw, sh], noHist: rcfg.volNoHist }));
           continue;
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawAtmosphere(b, { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
+        drawAtmosphere(b, { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
@@ -457,6 +481,16 @@ export class Renderer {
     this.maxExposure = rcfg.maxExposure * (1 + 150 * deep); this.deep = deep;
     // an accretion disk is small and extremely bright: meter on it rather than on the dark sky around it
     this.meterTop = !!(sys && blackHoles.length && blackHoles.some(b => b.accretion && b.dist < b.radius * 400));
+    // total solar eclipse in view: expose for the corona, not the darkened sky
+    if (sys && sys.stars[0] && !sys.stars[0].blackHole) {
+      const st = sys.stars[0], sd = V.len(st.rel), sr = st.radius / sd;
+      if (sphereVisible(st.rel, st.radius * 4)) for (const o of sys.bodies) {
+        if (o === st || o.kind === 'star' || !o.rel || !o.radius) continue;
+        const od = V.len(o.rel); if (od > sd) continue;
+        const sep = Math.acos(clamp(V.dot(o.rel, st.rel) / (od * sd), -1, 1));
+        if (o.radius / od > sr && sep < o.radius / od - sr * 0.98) { this.meterTop = true; this.eclipseView = true; break; }
+      }
+    }
     this.adaptExposure(dt);
     this.stats = { stars: nStars, drawn: drawList.length, pending: pendingBakes + (nav.field ? nav.field.busy || 0 : 0), exposure: this.exposure };
   }

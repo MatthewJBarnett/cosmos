@@ -3,6 +3,7 @@ import { RNG, hashCombine, makeName } from './rng.js';
 import { V, Q, C, clamp, mix } from './math.js';
 import { makeStar, bbColor, KIND } from './stars.js';
 import { galDir } from './universe.js';
+import { planetPos, moonPos } from './ephem.js';
 
 const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
@@ -183,12 +184,22 @@ export class StarSystem {
   update(t) {
     this.time = t;
     const rec = (b) => {
-      if (b.orbit && b.parent) {
+      if (b.ephem === 'planet' && b.parent) {
+        const p = planetPos(b.name, t), pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
+      } else if (b.ephem === 'moon' && b.parent) {
+        // the Moon from lunar theory; Earth itself sits off the Earth-Moon barycentre
+        const g = moonPos(t), mu = b.mass / (b.mass + b.parent.mass), ep = b.parent.pos;
+        b.parent.pos = [ep[0] - g[0] * mu, ep[1] - g[1] * mu, ep[2] - g[2] * mu];
+        b.parent.wpos = Q.rot(this.worldQ, b.parent.pos);
+        b.pos = [b.parent.pos[0] + g[0], b.parent.pos[1] + g[1], b.parent.pos[2] + g[2]];
+      } else if (b.orbit && b.parent) {
         let p = keplerPos(b.orbit, t);
         if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
         const pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
       } else if (!b.parent) b.pos = [0, 0, 0];
       b.rotAngle = b.rotPeriod ? ((b.rot0 || 0) + 2 * Math.PI * ((t / b.rotPeriod) % 1)) : 0;
+      // Earth: sidereal angle is measured from the equinox of date; our frame is the J2000 equinox (precession in RA)
+      if (b.precessRA) b.rotAngle -= b.precessRA * (t / 3155760000);
       if (b.faceParent && b.parent && b.axisQ) {
         // point longitude 0 at the parent (mean sub-planet point of a tidally locked moon)
         const toP = Q.rot(Q.conj(b.axisQ), V.sub(b.parent.pos, b.pos));
@@ -296,6 +307,9 @@ function buildSol(sys) {
   mkIce(Mn(pluto, 'Charon', 'Ice world', 19591, 0.0002, 0.08, 1.586e21, 606, 0.35), { crater: 0.6, cracks: 0.5, colA: [0.42, 0.4, 0.38], colB: [0.33, 0.31, 0.3], colLow: [0.25, 0.14, 0.1] });
   const eris = P('Eris', 'Dwarf planet', 67.864, 0.43607, 44.04, 35.95, 187.1, 392.0, 0.0028, 1163, 378.9, 78, 0.96, 30, { kind: 'dwarf' });
   mkIce(eris, { crater: 0.3, cracks: 0.2, colA: [0.92, 0.92, 0.9], colB: [0.85, 0.85, 0.84] });
+  // real ephemerides
+  for (const b of sun.children) if (['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'].includes(b.name)) b.ephem = 'planet';
+  moon.ephem = 'moon';
   // real surface data where we have it
   const D = 'data/planets/';
   const setMaps = (b, maps) => { b.maps = maps; if (b.surface) b.surface.freq = 1; };
@@ -311,7 +325,7 @@ function buildSol(sys) {
   for (const [b, f] of [[jup, 'jupiter'], [sat, 'saturn'], [ura, 'uranus'], [nep, 'neptune']]) setMaps(b, { color: D + f + '_color.jpg' });
   sat.rings.map = D + 'saturn_rings.png'; sat.rings.mapInner = 69800e3; sat.rings.mapOuter = 140900e3;
   // Earth's prime meridian: Greenwich sidereal angle at J2000 (280.46 deg), local +X starts at the autumnal equinox
-  earth.rot0 = (280.46061837 - 180) * D2R; earth.rotPeriod = 86164.0905;   // exact sidereal day
+  earth.rot0 = (280.46061837 - 180) * D2R; earth.rotPeriod = 86164.0905; earth.precessRA = 1.28122 * D2R;   // exact sidereal day
   sys.belts.push({ name: 'Kuiper belt', inner: 38 * C.AU, outer: 50 * C.AU, thick: 0.2, count: 6000, seed: 12, parent: sun });
   // Halley's comet
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });
