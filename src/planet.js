@@ -91,7 +91,7 @@ float ringShadow(vec3 p, vec3 L){
 
 const DRAW_FS = `
 in vec3 vDir; in vec2 vUV; in vec3 vWorld;
-uniform sampler2D uHeightTex, uNormTex, uAlbTex, uIrrLUT;
+uniform sampler2D uHeightTex, uNormTex, uAlbTex, uIrrLUT, uParentH, uGParentH; uniform vec3 uParentUV, uGParentUV;
 uniform sampler3D uNoise3;
 uniform mat3 uRot;
 uniform vec3 uFaceA;
@@ -227,14 +227,25 @@ void main(){
       float texel = uChunkM/(uTexSize - 1.);
       float h0 = texelFetch(uHeightTex, ivec2(clamp(vUV, 0., 1.)*(uTexSize - 1.) + 0.5), 0).r;
       float occ = 0.; float s = 1.2;
-      for (int k = 0; k < 14; k++) {
+      // march towards the sun through this tile, then its parent and grandparent (2x and 4x larger, coarser)
+      for (int k = 0; k < 22; k++) {
         float dm = s*texel;
         vec2 uv2 = vUV + sl*dm/uChunkM;
-        if (uv2.x < 0. || uv2.y < 0. || uv2.x > 1. || uv2.y > 1.) break;
-        float hk = texelFetch(uHeightTex, ivec2(uv2*(uTexSize - 1.) + 0.5), 0).r - dm*dm/(2.*uRadius);
+        float hk;
+        if (all(greaterThanEqual(uv2, vec2(0.))) && all(lessThanEqual(uv2, vec2(1.)))) hk = texelFetch(uHeightTex, ivec2(uv2*(uTexSize - 1.) + 0.5), 0).r;
+        else {
+          vec2 up1 = uParentUV.xy + uv2*uParentUV.z;
+          if (all(greaterThanEqual(up1, vec2(0.))) && all(lessThanEqual(up1, vec2(1.)))) hk = texelFetch(uParentH, ivec2(up1*(uTexSize - 1.) + 0.5), 0).r;
+          else {
+            vec2 up2 = uGParentUV.xy + uv2*uGParentUV.z;
+            if (any(lessThan(up2, vec2(0.))) || any(greaterThan(up2, vec2(1.)))) break;
+            hk = texelFetch(uGParentH, ivec2(up2*(uTexSize - 1.) + 0.5), 0).r;
+          }
+        }
+        hk -= dm*dm/(2.*uRadius);
         float rayH = h0 + lz*dm/max(length(sl), 1e-3);
         occ = max(occ, (hk - rayH)/(dm*0.06 + texel*0.35));
-        s *= 1.42;
+        s *= 1.38;
       }
       shade *= 1. - clamp(occ, 0., 1.)*0.92;
     }
@@ -536,6 +547,10 @@ export function drawPlanet(body, o) {
     const ch = d.ch, F = FACES[ch.face];
     // origin of this tile in metres along the face, wrapped, for stable small scale effects
     const om = [((ch.a0 + 1) * R) % 4096, ((ch.b0 + 1) * R) % 4096];
+    // ancestors for long shadows: uv offset and scale of this tile inside its parent and grandparent
+    const pa = ch.parent && ch.parent.tex ? ch.parent : ch, ga = pa.parent && pa.parent.tex ? pa.parent : pa;
+    const rel = (anc) => { const k = 1 << (ch.level - anc.level); return [(ch.ix - anc.ix * k) / k, (ch.iy - anc.iy * k) / k, 1 / k]; };
+    p.set({ uParentH: pa.tex.h, uParentUV: rel(pa), uGParentH: ga.tex.h, uGParentUV: rel(ga) });
     p.set({ uHeightTex: ch.tex.h, uNormTex: ch.tex.n, uAlbTex: ch.tex.a, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size, uSkirt: d.sizeM * 0.06, uChunkM: d.sizeM, uChunkA: ch.size * R, uDetailO: om });
     gl.drawElements(gl.TRIANGLES, gridCount, gl.UNSIGNED_INT, 0);
   }

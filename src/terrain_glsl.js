@@ -317,7 +317,8 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   // seasonal snow (the base map is a July image): snow line follows the date, lower at altitude
   if (uSeason > -1.5 && gLand > 0.5) {
     float latD = degrees(asin(clamp(P.y, -1., 1.)));
-    float wN = clamp(-uSeason, 0., 1.), wS = clamp(uSeason, 0., 1.);
+    // snow cover lags the solstice and mostly builds December to March: nonlinear in the season
+    float wN = smoothstep(0.25, 0.95, -uSeason), wS = smoothstep(0.25, 0.95, uSeason);
     float nz = fbm(max(o0 - 3, 1), min(uOMax, o0 + 3), 64u, d, 0.6)*6.;
     // continentality: fraction of water within ~600 km pushes the winter snow line poleward (maritime climates)
     float wf = uHasM > 0.5 ? textureLod(uMMap, uv, 6.).r : 0.3;
