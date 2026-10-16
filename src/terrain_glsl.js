@@ -43,7 +43,7 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
 // ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
 uniform sampler2D uCMap, uHMap, uMMap, uLMap;
 uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
-uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason;
+uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; uniform vec3 uClimate;
 const float MPI = 3.14159265358979;
 // (z is nudged away from exactly 0: some GPUs return garbage for atan(-0, x), which put a seam on the prime meridian)
 vec2 mapUV(vec3 P){ vec3 n = normalize(P); float z = abs(n.z) < 1e-9 ? -1e-9 : n.z; return vec2(atan(-z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
@@ -365,6 +365,21 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     }
   }
   if (uHasM > 0.5 && gLand < 0.5) c = m*0.8;
+  // a brighter Sun: the biosphere dies back, ice melts, and the boiling oceans expose the salt-crusted sea floor
+  if (uClimate.x > 0.001 || uClimate.y < 0.999 || uClimate.z < 0.999) {
+    float lum2 = dot(c, vec3(0.3, 0.55, 0.15));
+    float green2 = clamp((c.g - max(c.r, c.b))*6. + 0.3, 0., 1.);
+    vec3 desert = vec3(0.46, 0.35, 0.25)*(0.55 + lum2*1.3);
+    c = mix(c, desert, max(green2, 0.35)*(1. - uClimate.y)*gLand);
+    float white = smoothstep(0.45, 0.7, lum2)*smoothstep(0.12, 0.03, abs(c.r - c.b));
+    c = mix(c, vec3(0.32, 0.28, 0.24), white*(1. - uClimate.z)*gLand);
+    if (gLand < 0.5) {
+      float dep = clamp(-h/5000., 0., 1.);
+      vec3 bed = mix(vec3(0.72, 0.68, 0.6), vec3(0.17, 0.155, 0.15), smoothstep(0.03, 0.35, dep));
+      c = mix(c, bed*(0.9 + nf*0.3), uClimate.x);
+    }
+    emis *= uClimate.y;
+  }
   return clamp(c, 0., 1.);
 }
 vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){

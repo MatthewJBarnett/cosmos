@@ -164,6 +164,12 @@ export class Nav {
     }
   }
 
+  // enter a system that is not in the star field (the physics sandbox)
+  enterCustomSystem(sys, camS, q) {
+    this.galaxy = sys.galaxy; this.field = fieldFor(sys.galaxy); this.system = sys; this.level = 'system';
+    this.S = camS; if (q) this.q = q; this.goto = null; this.anchor = null; this.orbit = null; this.selected = null; this.lookTarget = null; this.vel = [0, 0, 0];
+    sys.navT = undefined; sys.update(this.time);
+  }
   // ----- go-to -----
   goTo(t, opt = {}) {
     if (!t) return;

@@ -5,11 +5,14 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
-import { world } from './galdyn.js';
+import { world, sunHook } from './galdyn.js';
+import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
+import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
-import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap } from './sky.js';
+import { drawSandbox, sandboxPoints } from './sandbox.js';
+import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies } from './sky.js';
 import { catalog } from './assets.js';
-import { MILKY_WAY, SUN_POS } from './universe.js';
+import { MILKY_WAY, SUN_POS, REAL_GALAXIES } from './universe.js';
 import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx, drawComets } from './exotic.js';
 
@@ -269,6 +272,25 @@ export class Renderer {
     planetHousekeeping(); T('bake');
 
     // ---- pre-pass work that needs its own framebuffers ----
+    // the Local Group: Andromeda's approach, and the collision as an N-body simulation
+    const lgw = lgWeights(world.tyr);
+    if (updateLocalGroupPositions(world.tyr) || Math.abs(world.patAng - (this._realAng || 0)) > 0.01) { invalidateRealGalaxies(); this._realAng = world.patAng; }
+    let lgCam = null;
+    if (lgw.tMyr > LG_START - 1) {
+      LG.advance(lgw.tMyr, this.sync ? 5000 : 24);
+      sunHook.t0 = 26.8 + LG_START * 1e6; sunHook.fn = (ty) => LG.ready && Math.abs(ty - (26.8 + LG.t * 1e6)) < 5e6 ? LG.sunRel() : null;
+      if (LG.ready) {
+        const cu = nav.camU(), cm = centresAt(LG.t);
+        lgCam = [cm.mw[0] + cu[0] * 1e3, cm.mw[1] + cu[1] * 1e3, cm.mw[2] + cu[2] * 1e3];
+        this.lgInside = Math.min(V.dist(lgCam, cm.mw), V.dist(lgCam, cm.m31)) < 70;
+        if (this.lgInside) LG.updateCube(lgCam, 1 - lgw.mw, 1 - lgw.m31);
+      }
+    } else { sunHook.fn = null; LG.active = false; }
+    const hideReal = new Set();
+    if (lgw.m31 < 0.5) { hideReal.add(M31); }
+    if (lgw.mw < 0.5) hideReal.add(MILKY_WAY);
+    if (lgw.lmc < 0.5) for (const g of REAL_GALAXIES) if (/Magellanic/.test(g.name)) hideReal.add(g);
+    hideReal.key = [...hideReal].map(g => g.name[0]).join('');
     const gal = nav.galaxy;
     let camLocal = null, insideGal = false, viewProjLocal = null;
     if (gal) {
@@ -310,7 +332,12 @@ export class Renderer {
     // galaxies
     const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && this.realSkyWeight(camLocal) > 0.3;
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
-    if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear }, common));
+    if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear, hideReal: hideReal.size ? hideReal : null }, common));
+    // the colliding galaxies as particles
+    if (lgCam && exposure > 2e3) {
+      if (this.lgInside) LG.drawCube(Q.mat3(nav.q), [tanX, tanY], exposure);
+      else LG.drawPoints(lgCam, viewProj, Object.assign({}, common, { maxPx: 6 }), 1 - lgw.mw, 1 - lgw.m31, 0.5);
+    }
     T('galaxies');
     // the Milky Way's glow is far below visibility at daylight exposures
     if (gal && insideGal && exposure > 3e3) {
@@ -318,9 +345,10 @@ export class Renderer {
       const rl = Q.mat3(Q.mul(Q.conj(gal.quat), nav.q));
       // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs
       let wReal = 0;
-      if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal);
+      if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal) * lgw.mw;
+      const wModel = gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1;
       const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal);
-      this.galSky.draw(rl, [tanX, tanY], exposure, drewReal ? 1 - wReal : 1);
+      this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel);
     }
     T('galsky');
     let nStars = 0;
@@ -480,6 +508,7 @@ export class Renderer {
       gl.disable(gl.DEPTH_TEST);
       // points: bodies and far stars
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
+      if (sys.sandbox) { for (const p of sandboxPoints(sys, nav)) points.push(p); drawSandbox(sys, nav, { viewProj, fcoef, exposure, maxExposure: this.maxExposure || rcfg.maxExposure }); gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); }
       drawPoints(points, viewProj, common);
       // star coronae / glare
       drawNebulaeAndFx.coronae(sys, nav, { viewProj, fcoef, exposure, pxPerRad, time: nav.time, noise3: this.noise3, refrK, refrUp });

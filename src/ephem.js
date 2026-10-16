@@ -20,9 +20,13 @@ export function planetPos(name, t) {
   const el = JPL[name]; if (!el) return null;
   const T = (t + 69.2) / (36525 * 86400);
   const [e0, r] = el;
-  const a = (e0[0] + r[0] * T) * AU, e = e0[1] + r[1] * T, I = (e0[2] + r[2] * T) * D2R, L = e0[3] + r[3] * T, w = e0[4] + r[4] * T, O = (e0[5] + r[5] * T) * D2R;
+  // the secular rates are fits to a few centuries: beyond +-50 centuries hold the slowly varying elements fixed
+  // (the mean longitude keeps advancing); long-term changes are handled by the evolution model
+  const Ts = Math.max(-50, Math.min(50, T));
+  const a = (e0[0] + r[0] * Ts) * AU, e = e0[1] + r[1] * Ts, I = (e0[2] + r[2] * Ts) * D2R, w = e0[4] + r[4] * Ts, O = (e0[5] + r[5] * Ts) * D2R;
+  const L = e0[3] + r[3] * T + (r[4] * (T - Ts));
   const argp = w * D2R - O;
-  let M = ((L - w) % 360) * D2R;
+  let M = (((L - w) % 360) + 360) % 360 * D2R;
   let E = M; for (let i = 0; i < 12; i++) { const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); E -= dE; if (Math.abs(dE) < 1e-13) break; }
   const xv = a * (Math.cos(E) - e), yv = a * Math.sqrt(1 - e * e) * Math.sin(E);
   const cw = Math.cos(argp), sw = Math.sin(argp), cO = Math.cos(O), sO = Math.sin(O), ci = Math.cos(I), si = Math.sin(I);
@@ -57,13 +61,15 @@ const B = [
 // geocentric Moon position (m), J2000 ecliptic frame, engine axes
 export function moonPos(t) {
   const T = (t + 69.2) / (36525 * 86400);
-  const Lp = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T;
-  const D = (297.8501921 + 445267.1114034 * T - 0.0018819 * T * T) * D2R;
-  const M = (357.5291092 + 35999.0502909 * T - 0.0001536 * T * T) * D2R;
-  const Mp = (134.9633964 + 477198.8675055 * T + 0.0087414 * T * T) * D2R;
-  const F = (93.2720950 + 483202.0175233 * T - 0.0036539 * T * T) * D2R;
+  // quadratic terms and the eccentricity factor E are only valid for a few thousand years
+  const Tq = Math.max(-50, Math.min(50, T)), T2 = Tq * T;
+  const Lp = 218.3164477 + 481267.88123421 * T - 0.0015786 * T2;
+  const D = (297.8501921 + 445267.1114034 * T - 0.0018819 * T2) * D2R;
+  const M = (357.5291092 + 35999.0502909 * T - 0.0001536 * T2) * D2R;
+  const Mp = (134.9633964 + 477198.8675055 * T + 0.0087414 * T2) * D2R;
+  const F = (93.2720950 + 483202.0175233 * T - 0.0036539 * T2) * D2R;
   const A1 = (119.75 + 131.849 * T) * D2R, A2 = (53.09 + 479264.290 * T) * D2R, A3 = (313.45 + 481266.484 * T) * D2R;
-  const E = 1 - 0.002516 * T - 0.0000074 * T * T;
+  const E = 1 - 0.002516 * Tq - 0.0000074 * Tq * Tq;
   let sl = 0, sr = 0, sb = 0;
   for (const [d, m, mp, f, l, r] of LR) {
     const arg = d * D + m * M + mp * Mp + f * F, k = m === 0 ? 1 : (Math.abs(m) === 1 ? E : E * E);

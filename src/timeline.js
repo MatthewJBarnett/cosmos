@@ -4,6 +4,8 @@ import { V, Q, C, clamp } from './math.js';
 import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
 import { galDir } from './universe.js';
 import { EXTRA_STARS } from './realsystems.js';
+import { orbitEvents, R0, V0 } from './lgorbit.js';
+import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed } from './evolution.js';
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
 export const nowYr = () => (Date.now() - J2000) / 1000 / YEAR;     // years since J2000 of the real present
@@ -35,7 +37,8 @@ export function fmtSimDate(t) {
 export function fmtRate(r) {
   const a = Math.abs(r), s = r < 0 ? '−' : '';
   if (a === 1) return s + 'real time';
-  if (a < 60) return s + a + '×';
+  if (a < 1) return s + (+a.toPrecision(3)) + '×';
+  if (a < 60) return s + (+a.toPrecision(3)) + '×';
   if (a < 3600) return s + (a / 60).toPrecision(3) + ' min/s';
   if (a < 86400) return s + (a / 3600).toPrecision(3) + ' h/s';
   if (a < YEAR) return s + (a / 86400).toPrecision(3) + ' d/s';
@@ -45,7 +48,7 @@ export function fmtRate(r) {
   if (y < 1e9) return s + (y / 1e6).toPrecision(3) + ' Myr/s';
   return s + (y / 1e9).toPrecision(3) + ' Gyr/s';
 }
-export const RATES = [1, 10, 60, 600, 3600, 6 * 3600, 86400, 7 * 86400, 30 * 86400, YEAR / 4, YEAR, YEAR * 10, YEAR * 100, YEAR * 1e3, YEAR * 1e4, YEAR * 1e5, YEAR * 1e6, YEAR * 1e7, YEAR * 3e7, YEAR * 1e8, YEAR * 3e8, YEAR * 1e9, YEAR * 1e10];
+export const RATES = [0.001, 0.01, 0.1, 0.25, 0.5, 1, 10, 60, 600, 3600, 6 * 3600, 86400, 7 * 86400, 30 * 86400, YEAR / 4, YEAR, YEAR * 10, YEAR * 100, YEAR * 1e3, YEAR * 1e4, YEAR * 1e5, YEAR * 1e6, YEAR * 1e7, YEAR * 3e7, YEAR * 1e8, YEAR * 3e8, YEAR * 1e9, YEAR * 1e10];
 export const MAX_T = 1e14 * YEAR;
 
 // ---------- events ----------
@@ -76,13 +79,21 @@ export function buildEvents() {
   add({ id: 'eclipses', t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
   add({ id: 'oceans', t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
   add({ id: 'lmc', t: now + 2.4e9, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction drags our largest satellite galaxy into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
-  add({ id: 'm31', t: now + 3.9e9, est: true, title: 'Andromeda\'s first passage', text: 'The Andromeda Galaxy sweeps through the Milky Way\'s halo at ~600 km/s. Tidal tails fling stars across the sky.', view: { andromeda: true }, rate: YEAR * 5e6 });
-  add({ id: 'merge', t: now + 5.9e9, est: true, title: 'Milkomeda', text: 'The two galaxies merge into one giant elliptical galaxy.', view: { andromeda: true }, rate: YEAR * 1e7 });
-  add({ id: 'subgiant', t: now + 5.5e9, title: 'The Sun leaves the main sequence', text: 'Hydrogen in the core runs out. The Sun swells and reddens as a subgiant.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
-  add({ id: 'rgb', t: now + 7.59e9, title: 'The Sun at the tip of the red giant branch', text: 'Radius about 1.2 AU, 2,700 times as bright as today. Mercury and Venus are swallowed; Earth very likely too.', view: { body: 'Sun' }, rate: YEAR * 1e5 });
-  add({ id: 'flash', t: now + 7.6e9, title: 'The helium flash', text: 'Helium ignites in the degenerate core; the Sun shrinks to a ten times brighter horizontal branch star.', view: { body: 'Sun' }, rate: YEAR * 1e4 });
-  add({ id: 'pn', t: now + 7.8e9, title: 'Planetary nebula', text: 'Thermal pulses on the asymptotic giant branch shed the Sun\'s envelope; the hot core lights it up.', view: { body: 'Sun', far: true }, rate: YEAR * 2e3 });
-  add({ id: 'wd', t: now + 7.81e9, title: 'The Sun is a white dwarf', text: 'An Earth-sized ember of carbon and oxygen, 0.54 solar masses, cooling for trillions of years.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
+  const lg = orbitEvents(), p1 = lg.pericentres[0], p2 = lg.pericentres[1];
+  add({ id: 'm31near', t: now + 3.0e9, est: true, title: 'Andromeda fills the sky', text: 'Approaching at 250 km/s, the Andromeda Galaxy spans tens of degrees of the night sky, as bright as the Milky Way.', view: { lg: 'sun' }, rate: YEAR * 5e6 });
+  if (p1) add({ id: 'm31', t: now + p1.t * 1e6, est: true, title: 'Andromeda\'s first passage', text: `The galaxies' centres pass ${p1.d.toFixed(0)} kpc apart at ~450 km/s. Tides tear both disks into long tails. (N-body simulation, 65,536 particles.)`, view: { lg: 'outside' }, rate: YEAR * 3e6 });
+  if (p2) add({ id: 'm31b', t: now + p2.t * 1e6, est: true, title: 'Second passage', text: 'Dynamical friction has drained the orbit; the galaxies fall back together.', view: { lg: 'outside' }, rate: YEAR * 3e6 });
+  if (lg.merged > 0) add({ id: 'merge', t: now + lg.merged * 1e6, est: true, title: 'Milkomeda', text: 'The two centres coalesce. Over the next billion years the debris settles into one giant elliptical galaxy.', view: { lg: 'outside' }, rate: YEAR * 1e7 });
+  const ageT = (age) => (age - SUN_AGE_NOW) * 1e9;
+  const engulfT = (name) => { for (let a = 12.0; a < 12.2; a += 0.0002) if (engulfed(name, ageT(a))) return ageT(a); return null; };
+  add({ id: 'subgiant', t: ageT(10.0), title: 'The Sun leaves the main sequence', text: 'Hydrogen in the core runs out after 10 billion years. The Sun swells and cools into a subgiant, twice as bright as today.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
+  const tm = engulfT('Mercury'), tv = engulfT('Venus');
+  if (tm) add({ id: 'mercury', t: tm, title: 'Mercury is swallowed', text: 'The red giant Sun grows past Mercury\'s orbit.', view: { body: 'Venus', far: true }, rate: YEAR * 2e5 });
+  if (tv) add({ id: 'venus', t: tv, title: 'Venus is swallowed', text: 'The Sun\'s envelope engulfs Venus; drag in the thin outer layers spirals it in.', view: { body: 'Mars', far: true }, rate: YEAR * 1e5 });
+  add({ id: 'rgb', t: ageT(RGB_TIP), title: 'The Sun at the tip of the red giant branch', text: 'Radius 256 times today\'s (1.2 AU), 2,700 times as bright, 0.67 solar masses after losing a third of its mass. Mercury and Venus are gone; Earth is very likely dragged in too.', view: { body: 'Mars', far: true }, rate: YEAR * 1e5 });
+  add({ id: 'flash', t: ageT(RGB_TIP) + 3e5, title: 'The helium flash', text: 'Helium ignites in the degenerate core; within a million years the Sun shrinks to a 40 L☉ horizontal branch star.', view: { body: 'Sun' }, rate: YEAR * 1e4 });
+  add({ id: 'pn', t: ageT(PN_START), title: 'Planetary nebula', text: 'Thermal pulses on the asymptotic giant branch shed the Sun\'s envelope at ~20 km/s; the exposed hot core ionises it.', view: { body: 'Sun', far: true }, rate: YEAR * 1000 });
+  add({ id: 'wd', t: ageT(WD_START), title: 'The Sun is a white dwarf', text: 'An Earth-sized ember of carbon and oxygen, 0.54 solar masses, cooling for trillions of years.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
   add({ id: 'horizon', t: now + 1.5e11, est: true, title: 'The sky beyond the Local Group goes dark', text: 'Accelerating expansion carries every other galaxy beyond our event horizon; their light redshifts away.', view: { universe: true }, rate: YEAR * 1e9 });
   return ev.sort((a, b) => a.t - b.t);
 }

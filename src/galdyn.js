@@ -32,8 +32,11 @@ const KAPPA = Math.SQRT2 * omega(R0) * 1.02, NU = 2 * Math.PI / 7.6e7;
 const AR = VSUN[0] * KMS_PCYR / KAPPA;                       // radial amplitude from U
 const AZ = Math.hypot(SUN_POS[1], VSUN[1] * KMS_PCYR / NU), PZ = Math.atan2(SUN_POS[1] * NU, VSUN[1] * KMS_PCYR);
 const OMS = (V0 * R0 / Math.sqrt(R0 * R0 + RC * RC) - VSUN[2]) / R0 * KMS_PCYR;  // azimuthal rate including V
+// after the Andromeda encounter begins, the Sun's position comes from the N-body tracer (set by localgroup.js)
+export const sunHook = { fn: null, t0: Infinity };
 export function sunPos(tyr) {
   if (!tyr) return SUN_POS.slice();
+  if (sunHook.fn && tyr > sunHook.t0) { const p = sunHook.fn(tyr); if (p) return p; }
   const R = R0 - AR * Math.sin(KAPPA * tyr), z = AZ * Math.sin(NU * tyr + PZ);
   const a = -OMS * tyr;
   const p = [-R, z, 0];                                     // epoch azimuth: Sun on the -x axis

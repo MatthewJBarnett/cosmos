@@ -6,6 +6,7 @@ import { galDir } from './universe.js';
 import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq } from './evolution.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -135,7 +136,7 @@ function gasPreset(kind, rng, b) {
 
 // ---------- Body construction ----------
 let bodyCounter = 0;
-function body(props) {
+export function body(props) {
   const b = Object.assign({ uid: ++bodyCounter, children: [], pos: [0, 0, 0], rotAngle: 0, albedo: 0.3, tilt: 0, poleLon: 0, rotPeriod: 86400, temp: 200, atmo: null, rings: null, surface: null }, props);
   return b;
 }
@@ -196,12 +197,28 @@ export class StarSystem {
     // the star's motion through the galaxy
     const tyr = t / YEAR;
     if (this._ty !== tyr) { this._ty = tyr; this.posLocal = descPosP(this.desc, tyr); this.posGu = Q.rot(galQuat0(this.galaxy), toInertial(this.posLocal, tyr)); }
+    // the Sun's evolution, mass loss widening the orbits, Earth's precession and the Moon's recession
+    let oScale = 1, mScale = 1;
+    if (this.desc.sol) {
+      const ss = sunState(tyr), sun = this.root;
+      this.sunState = ss;
+      sun.radius = ss.R * C.Rsun; sun.lum = ss.L; sun.temp = ss.T; sun.mass = ss.M * C.Msun; sun.cls = ss.phase === 'Main sequence (G2V)' ? 'G2V' : ss.phase;
+      sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.5; sun.whiteDwarf = ss.R < 0.05;
+      oScale = orbitScale(tyr); mScale = moonScale(tyr);
+      let changed = false;
+      for (const b of this.root.children) if (b.kind !== 'barycenter') { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) c.gone = g; }
+      if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
+      // surfaces heated by the giant Sun glow
+      if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }
+      else if (this._heated !== false) { for (const b of this.root.children) b.heatT = 0; }
+      this._heated = ss.L > 1.5;
+    }
     const rec = (b) => {
       if (b.ephem === 'planet' && b.parent) {
-        const p = planetPos(b.name, t), pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
+        const p = planetPos(b.name, t), pp = b.parent.pos; b.pos = [pp[0] + p[0] * oScale, pp[1] + p[1] * oScale, pp[2] + p[2] * oScale];
       } else if (b.ephem === 'moon' && b.parent) {
         // the Moon from lunar theory; Earth itself sits off the Earth-Moon barycentre
-        const g = moonPos(t), mu = b.mass / (b.mass + b.parent.mass), ep = b.parent.pos;
+        const g = V.mul(moonPos(t), mScale), mu = b.mass / (b.mass + b.parent.mass), ep = b.parent.pos;
         b.parent.pos = [ep[0] - g[0] * mu, ep[1] - g[1] * mu, ep[2] - g[2] * mu];
         b.parent.wpos = Q.rot(this.worldQ, b.parent.pos);
         b.pos = [b.parent.pos[0] + g[0], b.parent.pos[1] + g[1], b.parent.pos[2] + g[2]];
@@ -218,13 +235,22 @@ export class StarSystem {
         b.pos = [par.pos[0] + p[0], par.pos[1] + p[1], par.pos[2] + p[2]];
       } else if (b.orbit && b.parent) {
         let p = keplerPos(b.orbit, t);
+        if (b.parent === this.root && oScale !== 1) p = V.mul(p, oScale);
         if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
         const pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
       } else if (!b.parent) b.pos = [0, 0, 0];
       b.rotAngle = b.rotPeriod ? ((b.rot0 || 0) + 2 * Math.PI * ((t / b.rotPeriod) % 1)) : 0;
       if (b.iauW) b.rotAngle = ((b.iauW[0] + b.iauW[1] * (t / 86400)) % 360) * D2R + (b.iauPhi || 0);
-      // Earth: sidereal angle is measured from the equinox of date; our frame is the J2000 equinox (precession in RA)
-      if (b.precessRA) b.rotAngle -= b.precessRA * (t / 3155760000);
+      // Earth: the pole precesses around the ecliptic pole (25,772 yr) and nods with the obliquity cycle; the
+      // sidereal angle is measured from the equinox of date, which the body frame follows. The day lengthens as
+      // tides transfer angular momentum to the Moon.
+      if (b.precessRA) {
+        const pole = earthPole(tyr), x = V.norm(V.cross([0, 1, 0], pole));
+        b.pole = pole; b.axisQ = Q.fromBasis(x, pole, V.cross(x, pole));
+        const P = earthDay(tyr); b.rotPeriod = P;
+        b.rotAngle = (b.rot0 || 0) + 2 * Math.PI * (((t / P) % 1) + 1);
+        b.climate = earthClimate(tyr);
+      }
       if (b.seasonal && this.stars[0]) {
         // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)
         const sd = V.norm(V.sub(this.stars[0].pos, b.pos));
@@ -399,7 +425,7 @@ export function starName(desc) {
   return r.pick(['HD', 'HIP', 'GJ', 'TYC', 'BD', 'LHS', 'KIC']) + ' ' + (10000 + desc.seed % 890000);
 }
 
-function makeStarBody(star, name, rng) {
+export function makeStarBody(star, name, rng) {
   const b = body({ name, kind: 'star', cls: star.cls, star, mass: star.mass, radius: star.radius, temp: star.T, lum: star.lum, tilt: rng.range(0, 30), poleLon: rng.range(0, 360) });
   b.rotPeriod = star.kind === KIND.NS ? rng.logRange(0.002, 4) : star.kind === KIND.WD ? rng.logRange(600, 86400) : rng.logRange(0.5, 40) * C.DAY * Math.sqrt(star.radius / C.Rsun);
   if (star.kind === KIND.BH) { b.cls = star.cls || 'Black hole'; b.blackHole = true; b.accretion = star.accretion !== undefined ? star.accretion : (rng.chance(0.6) ? rng.range(0.3, 1) : 0); b.rotPeriod = 0; }

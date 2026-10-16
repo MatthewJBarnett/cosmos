@@ -13,6 +13,8 @@ import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR } from './galdyn.js';
+import { SandboxUI } from './sandboxui.js';
+import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
 
 export function fmtDist(m) {
@@ -47,7 +49,7 @@ export class UI {
     this.top = root.appendChild(el('div', 'panel top'));
     this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
       <select id="places" title="Places"><option value="">Places…</option></select>
-      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
+      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bSandbox" title="Physics sandbox: black holes, neutron stars, gravitational waves (V)">Sandbox</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
     this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline of future events (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
@@ -66,7 +68,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>V</td><td>Physics sandbox</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Data and credits</h3>
@@ -142,13 +144,15 @@ export class UI {
     const c = this.canvas, nav = this.nav;
     let down = null, moved = 0;
     c.addEventListener('contextmenu', e => e.preventDefault());
-    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); down = { b: e.button, x: e.clientX, y: e.clientY }; moved = 0; document.activeElement && document.activeElement.blur(); });
+    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); document.activeElement && document.activeElement.blur(); if (e.button === 0 && this.sbui && this.sbui.pointer('down', e.clientX, e.clientY)) { down = { b: -1 }; return; } down = { b: e.button, x: e.clientX, y: e.clientY }; moved = 0; });
     c.addEventListener('pointermove', e => {
       if (!down) return;
+      if (down.b === -1) { this.sbui.pointer('move', e.clientX, e.clientY); return; }
       const dx = e.movementX, dy = e.movementY; moved += Math.abs(dx) + Math.abs(dy);
       if (down.b === 2 || e.altKey) { this.acc.orbitX += dx; this.acc.orbitY += dy; } else { this.acc.lookX -= dx; this.acc.lookY -= dy; }
     });
     c.addEventListener('pointerup', e => {
+      if (down && down.b === -1) { this.sbui.pointer('up', e.clientX, e.clientY); down = null; return; }
       if (down && moved < 5 && down.b === 0) this.click(e.clientX, e.clientY, e.detail >= 2);
       down = null;
     });
@@ -166,6 +170,7 @@ export class UI {
       else if (k === 'b') this.saveMark();
       else if (k === 'y') this.toggleOrbit();
       else if (k === 'u') this.toggle(this.linePanel);
+      else if (k === 'v') this.sbui.toggle();
       else if (k === 'e' && e.shiftKey) this.goNextEclipse();
       else if (k >= '0' && k <= '9' && !e.ctrlKey && !e.altKey) this.search(['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'][+k]);
       else if (k === 'l') { if (nav.selected && nav.selected.type === 'body') nav.land(nav.selected.body); }
@@ -197,6 +202,8 @@ export class UI {
     this.tour = new Tour(nav, this);
     this.timeline = new Timeline(nav, this);
     this.timeline.onGo = (e) => this.eventView(e);
+    this.sbui = new SandboxUI(this);
+    $('bSandbox').onclick = () => this.sbui.toggle();
     $('tLine').onclick = () => this.toggle(this.linePanel);
     $('bTour').onclick = () => { if (this.tour.active) this.tour.stop(); else this.tour.start(); };
     $('search').addEventListener('change', e => { this.search(e.target.value); });
@@ -350,6 +357,7 @@ export class UI {
     if (this.nav.time > MAX_T) { this.nav.time = MAX_T; this.nav.paused = true; }
     if (this.nav.time < -13.79e9 * YEAR) { this.nav.time = -13.79e9 * YEAR; this.nav.paused = true; this.toast('The Big Bang: time cannot run further back'); }
     this.updateTimeline();
+    if (this.sbui) this.sbui.update();
     if (this.hidden) return;
     const nav = this.nav, r = this.r;
     // status
@@ -436,9 +444,9 @@ export class UI {
           if (groundUp && b !== nav.anchor && V.dot(b.rel, groundUp) / (b.dist || 1) < -0.01) continue;
           const px = b.pxRadius || 0;
           if (px > 60) continue;
-          if (b.kind === 'moon' || (b.parent && b.parent.kind === 'planet')) { const pd = b.parent.dist || 1e30; if (b.orbit.a / pd * r.pxPerRad < 25) continue; }
+          if (b.orbit && (b.kind === 'moon' || (b.parent && b.parent.kind === 'planet'))) { const pd = b.parent.dist || 1e30; if (b.orbit.a / pd * r.pxPerRad < 25) continue; }
           if ((b.kind === 'dwarf' || b.kind === 'comet') && b.dist > b.radius * 2e4 && !(nav.selected && nav.selected.body === b)) continue;
-          if (b.kind === 'planet' && b.orbit.a / Math.max(b.parent.dist || 1, 1) * r.pxPerRad < 9) continue;
+          if (b.kind === 'planet' && b.orbit && b.orbit.a / Math.max(b.parent.dist || 1, 1) * r.pxPerRad < 9) continue;
           put(b.rel, b.name, b.kind, Math.max(6, px + 4));
         }
       }
@@ -541,7 +549,25 @@ export class UI {
       nav.selected = sunT;
       return;
     }
-    if (v.andromeda) { const t = findByName(nav, 'Andromeda'); if (t) { nav.selected = t; nav.lookTarget = t; } return; }
+    if (v.lg) {
+      const t = findByName(nav, 'Andromeda');
+      if (v.lg === 'outside') {
+        // above the orbital plane of the pair, looking at the collision
+        const n = V.norm(V.cross(LG_R0, LG_V0));
+        nav.level = 'universe'; nav.galaxy = null; nav.system = null; nav.field = null; nav.anchor = null;
+        const mid = t ? V.mul(t.galaxy.posU, 0.5) : [0, 0, 0];
+        nav.U = V.add(mid, V.mul(n, 0.28)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
+        if (t) nav.selected = t;
+      } else {
+        // from the Solar System, looking at Andromeda
+        const sol = solSystem(); sol.update(nav.time);
+        nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null;
+        nav.S = [0, C.AU * 80, 0];
+        if (t) { nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]); }
+        nav.fov = 80 * Math.PI / 180;
+      }
+      return;
+    }
     if (v.pole) {
       const earth = sol.find('Earth'); sol.update(nav.time);
       nav.landAt(earth, 48, 0, { hour: 0 });

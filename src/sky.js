@@ -289,6 +289,8 @@ function galCellVAO(cell) {
   return b;
 }
 const REAL_CELL = { key: 'real', list: REAL_GALAXIES, origin: [0, 0, 0] };
+// the real galaxies move (Andromeda approaching) and turn (the Milky Way's pattern): rebuild their buffer now and then
+export function invalidateRealGalaxies() { for (const k of [...galBuffers.keys()]) if (k.startsWith('real')) { const b = galBuffers.get(k); gl.deleteVertexArray(b.vao); gl.deleteBuffer(b.buf); galBuffers.delete(k); } }
 export const visibleGalaxyCells = [];
 let galFrame = 0;
 export function drawGalaxies(camU, viewProj, o) {
@@ -318,11 +320,13 @@ export function drawGalaxies(camU, viewProj, o) {
       drawCell(galaxyCell(lv, x, y, z));
     }
   }
+  const hidden = o.hideReal;   // galaxies drawn as N-body particles instead
   if (o.realSkyNear) {
     // the photographed sky already contains the Magellanic Clouds, M31 and M33
-    const keep = { key: 'real-far', list: REAL_GALAXIES.filter(g => !/Magellanic|M31|M33/.test(g.name)), origin: [0, 0, 0] };
+    const keep = { key: 'real-far' + (hidden ? hidden.key : ''), list: REAL_GALAXIES.filter(g => !/Magellanic|M31|M33/.test(g.name) && !(hidden && hidden.has(g))), origin: [0, 0, 0] };
     drawCell(keep);
-  } else drawCell(REAL_CELL);
+  } else if (hidden && hidden.size) drawCell({ key: 'real-h' + hidden.key, list: REAL_GALAXIES.filter(g => !hidden.has(g)), origin: [0, 0, 0] });
+  else drawCell(REAL_CELL);
   if (galFrame % 60 === 0) for (const [k, b] of galBuffers) if (galFrame - b.last > 300) { gl.deleteVertexArray(b.vao); gl.deleteBuffer(b.buf); galBuffers.delete(k); }
 }
 
