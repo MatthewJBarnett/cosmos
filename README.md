@@ -1,7 +1,10 @@
 # Cosmos
 
-A procedural universe at 1:1 scale that runs in the browser (WebGL2, no build step, no dependencies).
-You can fly from a planet's surface out to intergalactic space without a loading screen.
+A universe at 1:1 scale that runs in the browser (WebGL2, no build step, no dependencies): the real Solar System,
+real stars and nebulae around the Sun, and a procedural galaxy and universe beyond. You can fly from a planet's
+surface out to intergalactic space without a loading screen.
+
+**Play it:** https://matthewjbarnett.github.io/cosmos/ (press T for a guided tour, H for help)
 
 ## Gallery
 
@@ -21,6 +24,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Refracted sunset](docs/refracted_sunset.jpg) Sunset over the Atlantic: refraction lifts and flattens the Sun | ![Night orbit](docs/night_orbit.jpg) Moonlit night from orbit with airglow |
 | ![Io shadow](docs/io_shadow.jpg) Io's shadow on Jupiter, 20 October 2026 | ![Winter](docs/winter.jpg) Europe in January |
 | ![Halley](docs/halley.jpg) Halley's Comet, February 1986: dust and ion tails | ![Alps at dusk](docs/alps_dusk.jpg) Dusk over the Alps |
+| ![Crab Nebula](docs/crab.jpg) Crab Nebula with its pulsar | ![Ocean](docs/ocean.jpg) Open ocean in the late afternoon |
 
 ## Run
 
@@ -28,7 +32,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
     ./run.sh          # serves http://localhost:8642/
     ./run.sh show     # also opens it on the desktop session (display :20)
 
-Needs a browser with WebGL2 and float render targets (any desktop Chrome, Firefox or Edge with a GPU).
+Needs a browser with WebGL2 and float render targets (desktop Chrome, Edge, Firefox or Safari with a GPU).
 Quality presets: add `?q=low`, `?q=medium` or `?q=high` (default). Dynamic resolution is on by default.
 Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search box accepts), or on a surface with
 `?goto=Earth&land=46.0,7.6&date=2024-06-20T16:30Z` (latitude, longitude). The Link button copies such a URL for where you are.
