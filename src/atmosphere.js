@@ -28,7 +28,7 @@ void main(){
     vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))/3.14159265);
     float v = texture(uCloudTex, uv).r;
     float v2 = texture(uCloudTex, uv + vec2(0.0012, 0.0008)).r;
-    o = vec4(smoothstep(0.1, 0.62, v), smoothstep(0.45, 0.9, max(v, v2)), fbm(dir*30., 3), 1.); return;
+    o = vec4(smoothstep(0.2, 0.72, v), smoothstep(0.5, 0.92, max(v, v2)), fbm(dir*30., 3), 1.); return;
   }
   float lat = asin(clamp(dir.y, -1., 1.));
   if (uKind > 0.5) {
@@ -76,7 +76,7 @@ uniform samplerCube uCloudMap;
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
-uniform float cBase, cTop, cDens, cHas, cKind; uniform vec3 cColor;
+uniform float cBase, cTop, cDens, cHas, cKind, cMapped; uniform vec3 cColor;
 uniform sampler2D uIrrLUT;
 uniform int uSteps, uCloudSteps;
 ${LIGHT_UNIFORMS}
@@ -96,7 +96,8 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
   // break the weather map up with mid-scale structure (tens to hundreds of km)
   float mid = textureLod(uNoise3, pl/1.7e6 + 0.11, max(lod - 7., 0.)).g*0.55 + textureLod(uNoise3, pl/4.3e5 + 0.37, max(lod - 5., 0.)).b*0.45;
-  cov = clamp(cov*(0.35 + 1.3*smoothstep(0.25, 0.62, mid)), 0., 1.);
+  if (cMapped < 0.5) cov = clamp(cov*(0.35 + 1.3*smoothstep(0.25, 0.62, mid)), 0., 1.);
+  else cov = clamp(cov*(0.8 + 0.4*mid), 0., 1.);
   if (cov < 0.01) return 0.;
   float topH = mix(0.35, 1.0, wm.g*cov);
   float prof = smoothstep(0., 0.07, hfrac) * smoothstep(topH, topH*0.45, hfrac);
@@ -384,7 +385,7 @@ export function drawAtmosphere(body, o) {
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
+    cMapped: body.maps && body.maps.clouds && l.mapsVersion ? 1 : 0, uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
   drawFS();

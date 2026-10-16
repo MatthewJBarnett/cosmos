@@ -4,7 +4,7 @@ import { V, Q, C, clamp } from './math.js';
 import { gl, makeVAO } from './gl.js';
 import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS, galDir } from './universe.js';
 import { visibleNebulae, REAL_NEBULAE } from './exotic.js';
-import { catalog, loadCatalog } from './assets.js';
+import { catalog, loadCatalog, bodyMaps } from './assets.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
@@ -161,6 +161,10 @@ export class Nav {
   }
   land(body, opt = {}) {
     if (!body || !body.surface) return;
+    // real elevation data must be loaded before we can pick a landing height
+    if (body.maps && !opt.noWait && !bodyMaps(body)) {
+      this.pendingLand = { body, opt, t: 0 }; this.selected = { type: 'body', body }; return;
+    }
     const sys = body.system; const rel = this.relTo({ type: 'body', body });
     const toCam = V.norm(V.mul(rel, -1));
     let dir = toCam;
@@ -194,6 +198,13 @@ export class Nav {
     const off = V.mul(dir, body.radius + h + (body.surface.gen === 'terra' ? 1200 : body.radius * 0.02));
     this.goTo({ type: 'body', body, offset: off }, Object.assign({ dist: 1, land: { dir } }, opt));
   }
+  // land at a planetographic latitude/longitude (degrees)
+  landAt(body, lat, lon, opt = {}) {
+    const la = lat * Math.PI / 180, lo = lon * Math.PI / 180;
+    const dirL = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)];
+    body.system.update(this.time);
+    this.land(body, Object.assign({ dir: Q.rot(body.wrot, dirL), dir0: dirL }, opt));
+  }
   stepGoto(dt) {
     const g = this.goto; if (!g) return;
     g.t += dt; const x = clamp(g.t / g.dur, 0, 1);
@@ -226,6 +237,9 @@ export class Nav {
   // ----- per frame -----
   update(dt, input) {
     if (!this.paused) this.time += dt * this.rate;
+    if (this.pendingLand) { const p = this.pendingLand; p.t += dt; if (bodyMaps(p.body) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
+    // start loading surface maps of the selection early
+    if (this.selected && this.selected.type === 'body' && this.selected.body.maps) bodyMaps(this.selected.body);
     const sys = this.system;
     // follow the anchor body through its orbital motion and rotation
     let anchor = null;

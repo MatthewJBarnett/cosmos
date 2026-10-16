@@ -2,6 +2,7 @@
 import { gl } from './gl.js';
 
 const cache = new Map();
+export const loading = { count: 0 };
 
 // kind: 'color' (sRGB, mipmapped), 'data' (linear RGBA8, nearest; for packed heights), 'gray' (linear, mipmapped)
 export function loadTexture(url, kind = 'color') {
@@ -10,6 +11,7 @@ export function loadTexture(url, kind = 'color') {
   if (e) return e;
   e = { tex: null, ready: false, failed: false, w: 0, h: 0 };
   cache.set(key, e);
+  loading.count++;
   e.promise = fetch(url).then(r => { if (!r.ok) throw new Error(url + ' ' + r.status); return r.blob(); })
     .then(b => createImageBitmap(b, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))
     .then(img => {
@@ -31,7 +33,8 @@ export function loadTexture(url, kind = 'color') {
       if (img.close) img.close();
       return e;
     })
-    .catch(err => { console.warn('texture load failed', url, err.message); e.failed = true; });
+    .catch(err => { console.warn('texture load failed', url, err.message); e.failed = true; })
+    .finally(() => { loading.count--; });
   return e;
 }
 

@@ -6,6 +6,7 @@ import { cfg as planetCfg } from './planet.js';
 import { skyCfg } from './sky.js';
 import { atmoCfg } from './atmosphere.js';
 import { UI } from './ui.js';
+import { loading } from './assets.js';
 import { V, Q, C } from './math.js';
 
 const params = new URLSearchParams(location.search);
@@ -63,11 +64,19 @@ if (!testMode) requestAnimationFrame(loop);
 window.cosmos = {
   nav, renderer, rcfg, V, Q, C, findByName, solSystem, systemFor, ui,
   frame,
+  // run frames until no textures are loading any more (maps of nearby bodies are requested by rendering)
+  async waitAssets(maxSec = 60) {
+    const t0 = performance.now();
+    do { frame(0.02); await new Promise(r => setTimeout(r, 200)); } while ((loading.count > 0 || performance.now() - t0 < 600) && performance.now() - t0 < maxSec * 1000);
+    frame(0.02); await new Promise(r => setTimeout(r, 100));
+    return loading.count;
+  },
   // run frames until all generation has finished and exposure has settled
   async settle(maxFrames = 400, dt = 0.05) {
     renderer.sync = true; nav.sync = true; const g = planetCfg.genPerFrame; planetCfg.genPerFrame = 40;
     let calm = 0, n = 0;
     for (; n < maxFrames && calm < 4; n++) {
+      if (nav.pendingLand) { await this.waitAssets(); }
       const e0 = renderer.exposure;
       frame(dt);
       const stable = Math.abs(Math.log(renderer.exposure / e0)) < 0.02;

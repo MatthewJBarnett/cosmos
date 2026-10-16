@@ -122,10 +122,10 @@ float terrainMapped(vec3 d, vec3 P){
     hm = mix(max(hm, 1. + 6.*(1. - water)), min(hm, -2. - 30.*water), water);
   }
   gCont = hm/3000.; gLand = land; gMaria = 0.; gFresh = 0.; gCrack = 0.; gDune = 0.;
-  gMtn = smoothstep(300., 2500., hm)*land;
+  gMtn = smoothstep(250., 2200., hm)*land;
   // detail below the map's resolution, rougher in mountains
   float det = 0.;
-  int o0 = int(uMapOct);
+  int o0 = int(uMapOct) - 1;
   if (uOMax >= o0) {
     float amp = 1., wgt = 1.; vec3 ds = vec3(0.);
     for (int o = o0; o <= uOMax; o++) {
@@ -137,7 +137,8 @@ float terrainMapped(vec3 d, vec3 P){
       amp *= 0.52;
     }
   }
-  float rough = 0.12 + 1.4*gMtn + 0.25*smoothstep(0., 600., hm);
+  // real mountain ranges are far rougher than the ~10 km map can show: carve them up hard
+  float rough = 0.12 + 3.6*gMtn + 0.35*smoothstep(0., 800., hm);
   float coast = uHasM > 0.5 ? smoothstep(0., 150., hm) : 1.;
   gFine = det;
   float h = hm + det*uMapDetail*rough*coast;
