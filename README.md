@@ -169,8 +169,10 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 ## Known gaps
 
 - Real elevation is ~10 km per pixel, so features like the Grand Canyon are not resolved; detail below that is procedural.
-- Terrain shadows are traced inside one tile only, so very long shadows can end at tile borders.
-- No vegetation, rocks or other meshes on the ground.
+- Terrain shadows reach two tile levels out, so the very longest shadows at sunrise can still end abruptly.
+- Trees are camera-facing billboards (conifers and broadleaf); there are no rocks, buildings or grass meshes.
 - Earth's cloud cover is a single static snapshot (it drifts slowly but does not evolve).
 - Aurora seen from orbit is streaky; from the ground it looks right.
-- Eclipse timing and paths are good to tens of kilometres, not to the second (no nutation, truncated lunar series).
+- Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
+  The finder lists central solar eclipses and umbral lunar eclipses, not purely partial solar ones.
+- Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
