@@ -235,15 +235,46 @@ float terrain(vec3 d, vec3 P){
 vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis);
 vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   vec2 uv = mapUV(P);
-  vec3 c = texture(uCMap, uv).rgb*uMapTint;
+  vec3 m = texture(uCMap, uv).rgb*uMapTint;
   emis = 0.;
   int o0 = int(uMapOct);
+  // how far below the map's resolution this tile is (0 = map scale, 1 = much finer)
+  float fine = clamp(float(uOMax - o0)/6., 0., 1.);
+  vec3 c = m;
+  if (uOMax >= o0) {
+    // classify the smeared map colour and synthesise matching detail
+    float lum = dot(m, vec3(0.3, 0.55, 0.15));
+    float green = clamp((m.g - max(m.r, m.b))*6. + 0.3, 0., 1.);
+    float sandy = clamp((m.r - m.b)*4. - green, 0., 1.);
+    float snowy = smoothstep(0.48, 0.7, lum)*smoothstep(0.12, 0.03, abs(m.r - m.b));
+    float n1 = fbm(o0, min(uOMax, o0 + 4), 61u, d, 0.6), n2 = uOMax >= o0 + 4 ? fbm(o0 + 4, uOMax, 62u, d, 0.55) : 0.;
+    float patches = smoothstep(-0.25, 0.25, n1 + 0.5*n2);
+    // vegetation: forest and meadow patches
+    vec3 forest = m*vec3(0.5, 0.62, 0.45), meadow = m*vec3(1.3, 1.22, 0.9);
+    float fields = uOMax >= o0 + 7 ? smoothstep(0.1, 0.35, abs(gn(o0 + 7, 63u, d).x)) : 0.5;   // field mosaic at ~100s of metres
+    meadow *= 0.85 + 0.3*fields;
+    vec3 veg = mix(forest, meadow, patches);
+    // arid ground: lighter sand, darker gravel and outcrops
+    vec3 arid = m*mix(vec3(0.82, 0.8, 0.78), vec3(1.12, 1.06, 0.98), smoothstep(-0.3, 0.3, n1 - 0.4*n2));
+    vec3 det = mix(m*(1. + n2*0.15), veg, green*fine);
+    det = mix(det, arid, sandy*fine*0.8);
+    // bare rock on steep slopes, regardless of the averaged map colour
+    float rock = smoothstep(0.38, 0.7, slope + n2*0.1);
+    vec3 rockC = mix(vec3(0.16, 0.15, 0.14), vec3(0.26, 0.24, 0.21), smoothstep(-0.3, 0.3, n2))*mix(1., lum*3., 0.3);
+    det = mix(det, rockC, rock*fine);
+    // snow: from the map, and from a temperature-based snow line at fine scales
+    float lat = abs(P.y);
+    float snowLine = mix(4900., -200., smoothstep(0.5, 1.0, lat));
+    float snowT = smoothstep(snowLine - 300., snowLine + 400., h + n1*250.)*(1. - smoothstep(0.55, 0.8, slope));
+    det = mix(det, vec3(0.82, 0.85, 0.9)*(0.92 + 0.08*n2), max(snowy, snowT)*fine*(1. - rock*0.6));
+    c = mix(m, det, fine);
+  }
+  float rock2 = smoothstep(0.45, 0.8, slope);
+  c = mix(c, c*vec3(0.85, 0.82, 0.8), rock2*0.4*(1. - fine));
   float nf = uOMax >= o0 ? fbm(o0, uOMax, 15u, d, 0.6)*0.5 : 0.;
-  float rock = smoothstep(0.45, 0.8, slope);
-  c = mix(c, c*vec3(0.75, 0.72, 0.7) + vec3(0.03), rock*0.6);
-  c *= 1. + nf*0.35 + gFine*0.08;
+  c *= 1. + nf*0.25*(1. - fine) + gFine*0.05;
   if (uHasL > 0.5) { float l = texture(uLMap, uv).r; emis = l*l*0.85*gLand; }
-  if (uHasM > 0.5 && gLand < 0.5) c *= 0.8;
+  if (uHasM > 0.5 && gLand < 0.5) c = m*0.8;
   return clamp(c, 0., 1.);
 }
 vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){

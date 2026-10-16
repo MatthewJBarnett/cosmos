@@ -237,6 +237,8 @@ export class Nav {
       const upv = g.land.dir, b = g.target.body, st = b.system.stars[0];
       let f = st ? V.sub(st.wpos, b.wpos) : Q.rot(this.q, [0, 0, -1]);
       f = V.norm(V.sub(f, V.mul(upv, V.dot(f, upv))));
+      // look across the light (sun about 70 degrees to the left), the most readable lighting for terrain
+      const side = V.cross(upv, f); f = V.norm(V.add(V.mul(f, 0.34), V.mul(side, -0.94)));
       f = V.norm(V.add(f, V.mul(upv, -0.06)));
       this.q = Q.slerp(this.q, Q.look(f, upv), g.dur < 0.1 ? 1 : 1 - Math.exp(-dt * 3));
     }
