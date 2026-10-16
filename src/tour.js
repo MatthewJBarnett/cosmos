@@ -24,7 +24,7 @@ export const STOPS = [
     run: (nav) => { nav.time = iso('2025-03-14T06:30:00Z'); const ui = window.cosmos && window.cosmos.ui; if (ui) ui.goNextEclipse(); } },
   { title: 'Earthrise', text: 'From the lunar surface near the limb, Earth hangs low over the horizon. Earthshine lights the night side of the Moon.',
     run: (nav) => { nav.paused = false; nav.rate = 1; nav.time = iso('2024-05-15T12:00:00Z'); const m = body(nav, 'Moon'); nav.landAt(m, 5, 84, {});
-      nav.onArrive = () => { nav.lookTarget = { type: 'body', body: body(nav, 'Earth') }; }; } },
+      nav.onArrive = () => { nav.lookTarget = { type: 'body', body: body(nav, 'Earth') }; nav.fov = 0.3; }; } },
   { title: 'Valles Marineris, Mars', text: 'MOLA elevation and Viking colour. Fine dust makes the sky butterscotch and the sunset blue.',
     run: (nav) => { nav.landAt(body(nav, 'Mars'), -8, -75, { hour: 16.8 }); } },
   { title: 'Jupiter', text: 'Io, Europa, Ganymede and Callisto are placed from their real orbital theory.',
@@ -32,7 +32,8 @@ export const STOPS = [
   { title: 'Saturn, 2017', text: 'Cassini ring transparency, ring shadow on the globe and the planet\'s shadow on the rings.',
     run: (nav) => { nav.time = iso('2017-06-01T00:00:00Z'); nav.paused = true; nav.goTo(findByName(nav, 'Saturn')); } },
   { title: 'TRAPPIST-1', text: 'Seven Earth-sized planets around an ultracool dwarf 12 parsecs away, with their measured orbits and sizes.',
-    run: (nav) => { nav.paused = false; nav.goTo(findByName(nav, 'TRAPPIST-1')); } },
+    run: (nav) => { nav.paused = false; const t = findByName(nav, 'TRAPPIST-1'); nav.goTo(t);
+      nav.onArrive = () => { const sys = nav.system; const p = sys && sys.find('TRAPPIST-1 e'); if (p) { nav.goTo({ type: 'body', body: p }, { dist: p.radius * 2.6 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: p }; }; } }; } },
   { title: 'Orion Nebula', text: 'A stellar nursery 412 parsecs from the Sun, ray marched as a volume.',
     run: (nav) => { nav.goTo(findByName(nav, 'Orion Nebula')); } },
   { title: 'Sagittarius A*', text: 'The black hole at the centre of the Milky Way. Light bends around it; the disk is Doppler beamed.',

@@ -356,7 +356,17 @@ export class UI {
     if (nav.anchor && nav.altitude < nav.anchor.radius * 30) {
       alt = `<div><b>Altitude</b> ${fmtDist(nav.altitude)} · ${nav.anchor.name}</div>`;
       const ll = this.latLon();
-      if (ll && nav.altitude < nav.anchor.radius * 0.5 && nav.anchor.kind !== 'star') alt += `<div><b>Position</b> ${Math.abs(ll[0]).toFixed(3)}° ${ll[0] >= 0 ? 'N' : 'S'}, ${Math.abs(ll[1]).toFixed(3)}° ${ll[1] >= 0 ? 'E' : 'W'}</div>`;
+      if (ll && nav.altitude < nav.anchor.radius * 0.5 && nav.anchor.kind !== 'star') {
+        alt += `<div><b>Position</b> ${Math.abs(ll[0]).toFixed(3)}° ${ll[0] >= 0 ? 'N' : 'S'}, ${Math.abs(ll[1]).toFixed(3)}° ${ll[1] >= 0 ? 'E' : 'W'}</div>`;
+        const b = nav.anchor, sun = b.system.stars[0];
+        if (sun && b.rotPeriod && b.wrot) {
+          const d = Q.rot(Q.conj(b.wrot), V.norm(V.sub(sun.wpos, b.wpos)));
+          const subLon = Math.atan2(-d[2], d[0]) * 180 / Math.PI;
+          let hr = 12 + ((ll[1] - subLon) * Math.sign(b.rotPeriod)) / 15; hr = ((hr % 24) + 24) % 24;
+          const up = V.norm(V.sub(nav.S, b.wpos)), el = Math.asin(clamp(V.dot(up, V.norm(V.sub(sun.wpos, nav.S))), -1, 1)) * 180 / Math.PI;
+          alt += `<div><b>Local solar time</b> ${String(Math.floor(hr)).padStart(2, '0')}:${String(Math.floor((hr % 1) * 60)).padStart(2, '0')} · sun ${el.toFixed(1)}°</div>`;
+        }
+      }
     }
     if (nav.orbit) { const o = nav.orbit; alt += `<div><b>Orbit</b> ${fmtDist(Math.max(o.peri, 0))} × ${isFinite(o.apo) ? fmtDist(o.apo) : 'escape'} · ${isFinite(o.period) ? (o.period < 7200 ? (o.period / 60).toFixed(1) + ' min' : (o.period / 3600).toFixed(2) + ' h') : ''}</div>`; }
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
@@ -384,10 +394,26 @@ export class UI {
       else if (t.type === 'star') { const s = t.desc.star; sub = 'Star'; rows = [['Class', s.cls], ['Temperature', Math.round(s.T) + ' K'], ['Mass', (s.mass / C.Msun).toPrecision(3) + ' M<sub>Sun</sub>'], ['Radius', (s.radius / C.Rsun).toPrecision(3) + ' R<sub>Sun</sub>'], ['Luminosity', s.lum.toPrecision(3) + ' L<sub>Sun</sub>'], ['Abs. magnitude', s.MV.toFixed(2)]]; }
       else if (t.type === 'nebula') { const nb = t.neb; sub = ['Emission nebula', 'Planetary nebula', 'Supernova remnant'][nb.type]; rows = [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']]; }
       else { const g = t.galaxy; sub = 'Galaxy'; rows = [['Type', g.subtype], ['Diameter', (g.radius * 2 * 3.2616 / 1000).toPrecision(3) + ' kly'], ['Stellar mass', g.mass.toExponential(1) + ' M<sub>Sun</sub>'], ['Stars', '~' + g.nstars.toExponential(1)]]; }
-      this.info.innerHTML = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}</table>`;
+      this.info.innerHTML = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}${t.type === 'body' && t.body.kind !== 'star' && t.body.kind !== 'barycenter' ? '<tr><td>Illuminated</td><td id="iIll"></td></tr>' : ''}</table>`;
     }
     const d = document.getElementById('iDist'); if (d) d.textContent = fmtDist(dist);
     const m = document.getElementById('iMag'); if (m) m.textContent = (t.desc.star.MV + 5 * Math.log10(dist / C.PC) - 5).toFixed(2);
+    const il = document.getElementById('iIll');
+    if (il && t.type === 'body') {
+      // fraction of the disc that is sunlit as seen from here, with the usual phase names for moons
+      const b = t.body, sun = b.system.stars[0];
+      if (sun && b.wpos) {
+        const toS = V.norm(V.sub(sun.wpos, b.wpos)), toC = V.norm(V.mul(nav.relTo(t), -1));
+        const k = (1 + V.dot(toS, toC)) / 2;
+        let name = '';
+        if (b.kind === 'moon' && nav.anchor && nav.anchor === b.parent) {
+          const waxing = V.dot(V.cross(toC, toS), Q.rot(b.parent.wrot, [0, 1, 0])) > 0;
+          name = k > 0.97 ? 'full' : k < 0.03 ? 'new' : k > 0.5 ? (waxing ? 'waxing gibbous' : 'waning gibbous') : (waxing ? 'waxing crescent' : 'waning crescent');
+          if (Math.abs(k - 0.5) < 0.03) name = waxing ? 'first quarter' : 'last quarter';
+        }
+        il.textContent = (k * 100).toFixed(k > 0.995 || k < 0.005 ? 1 : 0) + '%' + (name ? ' · ' + name : '');
+      }
+    }
   }
   label(i) { while (this.labelPool.length <= i) this.labelPool.push(this.labels.appendChild(el('div', 'label'))); return this.labelPool[i]; }
   updateLabels() {

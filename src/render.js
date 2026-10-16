@@ -561,7 +561,7 @@ export class Renderer {
     // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
     let deep = 0;
     if (nav.level === 'universe') deep = 1; else if (gal) deep = clamp((V.len(nav.camG()) / gal.radius - 1.3) / 2, 0, 1);
-    this.maxExposure = rcfg.maxExposure * (1 + 25 * deep); this.deep = deep;
+    this.maxExposure = rcfg.maxExposure * (1 + 200 * deep); this.deep = deep;
     // an accretion disk is small and extremely bright: meter on it rather than on the dark sky around it
     this.meterTop = !!(sys && blackHoles.length && blackHoles.some(b => b.accretion && b.dist < b.radius * 400));
     // total solar eclipse in view: expose for the corona, not the darkened sky
@@ -600,11 +600,26 @@ export class Renderer {
     }
     if (!ready) return;
     const ex = this.meterExp || this.exposure;
-    const lum = [];
-    for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / ex; lum.push(isFinite(l) ? l : 0); }
-    lum.sort((a, b) => a - b);
-    this.lumHi = lum[Math.floor(lum.length * 0.99)]; this.lumTop = lum[Math.floor(lum.length * 0.996)];
-    this.lumMed = lum[Math.floor(lum.length * 0.5)];
+    // centre-weighted metering: what is in the middle of the frame matters more than slivers at the edges
+    const cells = [], lum0 = new Float32Array(64 * 36);
+    for (let i = 0; i < 64 * 36; i++) {
+      const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; let l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / ex;
+      if (!isFinite(l)) l = 0;
+      const x = (i % 64) / 63 * 2 - 1, y = Math.floor(i / 64) / 35 * 2 - 1, rr = x * x * 0.6 + y * y;
+      cells.push([l, 0.03 + 0.97 * Math.exp(-rr / 0.12)]); lum0[i] = l;
+    }
+    cells.sort((a, b) => a[0] - b[0]);
+    let wsum = 0; for (const c of cells) wsum += c[1];
+    const q = (f) => { let acc = 0; for (const c of cells) { acc += c[1]; if (acc >= f * wsum) return c[0]; } return cells[cells.length - 1][0]; };
+    const lum = cells.map(c => c[0]);
+    this.lumTop = q(0.996);
+    // expose for what is in the central part of the frame; very bright surroundings only cap it loosely
+    const centre = []; for (let i = 0; i < 64 * 36; i++) { const x = (i % 64) / 63 * 2 - 1, y = Math.floor(i / 64) / 35 * 2 - 1; if (Math.abs(x) < 0.55 && Math.abs(y) < 0.6) centre.push(lum0[i]); }
+    centre.sort((a, b) => a - b);
+    const hiC = centre[Math.floor(centre.length * 0.975)], hiAll = q(0.995);
+    this.lumHi = Math.max(hiC, hiAll * 2.5e-4);
+    let sc = 0; for (const l of centre) sc += l; this.lumAvgC = sc / centre.length;
+    this.lumMed = q(0.5);
     let s = 0; for (const l of lum) s += l; this.lumAvg = s / lum.length;
   }
   adaptExposure(dt) {
@@ -612,7 +627,7 @@ export class Renderer {
     if (!rcfg.autoExposure) target = rcfg.manualExposure;
     else {
       // in intergalactic space the only bright things are small galaxies: meter on the very brightest cells
-      const hi = Math.max((this.deep > 0.05 || this.meterTop ? this.lumTop : this.lumHi) || 0, 1e-12), avg = Math.max(this.lumAvg || 0, 1e-12);
+      const hi = Math.max((this.deep > 0.05 || this.meterTop ? this.lumTop : this.lumHi) || 0, 1e-12), avg = Math.max((this.meterTop ? this.lumAvg : this.lumAvgC) || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
       target = clamp(target, rcfg.minExposure, this.maxExposure || rcfg.maxExposure);

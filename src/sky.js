@@ -8,7 +8,7 @@ import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
 
-export const skyCfg = { cubeSize: 1024, galBoost: 22, galSteps: 72, starBoost: 1.0, galRange: 1 };
+export const skyCfg = { cubeSize: 1024, galBoost: 22, extBoost: 2.5, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
 export const SUN_MAG = -26.74;
 
@@ -258,7 +258,8 @@ let galFrame = 0;
 export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uScale: GAL_I0 * skyCfg.galBoost * o.exposure, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3 });
+  // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3 });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
@@ -354,7 +355,15 @@ void main(){
   float l = atan(-d.z, d.x), b = asin(clamp(d.y, -1., 1.));
   vec2 uv = vec2(0.5 - l/6.2831853, 0.5 - b/3.14159265);
   vec3 c = textureLod(uMap, uv, 0.).rgb;
-  o = vec4(max(c - 0.0017, 0.)*uScale, 1.);
+  // keep the band of the Milky Way and the Local Group galaxies; far from the plane the photo only holds
+  // artefacts of its own (airglow gradients, zodiacal light, planets) which would not move with the real sky
+  float bd = degrees(abs(b));
+  float keep = smoothstep(52., 38., bd);
+  vec3 lmc = vec3(cos(radians(-32.89))*cos(radians(280.47)), sin(radians(-32.89)), -cos(radians(-32.89))*sin(radians(280.47)));
+  vec3 smc = vec3(cos(radians(-44.3))*cos(radians(302.8)), sin(radians(-44.3)), -cos(radians(-44.3))*sin(radians(302.8)));
+  keep = max(keep, smoothstep(cos(radians(9.)), cos(radians(5.)), dot(d, lmc)));
+  keep = max(keep, smoothstep(cos(radians(5.)), cos(radians(3.)), dot(d, smc)));
+  o = vec4(max(c - 0.0017, 0.)*uScale*keep, 1.);
 }`;
 let pMap = null;
 export function initSkyMapProgram() { if (!pMap) pMap = new Program('skymap', FS_VS, MAP_FS); }
