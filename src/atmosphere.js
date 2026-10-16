@@ -166,7 +166,9 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float soft = mix(0.06, 0.2, cov);
     float thr = 0.5 + (0.5 - cov)*0.75;
     float cell = smoothstep(thr - soft, thr + soft, S);
-    cov = cell*smoothstep(0.02, 0.25, cov);
+    // once the cells are below a pixel, use the observed coverage directly (no blotchy thresholding)
+    float far = clamp((lod - 2.5)/3., 0., 1.);
+    cov = mix(cell*smoothstep(0.02, 0.25, cov), cov, far);
   }
   if (cov < 0.01) return 0.;
   float topH = mix(0.3, 1.0, wm.g)*mix(0.7, 1., cov);

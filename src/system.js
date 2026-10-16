@@ -630,7 +630,7 @@ export function describeBody(b) {
     rows.push(['Semi-major axis', o.a > 0.01 * C.AU ? fmt(o.a / C.AU, 4) + ' AU' : fmt(o.a / 1e3, 5) + ' km']);
     rows.push(['Orbital period', o.period > C.YEAR ? fmt(o.period / C.YEAR, 4) + ' yr' : o.period > 86400 ? fmt(o.period / 86400, 4) + ' d' : fmt(o.period / 3600) + ' h']);
     rows.push(['Eccentricity', fmt(o.e)]);
-    rows.push(['Inclination', fmt(o.inc / D2R) + '°']);
+    rows.push(['Inclination', (o.inc / D2R).toFixed(2) + '°']);
   }
   return rows;
 }
