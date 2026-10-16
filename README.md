@@ -20,6 +20,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Crescent Moon](docs/crescent_earthshine.jpg) Crescent Moon at dusk, 12 May 2024, with earthshine | ![Venus](docs/venus.jpg) Venus |
 | ![Refracted sunset](docs/refracted_sunset.jpg) Sunset over the Atlantic: refraction lifts and flattens the Sun | ![Night orbit](docs/night_orbit.jpg) Moonlit night from orbit with airglow |
 | ![Io shadow](docs/io_shadow.jpg) Io's shadow on Jupiter, 20 October 2026 | ![Winter](docs/winter.jpg) Europe in January |
+| ![Halley](docs/halley.jpg) Halley's Comet, February 1986: dust and ion tails | ![Alps at dusk](docs/alps_dusk.jpg) Dusk over the Alps |
 
 ## Run
 
@@ -101,7 +102,7 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.
 - **Exotic objects:** ray traced Schwarzschild black holes with Doppler-beamed accretion disks, volumetric nebulae,
-  coronae, comet tails, pulsar beams.
+  coronae, ray marched comets (coma, curved dust tail, straight ion tail, sized by distance from the Sun), pulsar beams.
 - **Camera:** HDR pipeline, auto exposure that switches to the corona during totality, bloom, ACES tone mapping and
   temporal anti-aliasing with sub-pixel jitter.
 - **Performance:** shaders compile in parallel behind a loading screen; terrain tiles bake ambient occlusion once; atmosphere and clouds render at half
@@ -164,5 +165,4 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Earth's cloud cover is a single static snapshot (it drifts slowly but does not evolve).
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - In the very dark sky of a total eclipse a faint X-shaped sampling pattern can show.
-- Comet tails are camera-facing ribbons and look wrong from inside the tail.
 - Eclipse timing and paths are good to tens of kilometres, not to the second (no nutation, truncated lunar series).

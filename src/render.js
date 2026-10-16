@@ -9,7 +9,7 @@ import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellati
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS } from './universe.js';
 import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
-import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
+import { drawBlackHole, drawNebulaeAndFx, drawComets } from './exotic.js';
 
 export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true, realSky: true };
 const FAR = 1e15;
@@ -454,6 +454,8 @@ export class Renderer {
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
+      drawComets(sys, nav, { camRot, tanFov: [tanX, tanY], exposure, time: nav.time, noise3: this.noise3, depth: this.depthTex, fcoef });
       if (rcfg.orbits) { gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); drawOrbits(sys, nav, { viewProj, fcoef, selected: nav.selected }); }
       // black holes bend the finished image
       for (const b of blackHoles) {

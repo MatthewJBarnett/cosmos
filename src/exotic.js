@@ -263,16 +263,8 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
   for (const b of sys.bodies) {
     if (!b.rel) continue;
     if (b.kind === 'comet' && star) {
-      // dust and ion tails grow as the comet approaches the star
       const toStar = V.sub(star.wpos, b.wpos), r = V.len(toStar) / C.AU; if (r > 6) continue;
-      const act = Math.min(4, 1 / (r * r)) * star.lum, away = V.mul(V.norm(toStar), -1);
-      const E = star.lum / (r * r);
-      const vel = V.norm(V.cross(Q.rot(sys.worldQ, [0, 1, 0]), away));
-      const dust = V.norm(V.addm(away, vel, -0.35));
-      const L = 0.25 * C.AU * Math.sqrt(act);
-      beam(o, b.rel, away, L * 1.6, b.radius * 30, L * 0.05, [0.35, 0.6, 1.0], 1.2e-8 * E * act, 1.4);
-      beam(o, b.rel, dust, L, b.radius * 40, L * 0.22, [1.0, 0.9, 0.7], 2.5e-8 * E * act, 1.8);
-      beam(o, V.addm(b.rel, away, -b.radius * 60), away, b.radius * 400, b.radius * 150, b.radius * 400, [0.6, 1.0, 0.8], 2e-7 * E * act, 3);
+      cometVolumes.push({ b, star, r });
     }
     if (b.neutron && b.pulsar && b.pxRadius > 0.02) {
       // lighthouse beams along the (tilted) magnetic axis
@@ -294,8 +286,72 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
 };
 
 export function initExoticPrograms() {
+  initCometProgram();
   if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
   if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
   if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
   if (!pCor) pCor = new Program('corona', COR_VS, COR_FS);
+}
+
+// ---------------- comets: ray marched coma, dust tail and ion tail ----------------
+const COMET_FS = `
+in vec2 vUV; out vec4 o;
+uniform sampler3D uNoise3; uniform mat3 uCamRot; uniform vec2 uTanFov;
+uniform vec3 uNuc, uAway, uVel; uniform float uLen, uComa, uAct, uE, uExposure, uTime, uDepthMax, uFcoef;
+uniform sampler2D uDepth;
+float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+void main(){
+  vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  float dpt = texture(uDepth, vUV).r;
+  float sceneT = dpt >= 0.99999 ? 1e30 : (exp2(dpt*2./uFcoef) - 1.)*length(vec3((vUV*2. - 1.)*uTanFov, -1.));
+  // bounding sphere around nucleus and tails
+  vec3 cen = uNuc + uAway*uLen*0.5; float R = uLen*0.62 + uComa*3.;
+  float b = dot(-cen, rd), c = dot(cen, cen) - R*R, h = b*b - c;
+  if (h < 0.) { o = vec4(0.); return; }
+  h = sqrt(h); float t0 = max(-b - h, 0.), t1 = min(-b + h, sceneT);
+  if (t1 <= t0) { o = vec4(0.); return; }
+  const int N = 48; float dt = (t1 - t0)/float(N), jit = ign(gl_FragCoord.xy);
+  vec3 side = normalize(cross(uAway, uVel));
+  vec3 Ld = vec3(0.), Li = vec3(0.);
+  for (int i = 0; i < N; i++) {
+    vec3 p = rd*(t0 + (float(i) + jit)*dt) - uNuc;
+    float x = dot(p, uAway);                                   // distance down the tail
+    // coma: roughly 1/r^2 around the nucleus
+    float rc = length(p)/uComa;
+    float coma = 1./(1. + rc*rc)*exp(-rc*0.08);
+    // ion tail: straight away from the star, narrow, with streamers
+    vec3 pi = p - uAway*x; float wi = uComa*0.4 + max(x, 0.)*0.03;
+    float st = 0.6 + 0.8*texture(uNoise3, vec3(x/uLen*3. - uTime*0.002, dot(pi, side)/wi*0.3, 0.37)).r;
+    float ion = x > 0. ? exp(-dot(pi, pi)/(wi*wi))*exp(-x/(uLen*0.6))*st : 0.;
+    // dust tail: lags behind along the orbit (curved), broad, fades smoothly
+    float xd = max(x, 0.);
+    vec3 pd = p - uAway*x + uVel*(xd*xd/uLen*0.35);
+    float wd = uComa*0.6 + xd*0.12;
+    float dust = x > -uComa ? exp(-dot(pd, pd)/(wd*wd))*exp(-xd/(uLen*0.35)) : 0.;
+    Ld += vec3(1.0, 0.93, 0.8)*(dust*1.0 + coma*2.5)*dt;
+    Li += vec3(0.32, 0.55, 1.0)*ion*dt;
+  }
+  // surface brightness scales with activity and sunlight; dust scatters sunlight, ions fluoresce
+  vec3 col = (Ld*uE*5e-10 + Li*uE*3e-10)*uAct/uComa;   // calibrated to Halley 1986: coma ~18, tail ~21 mag/arcsec^2
+  o = vec4(min(col*uExposure, vec3(60000.)), 0.);
+}`;
+let pComet = null;
+const cometVolumes = [];
+export function initCometProgram() { if (!pComet) pComet = new Program('comet', FS_VS, COMET_FS); }
+// called by the renderer after coronae; needs the scene depth
+export function drawComets(sys, nav, o) {
+  initCometProgram();
+  for (const cv of cometVolumes.splice(0)) {
+    const { b, star, r } = cv;
+    const away = V.norm(V.sub(b.wpos, star.wpos));
+    const act = Math.min(6, 1 / (r * r)) * star.lum;
+    const len = 0.22 * C.AU * Math.sqrt(act), coma = Math.min(1.5e8, 2e7 * Math.sqrt(act));
+    // orbital velocity direction from a tiny time step
+    const sysT = b.system.time; b.system.update(sysT + 3600); const p2 = b.wpos.slice(); b.system.update(sysT);
+    let vel = V.norm(V.sub(p2, b.wpos)); vel = V.norm(V.sub(vel, V.mul(away, V.dot(vel, away))));
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
+    pComet.use().set({ uNoise3: o.noise3, uCamRot: o.camRot, uTanFov: o.tanFov, uNuc: b.rel, uAway: away, uVel: vel, uLen: len, uComa: coma, uAct: act,
+      uE: star.lum / (r * r), uExposure: o.exposure, uTime: o.time % 1e6, uDepth: o.depth, uFcoef: o.fcoef });
+    drawFS();
+  }
 }
