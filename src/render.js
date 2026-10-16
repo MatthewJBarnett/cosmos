@@ -399,7 +399,8 @@ export class Renderer {
       // atmospheres, far to near. The one covering most of the screen goes through the half resolution
       // temporally accumulated path; small ones are integrated directly at full resolution.
       let primary = null;
-      for (const b of atmoPasses) if (rcfg.volTAA && (!primary || b.pxRadius > primary.pxRadius)) primary = b;
+      // half resolution only pays off when the atmosphere fills most of the screen; smaller planets stay sharp
+      for (const b of atmoPasses) if (rcfg.volTAA && b.pxRadius > h * 0.9 && (!primary || b.pxRadius > primary.pxRadius)) primary = b;
       const pc = this.prevCam;
       const prev = pc && pc.sys === sys && pc.level === nav.level ? { rotInv: Q.mat3(Q.conj(pc.q)), tanFov: pc.tanFov, delta: V.sub(nav.S, pc.S) } : null;
       for (const b of atmoPasses) {
