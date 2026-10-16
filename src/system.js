@@ -366,6 +366,7 @@ function buildSol(sys) {
   }
   const charon = pluto.children.find(x => x.name === 'Charon'); if (charon) setMaps(charon, { color: D + 'charon_color.jpg', tint: [0.8, 0.78, 0.76], albedo: ALB.charon });
   for (const [b, f] of [[jup, 'jupiter'], [sat, 'saturn'], [ura, 'uranus'], [nep, 'neptune']]) setMaps(b, { color: D + f + '_color.jpg' });
+  setMaps(venus, { color: D + 'venus_color.jpg', tint: [0.55, 0.45, 0.35], albedo: 0.15, clouds: D + 'venus_clouds.jpg' });
   sat.rings.map = D + 'saturn_rings.png'; sat.rings.mapInner = 69800e3; sat.rings.mapOuter = 140900e3;
   // Earth's prime meridian: Greenwich sidereal angle at J2000 (280.46 deg), local +X starts at the autumnal equinox
   earth.rot0 = (280.46061837 - 180) * D2R; earth.rotPeriod = 86164.0905; earth.precessRA = 1.28122 * D2R;   // exact sidereal day

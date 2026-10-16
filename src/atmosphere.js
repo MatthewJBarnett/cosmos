@@ -24,6 +24,12 @@ vec3 rotAxis(vec3 p, vec3 ax, float a){ return mix(dot(ax, p)*ax, p, cos(a)) + c
 void main(){
   vec3 dir = normalize(uFace*vec3(vUV*2. - 1., 1.));
   vec3 p = dir;
+  if (uHasTex > 0.5 && uKind > 0.5) {
+    // Venus: total cover; the map's contrast (UV markings, stretched) becomes thickness variation
+    vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))/3.14159265);
+    float v = texture(uCloudTex, uv).r;
+    o = vec4(1., clamp((v - 0.45)*2.5 + 0.5, 0., 1.), 0., 1.); return;
+  }
   if (uHasTex > 0.5) {
     // observed cloud cover (brightness ~ optical thickness)
     vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5 + uLonOff, 0.5 - asin(clamp(dir.y*uFlip, -1., 1.))/3.14159265);
@@ -145,7 +151,7 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   } else wm = texture(uCloudMap, dir);
   float cov = wm.r;
   if (cov < 0.01) return 0.;
-  if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
+  if (cKind > 0.5) return (0.6 + 0.8*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
   // break the weather map up with mid-scale structure (tens to hundreds of km)
   float mid = textureLod(uNoise3, pl/1.7e6 + 0.11, max(lod - 7., 0.)).g*0.55 + textureLod(uNoise3, pl/4.3e5 + 0.37, max(lod - 5., 0.)).b*0.45;
   {

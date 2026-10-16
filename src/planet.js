@@ -148,11 +148,11 @@ void main(){
     for (int i = 0; i < 9; i++) {
       float fi = float(i);
       float lam = 70.*pow(0.62, fi);          // 70 m down to ~1.5 m
-      if (lam < pixM*2.) break;
+      if (lam < pixM*3.5) break;
       float ang = (0.4 + fi*2.39996)*0.35;      // spread around the wind direction
       vec2 cyc = floor(vec2(cos(ang), sin(ang))*4096./lam + 0.5);
       float k = 6.2832*length(cyc)/4096.; vec2 kd = normalize(cyc); float w = sqrt(9.81*k);
-      float amp = 0.075/k*(1. - smoothstep(lam*1.5, lam*3., pixM*4.));
+      float amp = 0.075/k*(1. - smoothstep(lam*0.3, lam*0.6, pixM*2.));
       float ph = dot(kd, wp)*k - w*uTime + fi*1.7;
       g += kd*(amp*k*cos(ph));
     }
@@ -160,7 +160,7 @@ void main(){
     g += nz.xy*0.08*clamp(1. - pixM/6., 0., 1.);
     wN = normalize(up - (T1*g.x + T2*g.y));
     // unresolved waves become microfacet roughness
-    rough = clamp(0.035 + pixM*0.0004, 0.035, 0.2);
+    rough = clamp(0.04 + pixM*0.004, 0.04, 0.22);
   }
   float emisNight = 1.;
   for (int i = 0; i < uNumLights; i++) {
@@ -234,7 +234,7 @@ void main(){
       float spec = ggx(max(dot(wN, H), 0.), rough) * (0.02 + 0.98*pow(1. - max(dot(H, Vv), 0.), 5.)) * 0.25 / max(nv, 0.08);
       // water body colour: light scattered back from below, seabed attenuated by absorption
       vec3 absorb = uWaterKind > 0.5 ? vec3(0.3, 0.2, 0.12) : vec3(0.45, 0.065, 0.025);
-      vec3 scat = uWaterKind > 0.5 ? vec3(0.03, 0.02, 0.008) : vec3(0.0025, 0.014, 0.034);
+      vec3 scat = uWaterKind > 0.5 ? vec3(0.03, 0.02, 0.008) : vec3(0.0035, 0.018, 0.042);
       vec3 tr = exp(-absorb*depth*1.2);
       vec3 body = (alb.rgb*tr + scat*(1. - tr)) * (lc*sunT*max(mus, 0.) + amb) / 3.14159;
       vec3 Rr = reflect(-Vv, wN); float ry = max(dot(Rr, up), 0.);
