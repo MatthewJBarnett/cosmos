@@ -77,6 +77,7 @@ uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
 uniform float cBase, cTop, cDens, cHas, cKind, cMapped; uniform vec3 cColor;
+uniform float uAurora; uniform mat3 uBodyRotInv; uniform vec3 uMagPole;
 uniform sampler2D uIrrLUT;
 uniform int uSteps, uCloudSteps;
 ${LIGHT_UNIFORMS}
@@ -85,6 +86,48 @@ uniform float uFcoef;
 float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 toWorld(vec3 p){ return uOblate > 0. ? transpose(uPlanetRotInv)*(p*vec3(1., 1. - uOblate, 1.)) : p; }
 // density of cloud at point p (relative to planet centre, world axes)
+// cloud cover above point p along the light (for shadowed air), cheap single lookup
+float cloudShadowAt(vec3 p, vec3 L){
+  float r = length(p), mid = aR0 + (cBase + cTop)*0.45;
+  if (r > mid) return 0.;
+  float mu = dot(p, L)/r;
+  vec3 q = p + L*((mid - r)/max(mu, 0.06));
+  vec3 dir = normalize(uPlanetRotInv*q);
+  float cov;
+  if (cMapped > 0.5) { vec2 uv = vec2(atan(-dir.z, dir.x)*0.15915494 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))*0.31830989); cov = smoothstep(0.12, 0.6, textureLod(uCloudTex2, uv, 2.).r); }
+  else cov = texture(uCloudMap, dir).r;
+  return smoothstep(0.15, 0.85, cov);
+}
+// aurora: emission from the auroral ovals around the geomagnetic poles (night side)
+vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
+  if (alt < 85000. || alt > 380000.) return vec3(0.);
+  vec3 n = normalize(p);
+  if (dot(n, sunDir) > 0.05) return vec3(0.);
+  vec3 nb = uBodyRotInv*n;
+  float cm = dot(nb, uMagPole);
+  vec3 mp = cm > 0. ? uMagPole : -uMagPole;
+  float th = acos(abs(cm));
+  // oval: ~20 deg from the magnetic pole, pushed equatorward on the night side
+  vec3 sunB = uBodyRotInv*sunDir;
+  float night = clamp(-dot(normalize(nb - mp*dot(nb, mp)), normalize(sunB - mp*dot(sunB, mp))), -1., 1.);
+  float th0 = 0.33 + 0.06*night;
+  vec3 e1 = normalize(cross(mp, vec3(0., 0., 1.))), e2 = cross(mp, e1);
+  float phi = atan(dot(nb, e2), dot(nb, e1));
+  float band = exp(-pow((th - th0)/0.045, 2.));
+  if (band < 0.01) return vec3(0.);
+  // folded curtains drifting slowly
+  float t = uTime*0.003;
+  float w = textureLod(uNoise3, vec3(phi*1.6, th*6., t*0.2), 0.).r;
+  float fold = exp(-pow((th - th0 - (w - 0.5)*0.09)/0.004, 2.)) + 0.5*exp(-pow((th - th0 + 0.02 - (w - 0.5)*0.07)/0.003, 2.));
+  float rays = 0.65 + 0.5*textureLod(uNoise3, vec3(phi*24., alt*1.5e-6, t), 0.).g;
+  float act = 0.35 + 0.9*smoothstep(0.35, 0.75, textureLod(uNoise3, vec3(phi*0.9 + t*0.3, 0.2, 0.7), 0.).b);
+  float a = alt*1e-3;
+  float green = exp(-pow((a - 112.)/14., 2.)) + 0.35*exp(-pow((a - 160.)/40., 2.));
+  float red = 0.07*exp(-pow((a - 240.)/55., 2.));
+  float blue = 0.25*exp(-pow((a - 98.)/5., 2.));
+  float k = (fold + band*0.03)*rays*act*uAurora*smoothstep(0.05, -0.12, dot(n, sunDir));
+  return (vec3(0.18, 1., 0.38)*green + vec3(1., 0.15, 0.12)*red + vec3(0.55, 0.25, 1.)*blue)*k*6e-11;
+}
 float lodDist;
 float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   float r = length(p); float alt = r - aR0;
@@ -226,13 +269,31 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       vec3 Ld = normalize(uLightPos[li] - (pw + uPlanetRel));
       float mu = dot(normalize(pw), Ld), c = dot(rdW, Ld);
       float vis = uNumOcc > 0 ? eclipse(pw + uPlanetRel, li) : 1.;
-      S += uLightCol[li]*vis*((sr*phaseR(c) + sm*phaseM(c, aMieG))*atmoSunTrans(r, mu) + (sr + sm)*atmoMulti(r, mu));
+      float csh = li == 0 && cHas > 0.5 && cKind < 0.5 ? 1. - 0.85*cloudShadowAt(p, Ld) : 1.;
+      S += uLightCol[li]*vis*((sr*phaseR(c) + sm*phaseM(c, aMieG))*atmoSunTrans(r, mu)*csh + (sr + sm)*atmoMulti(r, mu)*mix(1., csh, 0.4));
     }
+
     vec3 st = exp(-ex*dt);
     L += T*(S - S*st)/max(ex, vec3(1e-12)) * (passed ? cloudT : 1.);
     T *= st;
   }
   if (!passed) Tc = T;
+  // aurora: its own march through the emitting shell (thin layers need dense sampling)
+  if (uAurora > 0. && uNumLights > 0) {
+    float o0, o1, i0, i1;
+    if (raySphere(ro, rd, aR0 + 380000., o0, o1) > 0. && o1 > 0.) {
+      float a0 = max(o0, 0.), a1 = o1;
+      if (raySphere(ro, rd, aR0 + 85000., i0, i1) > 0. && i0 > 0.) a1 = i0;
+      a1 = min(a1, tmax + 1e6);
+      if (a1 > a0) {
+        vec3 Ld0 = normalize(uLightPos[0] - uPlanetRel);
+        const int NA = 40; float dta = (a1 - a0)/float(NA);
+        vec3 Ea = vec3(0.);
+        for (int i = 0; i < NA; i++) { vec3 pa = ro + rd*(a0 + (float(i) + jit)*dta); Ea += auroraEmission(pa, length(pa) - aR0, Ld0); }
+        L += Ea*dta*(a0 < cloudDist ? 1. : cloudT);
+      }
+    }
+  }
   inscatter = L + cloudL*Tc; trans = T*cloudT;
   if (any(isnan(inscatter)) || any(isinf(inscatter)) || any(isnan(trans))) { inscatter = vec3(0.); trans = vec3(1.); }
   inscatter = clamp(inscatter, 0., 60000.); trans = clamp(trans, 0., 1.);
@@ -402,6 +463,7 @@ export function drawAtmosphere(body, o) {
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
+    uAurora: body.aurora || 0, uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });

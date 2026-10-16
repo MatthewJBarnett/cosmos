@@ -344,6 +344,8 @@ function buildSol(sys) {
   // real ephemerides and pole directions
   for (const b of [sun, ...sun.children, ...sun.children.flatMap(x => x.children)]) if (POLES[b.name] && b.name !== 'Earth') b.poleRD = POLES[b.name];
   earth.poleRD = [0, 90];
+  // geomagnetic north pole (2025): 80.8 N, 72.6 W
+  { const la = 80.8 * D2R, lo = -72.6 * D2R; earth.magPole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; earth.aurora = 1; }
   for (const b of [sun, ...sun.children]) if (PRIME[b.name]) b.iauW = PRIME[b.name];
   const gal = ['Io', 'Europa', 'Ganymede', 'Callisto'];
   jup.children.forEach(m => { const i = gal.indexOf(m.name); if (i >= 0) { m.ephem = 'galilean'; m.galIndex = i; } });
