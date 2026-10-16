@@ -189,6 +189,11 @@ export class StarSystem {
         const pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
       } else if (!b.parent) b.pos = [0, 0, 0];
       b.rotAngle = b.rotPeriod ? ((b.rot0 || 0) + 2 * Math.PI * ((t / b.rotPeriod) % 1)) : 0;
+      if (b.faceParent && b.parent && b.axisQ) {
+        // point longitude 0 at the parent (mean sub-planet point of a tidally locked moon)
+        const toP = Q.rot(Q.conj(b.axisQ), V.sub(b.parent.pos, b.pos));
+        b.rotAngle = Math.atan2(-toP[2], toP[0]);
+      }
       b.rotQ = Q.mul(b.axisQ, Q.axis([0, 1, 0], b.rotAngle));
       b.wpos = Q.rot(this.worldQ, b.pos); b.wrot = Q.mul(this.worldQ, b.rotQ);
       for (const c of b.children) rec(c);
@@ -217,7 +222,7 @@ function buildSol(sys) {
   };
   const Mn = (parent, name, cls, aKm, e, inc, massKg, radKm, albedo, extra = {}) => {
     const b = body({ name, kind: 'moon', cls, mass: massKg, radius: radKm * 1e3, albedo, temp: parent.temp * 0.9, equatorial: true, real: true, ...extra });
-    b.orbit = moonOrbit(aKm, e, inc, parent.mass, rng); b.rotPeriod = b.orbit.period; // tidally locked
+    b.orbit = moonOrbit(aKm, e, inc, parent.mass, rng); b.rotPeriod = b.orbit.period; b.faceParent = true; // tidally locked
     return addChild(parent, b);
   };
   // Mercury
@@ -291,6 +296,22 @@ function buildSol(sys) {
   mkIce(Mn(pluto, 'Charon', 'Ice world', 19591, 0.0002, 0.08, 1.586e21, 606, 0.35), { crater: 0.6, cracks: 0.5, colA: [0.42, 0.4, 0.38], colB: [0.33, 0.31, 0.3], colLow: [0.25, 0.14, 0.1] });
   const eris = P('Eris', 'Dwarf planet', 67.864, 0.43607, 44.04, 35.95, 187.1, 392.0, 0.0028, 1163, 378.9, 78, 0.96, 30, { kind: 'dwarf' });
   mkIce(eris, { crater: 0.3, cracks: 0.2, colA: [0.92, 0.92, 0.9], colB: [0.85, 0.85, 0.84] });
+  // real surface data where we have it
+  const D = 'data/planets/';
+  const setMaps = (b, maps) => { b.maps = maps; if (b.surface) b.surface.freq = 1; };
+  const tintOf = (c) => { const l = 0.3 * c[0] + 0.5 * c[1] + 0.2 * c[2]; return [c[0] / l * 0.5, c[1] / l * 0.5, c[2] / l * 0.5]; };
+  setMaps(earth, { color: D + 'earth_color.jpg', height: D + 'earth_height16.png', hRange: [-11000, 9000], mask: D + 'earth_mask.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
+  setMaps(moon, { color: D + 'moon_color.jpg', height: D + 'moon_height16.png', hRange: [-9500, 11000] });
+  setMaps(mars, { color: D + 'mars_color.jpg', height: D + 'mars_height16.png', hRange: [-8500, 21500] });
+  for (const [b, f, tint] of [[mercury, 'mercury', [0.62, 0.6, 0.57]], [io, 'io', null], [eu, 'europa', [1.0, 0.92, 0.82]], [ga, 'ganymede', [0.9, 0.86, 0.8]], [ca, 'callisto', [0.85, 0.8, 0.74]],
+    [titan, 'titan', [1.0, 0.75, 0.45]], [sys.root.children.find(x => x.name === 'Saturn').children.find(x => x.name === 'Enceladus'), 'enceladus', [1, 1, 1]], [pluto, 'pluto', [1.0, 0.82, 0.66]], [ceres, 'ceres', [0.62, 0.6, 0.58]]]) {
+    if (b) setMaps(b, { color: D + f + '_color.jpg', tint: tint || [1, 1, 1] });
+  }
+  const charon = pluto.children.find(x => x.name === 'Charon'); if (charon) setMaps(charon, { color: D + 'charon_color.jpg', tint: [0.8, 0.78, 0.76] });
+  for (const [b, f] of [[jup, 'jupiter'], [sat, 'saturn'], [ura, 'uranus'], [nep, 'neptune']]) setMaps(b, { color: D + f + '_color.jpg' });
+  sat.rings.map = D + 'saturn_rings.png'; sat.rings.mapInner = 69800e3; sat.rings.mapOuter = 140900e3;
+  // Earth's prime meridian: Greenwich sidereal angle at J2000 (280.46 deg), local +X starts at the autumnal equinox
+  earth.rot0 = (280.46061837 - 180) * D2R; earth.rotPeriod = 86164.0905;   // exact sidereal day
   sys.belts.push({ name: 'Kuiper belt', inner: 38 * C.AU, outer: 50 * C.AU, thick: 0.2, count: 6000, seed: 12, parent: sun });
   // Halley's comet
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });

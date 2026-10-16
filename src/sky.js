@@ -272,12 +272,19 @@ export class GalaxySky {
     }
     const u = galUniforms(gal);
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+    // The cube is rebuilt in 24 strips (4 per face), one per frame, so updating it never costs a whole face at once.
+    const STRIPS = 4, q = this.size / STRIPS;
+    pCube.use().set({ uCam: this.newPos, uSteps: 150, uNoise3: noise3, gP: new Float32Array([u.type, u.bulge, u.rb, u.arms, u.pitch, u.armStr, u.dust, u.seed, u.hz, u.bar, u.flatn, u.young, u.lum]) });
+    gl.enable(gl.SCISSOR_TEST);
     do {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.back.f[this.face]); gl.viewport(0, 0, this.size, this.size);
-      pCube.use().set({ uFace: new Float32Array(CUBE_FACES[this.face]), uCam: this.newPos, uSteps: 150, uNoise3: noise3, gP: new Float32Array([u.type, u.bulge, u.rb, u.arms, u.pitch, u.armStr, u.dust, u.seed, u.hz, u.bar, u.flatn, u.young, u.lum]) });
+      const f = Math.floor(this.face), strip = Math.round((this.face - f) * STRIPS);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.back.f[f]); gl.viewport(0, 0, this.size, this.size);
+      gl.scissor(0, strip * q, this.size, q);
+      pCube.set({ uFace: new Float32Array(CUBE_FACES[f]) });
       drawFS();
-      this.face++;
-    } while (sync && this.face < 6);   // otherwise one face per frame, so slower GPUs never stall
+      this.face = strip + 1 >= STRIPS ? f + 1 : f + (strip + 1) / STRIPS;
+    } while (sync && this.face < 6);
+    gl.disable(gl.SCISSOR_TEST);
     if (this.face >= 6) { const t = this.front; this.front = this.back; this.back = t; this.face = -1; this.pos = this.newPos; this.valid = true; }
   }
   draw(rotLocalFromView, tanFov, exposure) {

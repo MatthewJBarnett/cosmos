@@ -154,3 +154,24 @@ export function makeVAO(attribs, index = null) {
   gl.bindVertexArray(null);
   return { vao, bufs, ib, free() { gl.deleteVertexArray(vao); bufs.forEach(b => gl.deleteBuffer(b)); if (ib) gl.deleteBuffer(ib); } };
 }
+
+// Non-blocking readback: readPixels into a pixel pack buffer, fetch the data a frame or two later once the GPU is done.
+export class AsyncRead {
+  constructor(bytes) { this.bytes = bytes; this.buf = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buf); gl.bufferData(gl.PIXEL_PACK_BUFFER, bytes, gl.STREAM_READ); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); this.sync = null; }
+  get busy() { return !!this.sync; }
+  // read from the currently bound read framebuffer
+  start(x, y, w, h, format, type) {
+    if (this.sync) return false;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buf); gl.readPixels(x, y, w, h, format, type, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); gl.flush();
+    return true;
+  }
+  poll(dst) {
+    if (!this.sync) return false;
+    const st = gl.clientWaitSync(this.sync, 0, 0);
+    if (st === gl.TIMEOUT_EXPIRED || st === gl.WAIT_FAILED) return false;
+    gl.deleteSync(this.sync); this.sync = null;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buf); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, dst); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    return true;
+  }
+}

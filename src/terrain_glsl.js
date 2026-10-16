@@ -40,6 +40,26 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
   for (int o = o0; o <= o1; o++) { s += a*gn(o, seed, d).x; a *= gain; }
   return s;
 }
+// ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
+uniform sampler2D uCMap, uHMap, uMMap, uLMap;
+uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
+uniform vec2 uHRange; uniform vec3 uMapTint;
+const float MPI = 3.14159265358979;
+vec2 mapUV(vec3 P){ vec3 n = normalize(P); return vec2(atan(-n.z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
+float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
+// smooth (cubic B-spline) height lookup so map pixels never show as facets
+float heightMap(vec2 uv){
+  ivec2 sz = textureSize(uHMap, 0);
+  vec2 p = uv*vec2(sz) - 0.5; vec2 i = floor(p), f = p - i;
+  vec2 w0 = (1. - f)*(1. - f)*(1. - f)/6., w1 = (3.*f*f*f - 6.*f*f + 4.)/6., w2 = (-3.*f*f*f + 3.*f*f + 3.*f + 1.)/6., w3 = f*f*f/6.;
+  float r = 0.; ivec2 b = ivec2(i) - 1;
+  for (int y = 0; y < 4; y++) {
+    float wy = y == 0 ? w0.y : y == 1 ? w1.y : y == 2 ? w2.y : w3.y;
+    float row = w0.x*hTexel(b + ivec2(0, y), sz) + w1.x*hTexel(b + ivec2(1, y), sz) + w2.x*hTexel(b + ivec2(2, y), sz) + w3.x*hTexel(b + ivec2(3, y), sz);
+    r += wy*row;
+  }
+  return mix(uHRange.x, uHRange.y, r);
+}
 // local offset (direction - tile centre direction) on the unit sphere for cube offset delta, computed without cancellation
 vec3 localDir(vec3 delta){
   float s2 = (2.*dot(uQc, delta) + dot(delta, delta)) / (uQcLen*uQcLen);
@@ -62,10 +82,11 @@ float craterProfile(float t, float big){
   float peak = big * 0.12 * exp(-t*t*40.);
   return bowl + rim + peak;
 }
+uniform float uCraterO0;
 float craters(vec3 d){
   float h = 0.; gFresh = 0.;
   int o1 = min(uOMax - 1, 19);
-  for (int o = 2; o <= o1; o++) {
+  for (int o = max(2, int(uCraterO0)); o <= o1; o++) {
     float f = exp2(float(o)) * uFreq;
     vec3 x = uOF[o] + d*f + 0.37;
     vec3 i = floor(x - 0.5), w = x - i; ivec3 ic = ivec3(i) + uOC[o];
@@ -88,7 +109,48 @@ float craters(vec3 d){
   return h * uRadius * uCraterAmp;
 }
 
+float terrainMapped(vec3 d, vec3 P){
+  vec2 uv = mapUV(P);
+  float hm = heightMap(uv);
+  float land = 1.;
+  if (uHasM > 0.5) {
+    // coastline from the land/water mask, roughened below map resolution
+    float wm = texture(uMMap, uv).r;
+    float cn = uOMax >= int(uMapOct) ? fbm(int(uMapOct), min(uOMax, int(uMapOct) + 6), 41u, d, 0.55)*0.35 : 0.;
+    float water = smoothstep(0.42, 0.58, wm + cn);
+    land = 1. - water;
+    hm = mix(max(hm, 1. + 6.*(1. - water)), min(hm, -2. - 30.*water), water);
+  }
+  gCont = hm/3000.; gLand = land; gMaria = 0.; gFresh = 0.; gCrack = 0.; gDune = 0.;
+  gMtn = smoothstep(300., 2500., hm)*land;
+  // detail below the map's resolution, rougher in mountains
+  float det = 0.;
+  int o0 = int(uMapOct);
+  if (uOMax >= o0) {
+    float amp = 1., wgt = 1.; vec3 ds = vec3(0.);
+    for (int o = o0; o <= uOMax; o++) {
+      vec4 n = gn(o, 3u, d);
+      float rn = 1. - abs(n.x); rn *= rn;
+      ds += n.yzw*amp*0.9;
+      det += amp*mix(n.x, rn*1.6 - 0.8, gMtn)*mix(1., wgt, gMtn)/(1. + dot(ds, ds)*0.4*gMtn);
+      wgt = clamp(rn*1.8, 0., 1.);
+      amp *= 0.52;
+    }
+  }
+  float rough = 0.12 + 1.4*gMtn + 0.25*smoothstep(0., 600., hm);
+  float coast = uHasM > 0.5 ? smoothstep(0., 150., hm) : 1.;
+  gFine = det;
+  float h = hm + det*uMapDetail*rough*coast;
+  if (uCrater > 0.) h += craters(d);
+  if (uDunes > 0. && uOMax >= 12) {
+    int od = int(clamp(round(log2(uRadius/(uFreq*900.))), 10., 20.));
+    if (uOMax >= od) { float q = 1. - abs(gn(od, 12u, d).x); float dm = smoothstep(0.1, 0.5, gn(6, 9u, d).x)*(1. - gMtn); gDune = dm; h += dm*q*q*uRadius/(exp2(float(od))*uFreq)*0.2*uDunes; }
+  }
+  return h;
+}
+
 float terrain(vec3 d, vec3 P){
+  if (uHasH > 0.5) return terrainMapped(d, P);
   vec3 w = vec3(gn(1,101u,d).x, gn(1,102u,d).x, gn(1,103u,d).x)*0.5;
   if (uOMax >= 3) w += vec3(gn(3,104u,d).x, gn(3,105u,d).x, gn(3,106u,d).x)*0.12;
   vec3 dw = d + w*uWarp;
@@ -169,7 +231,33 @@ float terrain(vec3 d, vec3 P){
   return h;
 }
 
+vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis);
+vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
+  vec2 uv = mapUV(P);
+  vec3 c = texture(uCMap, uv).rgb*uMapTint;
+  emis = 0.;
+  int o0 = int(uMapOct);
+  float nf = uOMax >= o0 ? fbm(o0, uOMax, 15u, d, 0.6)*0.5 : 0.;
+  float rock = smoothstep(0.45, 0.8, slope);
+  c = mix(c, c*vec3(0.75, 0.72, 0.7) + vec3(0.03), rock*0.6);
+  c *= 1. + nf*0.35 + gFine*0.08;
+  if (uHasL > 0.5) { float l = texture(uLMap, uv).r; emis = l*l*0.85*gLand; }
+  if (uHasM > 0.5 && gLand < 0.5) c *= 0.8;
+  return clamp(c, 0., 1.);
+}
 vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
+  if (uHasC > 0.5 && uHasH > 0.5) return surfaceColorMapped(d, P, h, slope, emis);
+  if (uHasC > 0.5) {
+    // colour map over procedural relief (bodies without elevation data)
+    vec3 base = surfaceColorProc(d, P, h, slope, emis);
+    vec3 m = texture(uCMap, mapUV(P)).rgb*uMapTint;
+    float lum = dot(base, vec3(0.3, 0.5, 0.2)) + 1e-3;
+    float rock = smoothstep(0.45, 0.8, slope);
+    return clamp(m*(0.75 + 0.5*clamp(lum/(dot(uColA, vec3(0.3, 0.5, 0.2)) + 1e-3), 0.3, 2.))*(1. - rock*0.3), 0., 1.);
+  }
+  return surfaceColorProc(d, P, h, slope, emis);
+}
+vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis){
   emis = 0.;
   float lat = abs(P.y);
   float n1 = fbm(2, 6, 7u, d, 0.6)*0.5;
@@ -241,6 +329,17 @@ float bandProfile(float y){
 float terrain(vec3 d, vec3 P){ return 0.; }
 vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
   emis = 0.;
+  if (uHasC > 0.5) {
+    // real map, with fine turbulent shear added below its resolution
+    vec2 uv = mapUV(P);
+    int o0 = int(uMapOct);
+    if (uOMax >= o0) {
+      float px = 1./float(textureSize(uCMap, 0).x);
+      vec2 w = vec2(fbm(o0, uOMax, 51u, d, 0.62), fbm(o0, uOMax, 52u, d, 0.62)*0.3)*px*2.2;
+      uv += w;
+    }
+    return clamp(texture(uCMap, uv).rgb*uMapTint, 0., 1.);
+  }
   float y = asin(clamp(P.y, -1., 1.));
   // turbulent displacement, stronger where bands shear
   float t1 = fbm(2, 5, 21u, d, 0.6), t2 = fbm(5, min(uOMax, 11), 22u, d, 0.62), t3 = uOMax > 11 ? fbm(12, uOMax, 23u, d, 0.6) : 0.;

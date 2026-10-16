@@ -299,8 +299,10 @@ export class Nav {
       const rel = V.sub(this.S, anchor.wpos); let d = V.len(rel);
       let h = 0;
       if (anchor.surface && anchor.surface.gen === 'terra' && d - anchor.radius < Math.max(anchor.radius * 0.02, (anchor.surface.hmax || 0) * 3 + 3000)) {
-        h = planetState(anchor).queryHeight(Q.rot(Q.conj(anchor.wrot), V.mul(rel, 1 / d)));
-        planetState(anchor).groundH = h;
+        const st = planetState(anchor), dirL = Q.rot(Q.conj(anchor.wrot), V.mul(rel, 1 / d));
+        if (this.sync) h = st.queryHeight(dirL);
+        else { const r = st.queryHeightAsync(dirL); h = r === null ? (anchor._groundH || 0) : r; }
+        st.groundH = h;
       } else if (anchor.surface) planetState(anchor).groundH = 0;
       anchor._groundH = h;
       const minR = anchor.kind === 'star' ? anchor.radius * 1.02 : anchor.radius + h + (anchor.surface && anchor.surface.gen === 'terra' ? 1.7 : anchor.radius * 0.001);

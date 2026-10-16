@@ -1,0 +1,113 @@
+{
+ "mercury_color.jpg": {
+  "nodata_filled_fraction": 0.0098,
+  "jpeg_quality": 88
+ },
+ "venus_color.jpg": {
+  "nodata_filled_fraction": 0.0,
+  "jpeg_quality": 88
+ },
+ "venus_clouds.jpg": {
+  "jpeg_quality": 88
+ },
+ "io_color.jpg": {
+  "nodata_filled_fraction": 0.0,
+  "jpeg_quality": 88
+ },
+ "europa_color.jpg": {
+  "nodata_filled_fraction": 0.0438,
+  "jpeg_quality": 88
+ },
+ "ganymede_color.jpg": {
+  "nodata_filled_fraction": 0.0358,
+  "jpeg_quality": 88
+ },
+ "callisto_color.jpg": {
+  "nodata_filled_fraction": 0.0393,
+  "jpeg_quality": 88
+ },
+ "titan_color.jpg": {
+  "nodata_filled_fraction": 0.0001,
+  "jpeg_quality": 88
+ },
+ "enceladus_color.jpg": {
+  "nodata_filled_fraction": 0.0004,
+  "jpeg_quality": 88
+ },
+ "pluto_color.jpg": {
+  "nodata_filled_fraction": 0.3198,
+  "jpeg_quality": 88
+ },
+ "charon_color.jpg": {
+  "nodata_filled_fraction": 0.3407,
+  "jpeg_quality": 88
+ },
+ "ceres_color.jpg": {
+  "nodata_filled_fraction": 0.1086,
+  "jpeg_quality": 88
+ },
+ "jupiter_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "saturn_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "uranus_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "neptune_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "earth_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "earth_lights.jpg": {
+  "jpeg_quality": 88
+ },
+ "earth_clouds.jpg": {
+  "jpeg_quality": 88
+ },
+ "earth_height.png": {
+  "height": {
+   "bits": 16,
+   "min_m": -11000.0,
+   "max_m": 9000.0,
+   "decode": "metres = min_m + value/65535 * (max_m - min_m)",
+   "data_min_m": -10495.2421875,
+   "data_max_m": 6425.275390625
+  }
+ },
+ "moon_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "moon_height.png": {
+  "height": {
+   "bits": 16,
+   "min_m": -9500.0,
+   "max_m": 11000.0,
+   "decode": "metres = min_m + value/65535 * (max_m - min_m)",
+   "data_min_m": -9043.6845703125,
+   "data_max_m": 10633.0595703125
+  }
+ },
+ "mars_color.jpg": {
+  "jpeg_quality": 88
+ },
+ "mars_height.png": {
+  "height": {
+   "bits": 16,
+   "min_m": -8500.0,
+   "max_m": 21500.0,
+   "decode": "metres = min_m + value/65535 * (max_m - min_m)",
+   "data_min_m": -8159.8505859375,
+   "data_max_m": 21158.818359375
+  }
+ },
+ "saturn_rings.png": {
+  "ring_radii_km": {
+   "inner_edge_of_image": 69800,
+   "outer_edge_of_image": 140900,
+   "note": "radius at the left and right image edges, fitted from gap positions; Saturn equatorial radius 60268 km"
+  }
+ }
+}

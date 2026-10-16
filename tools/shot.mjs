@@ -3,7 +3,7 @@ import puppeteer from 'puppeteer-core';
 const [name, code = '', w = '1280', h = '720', extra = 'tex=97&cube=256&cloudres=384&scale=1&galr=0.4'] = process.argv.slice(2);
 const browser = await puppeteer.launch({
   executablePath: '/usr/bin/google-chrome', headless: 'new',
-  args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${w},${h}`],
+  args: ['--no-sandbox', ...(process.env.GLARGS ? process.env.GLARGS.split(' ') : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']), '--ignore-gpu-blocklist', `--window-size=${w},${h}`],
   protocolTimeout: 900000,
 });
 const page = await browser.newPage();

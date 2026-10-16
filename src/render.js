@@ -1,15 +1,15 @@
 // Frame pipeline: HDR scene (sky, stars, system bodies, atmospheres) then bloom, exposure and tone mapping.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead } from './gl.js';
 import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
-import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube } from './atmosphere.js';
+import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg } from './sky.js';
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -105,6 +105,7 @@ export class Renderer {
     this.pDown = new Program('down', FS_VS, DOWN_FS); this.pUp = new Program('up', FS_VS, UP_FS); this.pTone = new Program('tone', FS_VS, TONE_FS); this.pCopy = new Program('copy', FS_VS, COPY_FS); this.pFxaa = new Program('fxaa', FS_VS, FXAA_FS);
     this.noise3 = makeNoise3D();
     this.galSky = new GalaxySky();
+    this.volTAA = new VolumetricTAA(); this.prevCam = null;
     this.exposure = 1; this.frameNo = 0; this.meter = new Float32Array(64 * 36 * 4);
     this.meterTex = tex2D(64, 36, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR); this.meterFBO = fbo([this.meterTex]);
     this.w = 0; this.h = 0; this.stats = {};
@@ -295,7 +296,12 @@ export class Renderer {
       drawNebulaeAndFx.coronae(sys, nav, { viewProj, fcoef, exposure, pxPerRad, time: nav.time, noise3: this.noise3 });
 
       T('rings+pts');
-      // atmospheres, far to near
+      // atmospheres, far to near. The one covering most of the screen goes through the half resolution
+      // temporally accumulated path; small ones are integrated directly at full resolution.
+      let primary = null;
+      for (const b of atmoPasses) if (rcfg.volTAA && (!primary || b.pxRadius > primary.pxRadius)) primary = b;
+      const pc = this.prevCam;
+      const prev = pc && pc.sys === sys && pc.level === nav.level ? { rotInv: Q.mat3(Q.conj(pc.q)), tanFov: pc.tanFov, delta: V.sub(nav.S, pc.S) } : null;
       for (const b of atmoPasses) {
         const ar = (b.radius + b.atmo.top) / Math.max(b.dist, 1), pr = project(b.rel);
         // scissor to the projected bounding circle
@@ -309,6 +315,11 @@ export class Renderer {
         }
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+        const ao = { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
+        if (b === primary) {
+          this.volTAA.draw(b, Object.assign(ao, { w, h, prev, key: b.uid + ':' + w + 'x' + h, outFBO: this.hdrNoDepth, scissor: [sx, sy, sw, sh], noHist: rcfg.volNoHist }));
+          continue;
+        }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
         drawAtmosphere(b, { scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
@@ -336,7 +347,7 @@ export class Renderer {
       src = m.t; sw2 = m.w; sh2 = m.h;
     }
     // exposure metering from a small mip (before bloom is mixed in)
-    if (this.frameNo % 2 === 0 || this.sync) this.measure();
+    this.measure();
     let acc = this.mips[this.mips.length - 1].t;
     for (let i = this.mips.length - 2; i >= 0; i--) {
       const m = this.mips[i], n = this.mips[i + 1];
@@ -350,6 +361,7 @@ export class Renderer {
     if (useFxaa) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); this.pFxaa.use().set({ uTex: this.ldrTex, uTexel: [1 / w, 1 / h] }); drawFS(); }
 
     T('post');
+    this.prevCam = { q: nav.q.slice(), tanFov: [tanX, tanY], S: nav.S.slice(), sys, level: nav.level };
     if (prof) console.log('LOG prof ' + prof.join(' '));
     // far from any galaxy there is nothing bright: allow much longer exposures so distant galaxies show up
     let deep = 0;
@@ -366,11 +378,25 @@ export class Renderer {
   measure() {
     // pick the mip closest to 64x36
     let m = this.mips[0]; for (const q of this.mips) if (q.w >= 64) m = q;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.viewport(0, 0, 64, 36);
-    this.pCopy.use().set({ uTex: m.t }); drawFS();
-    gl.readPixels(0, 0, 64, 36, gl.RGBA, gl.FLOAT, this.meter);
+    if (!this.meterRead) this.meterRead = new AsyncRead(64 * 36 * 16);
+    let ready = false;
+    if (this.sync) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.viewport(0, 0, 64, 36);
+      this.pCopy.use().set({ uTex: m.t }); drawFS();
+      gl.readPixels(0, 0, 64, 36, gl.RGBA, gl.FLOAT, this.meter); ready = true; this.meterExp = this.exposure;
+    } else {
+      // asynchronous: use the result of an earlier frame, never stall the GPU
+      if (this.meterRead.poll(this.meter)) { ready = true; this.meterExp = this.readExp; }
+      if (!this.meterRead.busy) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.viewport(0, 0, 64, 36);
+        this.pCopy.use().set({ uTex: m.t }); drawFS();
+        this.meterRead.start(0, 0, 64, 36, gl.RGBA, gl.FLOAT); this.readExp = this.exposure;
+      }
+    }
+    if (!ready) return;
+    const ex = this.meterExp || this.exposure;
     const lum = [];
-    for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / this.exposure; lum.push(isFinite(l) ? l : 0); }
+    for (let i = 0; i < 64 * 36; i++) { const r = this.meter[i * 4], g = this.meter[i * 4 + 1], b = this.meter[i * 4 + 2]; const l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / ex; lum.push(isFinite(l) ? l : 0); }
     lum.sort((a, b) => a - b);
     this.lumHi = lum[Math.floor(lum.length * 0.97)]; this.lumTop = lum[Math.floor(lum.length * 0.996)];
     this.lumMed = lum[Math.floor(lum.length * 0.5)];

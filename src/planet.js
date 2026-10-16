@@ -1,12 +1,13 @@
 // Quadtree cube-sphere renderer. Tiles are baked on the GPU (height / normal / albedo) and drawn with
 // camera-relative double precision placement, so one code path covers orbit to ground for planets, moons,
 // gas giants and stars.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, makeVAO } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, makeVAO, AsyncRead } from './gl.js';
 import { V, Q, clamp } from './math.js';
 import { RNG, hashCombine } from './rng.js';
 import { NOCT, GEN_COMMON, GEN_TERRA, GEN_GAS, GEN_STAR, GEN_MAIN } from './terrain_glsl.js';
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
+import { bodyMaps } from './assets.js';
 
 export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true };
 const FACES = [
@@ -233,6 +234,8 @@ void main(){
   oColor = vec4(min(col*uExposure, vec3(60000.)), 1.);
 }`;
 
+let dummy = null;
+function dummyTex() { if (!dummy) dummy = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([128, 128, 128, 255])); return dummy; }
 let progDraw = null, progGen = {}, gridVAO = null, gridCount = 0, genFBO = null, queryFBO = null, queryTex = null;
 const texPool = [];
 let frame = 0;
@@ -309,6 +312,13 @@ class PlanetState {
     let oMax = Math.floor(Math.log2(1 / (2.6 * texel * s.freq)));
     oMax = clamp(oMax, 0, NOCT - 1);
     if (texSize === 1) oMax = NOCT - 1;
+    const mp = this.maps;
+    const sz = mp && mp.color ? mp.color.w : mp && mp.height ? mp.height.w : 4096;
+    const mapOct = Math.ceil(Math.log2(sz / (4 * Math.PI * s.freq)));
+    prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
+      uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
+      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: (this.body.maps && this.body.maps.tint) || [1, 1, 1],
+      uCraterO0: mp && mp.height ? mapOct : 2 });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
@@ -328,6 +338,25 @@ class PlanetState {
     this.genUniforms(prog, ch, cfg.T);
     drawFS();
     ch.ready = true; ch.queued = false; this.count++;
+  }
+  // Non-blocking version for per-frame use: returns the most recent completed result (or null) and starts a new query.
+  queryHeightAsync(dir) {
+    if (this.surf.gen !== 'terra') return 0;
+    if (!this.hread) { this.hread = new AsyncRead(16); this.hbuf = new Float32Array(4); this.lastH = null; }
+    if (this.hread.poll(this.hbuf)) { let h = this.hbuf[0]; if (!isFinite(h)) h = 0; if (this.surf.ocean > 0.5) h = Math.max(h, this.surf.sea); this.lastH = h; }
+    if (!this.hread.busy) { this.renderHeightQuery(dir); this.hread.start(0, 0, 1, 1, gl.RGBA, gl.FLOAT); }
+    return this.lastH;
+  }
+  renderHeightQuery(dir) {
+    const prog = progGen.terra.use();
+    const n = V.norm(dir);
+    let a = V.cross(n, Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]); a = V.norm(a); const b = V.cross(n, a);
+    const fake = { face: 0, c: n, qc: n, qlen: 1, size: 1e-7 };
+    const F = FACES[0]; const sA = F.A, sB = F.B; F.A = a; F.B = b;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, queryFBO); gl.viewport(0, 0, 1, 1); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+    this.genUniforms(prog, fake, 1);
+    F.A = sA; F.B = sB;
+    drawFS();
   }
   // terrain height (m) under a planet-local direction, full detail
   queryHeight(dir) {
@@ -357,7 +386,14 @@ class PlanetState {
 }
 
 const states = new Map();
-export function planetState(body) { init(); let s = states.get(body.uid); if (!s) { s = new PlanetState(body); states.set(body.uid, s); } return s; }
+export function planetState(body) {
+  init();
+  let s = states.get(body.uid);
+  const maps = bodyMaps(body);
+  if (s && s.mapsVersion !== (body.mapsVersion || 0)) { s.dispose(); states.delete(body.uid); s = null; }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.mapsVersion = body.mapsVersion || 0; states.set(body.uid, s); }
+  return s;
+}
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }
 export let pendingBakes = 0;
 const queue = [];
@@ -367,6 +403,7 @@ const queue = [];
 export function drawPlanet(body, o) {
   init();
   const st = planetState(body); st.last = frame;
+  if (body.maps && !st.maps && !body.maps._state.failed) { /* maps still loading: procedural for now */ }
   const R = body.radius, surf = st.surf;
   const rotInv = Q.conj(o.rotQ);
   const camLocal = Q.rot(rotInv, V.mul(o.rel, -1));       // camera in planet frame

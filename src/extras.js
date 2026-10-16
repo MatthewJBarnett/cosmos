@@ -4,6 +4,7 @@ import { V, Q, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { keplerPos } from './system.js';
+import { loadTexture } from './assets.js';
 
 // ---------------- rings ----------------
 const RING_VS = `
@@ -54,6 +55,11 @@ void main(){
 let pRing, ringVAO, ringCount;
 const ringTex = new Map();
 function ringTexture(b) {
+  if (b.rings.map) {
+    // observed ring brightness and transparency (Cassini based strip)
+    const e = loadTexture(b.rings.map, 'color');
+    if (e.ready) { if (b.rings.inner !== b.rings.mapInner) { b.rings.inner = b.rings.mapInner; b.rings.outer = b.rings.mapOuter; } return e.tex; }
+  }
   let t = ringTex.get(b.uid); if (t) return t;
   const N = 2048, d = new Uint8Array(N * 4), rg = b.rings, rng = new RNG(rg.seed * 7919 + 13);
   // layered noise

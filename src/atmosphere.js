@@ -10,7 +10,7 @@ export const atmoCfg = { steps: 28, cloudSteps: 32, cloudRes: 768 };
 
 const CLOUDMAP_FS = `
 in vec2 vUV; out vec4 o;
-uniform mat3 uFace; uniform float uSeed, uCover, uKind;
+uniform mat3 uFace; uniform float uSeed, uCover, uKind, uHasTex; uniform sampler2D uCloudTex;
 uint h3(ivec3 c){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ uint(c.z)*0xcb1ab31fu; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15; return h; }
 float vn(vec3 x){
   vec3 i = floor(x), f = x - i; f = f*f*f*(f*(f*6.-15.)+10.); ivec3 c = ivec3(i);
@@ -23,6 +23,13 @@ vec3 rotAxis(vec3 p, vec3 ax, float a){ return mix(dot(ax, p)*ax, p, cos(a)) + c
 void main(){
   vec3 dir = normalize(uFace*vec3(vUV*2. - 1., 1.));
   vec3 p = dir;
+  if (uHasTex > 0.5) {
+    // observed cloud cover (brightness ~ optical thickness)
+    vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))/3.14159265);
+    float v = texture(uCloudTex, uv).r;
+    float v2 = texture(uCloudTex, uv + vec2(0.0012, 0.0008)).r;
+    o = vec4(smoothstep(0.1, 0.62, v), smoothstep(0.45, 0.9, max(v, v2)), fbm(dir*30., 3), 1.); return;
+  }
   float lat = asin(clamp(dir.y, -1., 1.));
   if (uKind > 0.5) {
     // Venus like: global deck with swept streaks
@@ -62,7 +69,7 @@ void main(){
 }`;
 
 const COMP_FS = `
-in vec2 vUV; out vec4 oColor;
+in vec2 vUV;
 uniform sampler2D uScene, uDepth;
 uniform sampler3D uNoise3;
 uniform samplerCube uCloudMap;
@@ -104,13 +111,16 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   // optical thickness spans thin veils to dense towers
   return d*d*(0.35 + 1.4*wm.g);
 }
-void main(){
-  vec4 scene = texture(uScene, vUV);
-  vec2 ndc = vUV*2. - 1.;
+// Volumetric integration along the view ray through pixel uv. inscatter is not yet multiplied by exposure.
+void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, out float repDist){
+  inscatter = vec3(0.); trans = vec3(1.);
+  // use exactly the full resolution pixel whose depth we read
+  vec2 dsz = vec2(textureSize(uDepth, 0)); ivec2 dpx = ivec2(clamp(uv*dsz, vec2(0.), dsz - 1.)); uv = (vec2(dpx) + 0.5)/dsz;
+  vec2 ndc = uv*2. - 1.;
   vec3 rdc = vec3(ndc*uTanFov, -1.);
   float cosf = 1./length(rdc);
   vec3 rd = normalize(uCamRot*rdc);
-  float depth = texture(uDepth, vUV).r;
+  depth = texelFetch(uDepth, dpx, 0).r;
   float sceneDist = depth >= 0.99999 ? 1e30 : (exp2(depth*2./uFcoef) - 1.)/cosf;
   vec3 ro = -uPlanetRel;
   vec3 rdW = rd;
@@ -120,12 +130,13 @@ void main(){
     float l = length(b2); ro = a; rd = b2/l; sceneDist *= l;
   }
   float t0, t1;
-  if (raySphere(ro, rd, aRt, t0, t1) < 0. || t1 < 0.) { oColor = scene; return; }
+  repDist = sceneDist < 1e29 ? sceneDist : 1e9;
+  if (raySphere(ro, rd, aRt, t0, t1) < 0. || t1 < 0.) return;
   float tmin = max(t0, 0.), tmax = min(t1, sceneDist);
   float g0, g1; bool hitGround = false;
   if (raySphere(ro, rd, aRg, g0, g1) > 0. && g0 > 0. && g0 < tmax) { tmax = g0; hitGround = true; }
-  if (tmax <= tmin) { oColor = scene; return; }
-  float jit = ign(gl_FragCoord.xy + uFrame*5.588);
+  if (tmax <= tmin) return;
+  float jit = fract(ign(gl_FragCoord.xy) + uFrame*0.6180339);
   // ---- clouds ----
   vec3 cloudL = vec3(0.); float cloudT = 1., cloudDist = tmax;
   if (cHas > 0.5) {
@@ -178,7 +189,7 @@ void main(){
           if (cloudT < 0.01) { cloudT = 0.; break; }
         }
       }
-      if (wsum > 0.) cloudDist = dsum/wsum;
+      if (wsum > 0.) { cloudDist = dsum/wsum; if (sceneDist > 1e29 && cloudT < 0.7) repDist = cloudDist; }
     }
   }
   // ---- gas ----
@@ -207,17 +218,103 @@ void main(){
     T *= st;
   }
   if (!passed) Tc = T;
-  vec3 col = scene.rgb*T*cloudT + (L + cloudL*Tc)*uExposure;
+  inscatter = L + cloudL*Tc; trans = T*cloudT;
+  if (any(isnan(inscatter)) || any(isinf(inscatter)) || any(isnan(trans))) { inscatter = vec3(0.); trans = vec3(1.); }
+  inscatter = clamp(inscatter, 0., 60000.); trans = clamp(trans, 0., 1.);
+}
+#ifdef HALF_RES
+layout(location=0) out vec4 oIn;
+layout(location=1) out vec4 oTr;
+void main(){
+  vec3 L, T; float d, rep; volumetrics(vUV, L, T, d, rep);
+  oIn = vec4(L, d); oTr = vec4(T, log2(max(rep, 1.)));
+}
+#else
+out vec4 oColor;
+void main(){
+  vec4 scene = texture(uScene, vUV);
+  vec3 L, T; float d, rep; volumetrics(vUV, L, T, d, rep);
+  oColor = vec4(clamp(scene.rgb*T + L*uExposure, 0., 60000.), 1.);
+}
+#endif
+`;
+
+
+// Temporal accumulation of the half resolution volumetrics: reproject last frame's result and blend.
+const RESOLVE_FS = `
+in vec2 vUV;
+layout(location=0) out vec4 oIn;
+layout(location=1) out vec4 oTr;
+uniform sampler2D uCurIn, uCurTr, uHistIn, uHistTr;
+uniform mat3 uCamRot, uPrevRotInv; uniform vec2 uTanFov, uPrevTanFov, uTexel; uniform vec3 uDelta; uniform float uValid;
+void main(){
+  vec4 cI = texture(uCurIn, vUV), cT = texture(uCurTr, vUV);
+  // neighbourhood statistics for variance clipping
+  vec3 m1 = vec3(0.), m2 = vec3(0.), t1 = vec3(0.), t2 = vec3(0.);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 o = vec2(x, y)*uTexel;
+    vec3 a = texture(uCurIn, vUV + o).rgb, b = texture(uCurTr, vUV + o).rgb;
+    m1 += a; m2 += a*a; t1 += b; t2 += b*b;
+  }
+  m1 /= 9.; m2 /= 9.; t1 /= 9.; t2 /= 9.;
+  vec3 sI = sqrt(max(m2 - m1*m1, 0.)), sT = sqrt(max(t2 - t1*t1, 0.));
+  float alpha = 1.;
+  vec4 hI = cI, hT = cT;
+  if (uValid > 0.5) {
+    vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+    vec3 p = rd*exp2(cT.a) + uDelta;
+    vec3 v = uPrevRotInv*p;
+    if (v.z < 0.) {
+      vec2 puv = (v.xy/(-v.z)/uPrevTanFov)*0.5 + 0.5;
+      if (all(greaterThanEqual(puv, vec2(0.))) && all(lessThanEqual(puv, vec2(1.)))) {
+        hI = texture(uHistIn, puv); hT = texture(uHistTr, puv);
+        bool sky = cI.a > 0.99999;
+        if ((sky == (hI.a > 0.99999)) && abs(hI.a - cI.a) < 0.002) alpha = 0.1;
+      }
+    }
+  }
+  float g = 1.25;
+  vec3 hi = clamp(hI.rgb, m1 - g*sI, m1 + g*sI), ht = clamp(hT.rgb, t1 - g*sT, t1 + g*sT);
+  vec3 rI = mix(hi, cI.rgb, alpha), rT = mix(ht, cT.rgb, alpha);
+  if (any(isnan(rI)) || any(isnan(rT))) { rI = cI.rgb; rT = cT.rgb; }
+  oIn = vec4(rI, cI.a); oTr = vec4(rT, cT.a);
+}`;
+// Full resolution composite with depth aware upsampling of the volumetrics.
+const UPSAMPLE_FS = `
+in vec2 vUV; out vec4 oColor;
+uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform float uExposure;
+void main(){
+  vec4 scene = texture(uScene, vUV);
+  float d = texture(uDepth, vUV).r;
+  vec2 hp = vUV*uHalfSize - 0.5; vec2 f = fract(hp); ivec2 i0 = ivec2(floor(hp));
+  ivec2 mx = ivec2(uHalfSize) - 1;
+  vec3 L = vec3(0.), T = vec3(0.); float ws = 0.; float best = 1e9; vec3 bL = vec3(0.), bT = vec3(1.);
+  for (int k = 0; k < 4; k++) {
+    ivec2 o = ivec2(k & 1, k >> 1); ivec2 ip = clamp(i0 + o, ivec2(0), mx);
+    vec4 a = texelFetch(uIn, ip, 0), b = texelFetch(uTr, ip, 0);
+    float bw = (o.x == 1 ? f.x : 1. - f.x)*(o.y == 1 ? f.y : 1. - f.y);
+    float dd = abs(a.a - d);
+    // depth is stored at half precision (~2e-4 steps), so only penalise real discontinuities
+    float w = bw/(1. + dd*2000.) + 1e-6;
+    L += a.rgb*w; T += b.rgb*w; ws += w;
+    if (dd < best) { best = dd; bL = a.rgb; bT = b.rgb; }
+  }
+  if (ws > 1e-6) { L /= ws; T /= ws; } else { L = bL; T = bT; }
+  vec3 col = scene.rgb*T + L*uExposure;
   if (any(isnan(col)) || any(isinf(col))) col = scene.rgb;
   oColor = vec4(clamp(col, 0., 60000.), 1.);
 }`;
 
+let pVol, pResolve, pUp;
 function init() {
   if (pTrans) return;
   pTrans = new Program('atmo-trans', FS_VS, ATMO_TRANS_FS);
   pMulti = new Program('atmo-multi', FS_VS, ATMO_MULTI_FS);
   pIrr = new Program('atmo-irr', FS_VS, ATMO_IRR_FS);
   pComp = new Program('atmo-comp', FS_VS, COMP_FS);
+  pVol = new Program('atmo-vol', FS_VS, '#define HALF_RES\n' + COMP_FS);
+  pResolve = new Program('atmo-resolve', FS_VS, RESOLVE_FS);
+  pUp = new Program('atmo-upsample', FS_VS, UPSAMPLE_FS);
   pCloudMap = new Program('cloudmap', FS_VS, CLOUDMAP_FS);
 }
 
@@ -231,9 +328,25 @@ const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y
   [0, 0, -1, 0, -1, 0, 1, 0, 0], [0, 0, 1, 0, -1, 0, -1, 0, 0], [1, 0, 0, 0, 0, 1, 0, 1, 0], [1, 0, 0, 0, 0, -1, 0, -1, 0], [1, 0, 0, 0, -1, 0, 0, 0, 1], [-1, 0, 0, 0, -1, 0, 0, 0, -1]];
 export { CUBE_FACES };
 
+function buildCloudCube(body, l) {
+  const c = body.atmo.clouds, S = atmoCfg.cloudRes;
+  const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
+  const ct = ms && ms.clouds && ms.clouds.tex;
+  l.mapsVersion = body.mapsVersion || 0;
+  if (!l.cloud) l.cloud = texCube(S, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+  gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+  pCloudMap.use().set({ uSeed: (body.uid * 7.31) % 50 + (body.surface.seed ? body.surface.seed[0] % 13 : 0), uCover: c.cover, uKind: c.kind === 'venus' ? 1 : 0, uHasTex: ct ? 1 : 0, uCloudTex: ct || getDummy2D() });
+  for (let i = 0; i < 6; i++) {
+    const fb = fbo([l.cloud], null, i); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, S, S);
+    pCloudMap.set({ uFace: new Float32Array(CUBE_FACES[i]) }); drawFS(); gl.deleteFramebuffer(fb);
+  }
+}
+let dummy2D = null;
+function getDummy2D() { if (!dummy2D) dummy2D = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([0, 0, 0, 255])); return dummy2D; }
 export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
+  if (l && l.mapsVersion !== (body.mapsVersion || 0) && body.atmo.clouds) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
   const u = atmoUniforms(body);
   l = { uniforms: u, last: performance.now() };
@@ -244,16 +357,7 @@ export function getAtmoLUT(body) {
   let f = fbo([l.trans]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 256, 64); pTrans.use().set(u); drawFS(); gl.deleteFramebuffer(f);
   f = fbo([l.multi]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 32, 32); pMulti.use().set(u).set({ uTransLUT: l.trans }); drawFS(); gl.deleteFramebuffer(f);
   f = fbo([l.irr]); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.viewport(0, 0, 64, 1); pIrr.use().set(u).set({ uTransLUT: l.trans, uMultiLUT: l.multi }); drawFS(); gl.deleteFramebuffer(f);
-  const c = body.atmo.clouds;
-  if (c) {
-    const S = atmoCfg.cloudRes;
-    l.cloud = texCube(S, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
-    pCloudMap.use().set({ uSeed: (body.uid * 7.31) % 50 + (body.surface.seed ? body.surface.seed[0] % 13 : 0), uCover: c.cover, uKind: c.kind === 'venus' ? 1 : 0 });
-    for (let i = 0; i < 6; i++) {
-      const fb = fbo([l.cloud], null, i); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, S, S);
-      pCloudMap.set({ uFace: new Float32Array(CUBE_FACES[i]) }); drawFS(); gl.deleteFramebuffer(fb);
-    }
-  }
+  if (body.atmo.clouds) buildCloudCube(body, l);
   luts.set(body.uid, l);
   if (luts.size > 12) {
     let old = null; for (const [k, v] of luts) if (!old || v.last < luts.get(old).last) old = k;
@@ -277,11 +381,45 @@ export function drawAtmosphere(body, o) {
   if (!dummyCube) dummyCube = texCube(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
   // cloud layer drifts slowly relative to the ground
   const rotInv = cloudRotInv(body, o.rotQ, o.time);
-  pComp.use().set(l.uniforms).set(o.light).set({
+  (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
     uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
   drawFS();
+}
+
+// Half resolution, temporally accumulated volumetrics for the dominant atmosphere on screen.
+export class VolumetricTAA {
+  constructor() { this.w = 0; this.h = 0; this.cur = null; this.hist = [null, null]; this.idx = 0; this.valid = false; this.key = null; }
+  resize(w, h) {
+    const hw = Math.max(1, Math.round(w * (this.scale || 0.5))), hh = Math.max(1, Math.round(h * (this.scale || 0.5)));
+    if (hw === this.w && hh === this.h) return;
+    this.w = hw; this.h = hh;
+    const mk = () => { const a = tex2D(hw, hh, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR), b = tex2D(hw, hh, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR); return { a, b, f: fbo([a, b]) }; };
+    this.cur = mk(); this.hist = [mk(), mk()]; this.valid = false;
+  }
+  // o: same as drawAtmosphere plus { w, h, camRot, prevCam: {rotInv, tanFov, delta} | null, key, outFBO, viewport }
+  draw(body, o) {
+    init();
+    this.resize(o.w, o.h);
+    if (this.key !== o.key || !o.prev) this.valid = false;
+    this.key = o.key;
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.cur.f); gl.viewport(0, 0, this.w, this.h);
+    drawAtmosphere(body, Object.assign({}, o, { half: true }));
+    const src = this.hist[this.idx], dst = this.hist[1 - this.idx];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.f); gl.viewport(0, 0, this.w, this.h);
+    pResolve.use().set({ uCurIn: this.cur.a, uCurTr: this.cur.b, uHistIn: src.a, uHistTr: src.b, uCamRot: o.camRot, uPrevRotInv: o.prev ? o.prev.rotInv : o.camRot,
+      uTanFov: o.tanFov, uPrevTanFov: o.prev ? o.prev.tanFov : o.tanFov, uTexel: [1 / this.w, 1 / this.h], uDelta: o.prev ? o.prev.delta : [0, 0, 0], uValid: this.valid && !o.noHist ? 1 : 0 });
+    drawFS();
+    this.idx = 1 - this.idx; this.valid = true;
+    // composite at full resolution
+    gl.bindFramebuffer(gl.FRAMEBUFFER, o.outFBO); gl.viewport(0, 0, o.w, o.h);
+    if (o.scissor) { gl.enable(gl.SCISSOR_TEST); gl.scissor(...o.scissor); }
+    pUp.use().set({ uScene: o.scene, uDepth: o.depth, uIn: dst.a, uTr: dst.b, uHalfSize: [this.w, this.h], uExposure: o.exposure });
+    drawFS();
+    gl.disable(gl.SCISSOR_TEST);
+  }
 }
