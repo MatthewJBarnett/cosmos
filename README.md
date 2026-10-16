@@ -17,6 +17,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![TRAPPIST-1 e](docs/trappist.jpg) TRAPPIST-1 e under its red dwarf | ![Black hole](docs/bh.jpg) Sagittarius A* |
 | ![Cygnus X-1](docs/cygx1.jpg) Cygnus X-1 lensing its supergiant companion | ![Orion](docs/orion.jpg) Orion Nebula |
 | ![Andromeda](docs/m31.jpg) Andromeda | ![Galaxy](docs/galaxy2.jpg) The Milky Way from above |
+| ![Crescent Moon](docs/crescent_earthshine.jpg) Crescent Moon at dusk, 12 May 2024, with earthshine | ![Venus](docs/venus.jpg) Venus |
 
 ## Run
 
@@ -53,7 +54,8 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 
 On touch screens: one finger looks around, pinch moves toward or away from the selection, and two on-screen buttons fly forward and back.
 
-The Places menu jumps to planets, nebulae, black holes and galaxies. Explore picks a random star.
+The Places menu jumps to planets, exoplanet systems, nebulae, black holes and galaxies. Explore finds a random star,
+an Earth-like planet with life, a ringed planet, a giant star or another galaxy. The Saved menu keeps views you save with B.
 
 ## What is simulated
 
@@ -86,18 +88,22 @@ The Places menu jumps to planets, nebulae, black holes and galaxies. Explore pic
   gravity and composition; ozone and methane absorption; Martian dust with wavelength-dependent phase; planet shadow,
   eclipses and cloud shadows in the air (crepuscular rays). Aurora around the real geomagnetic pole.
 - **Clouds:** volumetric ray marching driven by the real cloud map on Earth and weather maps elsewhere.
+- **Oceans:** a directional wind-wave spectrum near the camera that becomes microfacet roughness with distance,
+  Fresnel reflection of a horizon-weighted sky, the sun's glitter path, depth-dependent colour.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing, planetshine (earthshine on the Moon,
   moonlight at night), Lommel-Seeliger scattering on airless bodies.
 - **Exotic objects:** ray traced Schwarzschild black holes with Doppler-beamed accretion disks, volumetric nebulae,
   coronae, comet tails, pulsar beams.
 - **Camera:** HDR pipeline, auto exposure that switches to the corona during totality, bloom, ACES tone mapping and
   temporal anti-aliasing with sub-pixel jitter.
-- **Performance:** shaders compile in parallel behind a loading screen; atmosphere and clouds render at half
+- **Performance:** shaders compile in parallel behind a loading screen; terrain tiles bake ambient occlusion once; atmosphere and clouds render at half
   resolution with temporal accumulation when they fill the screen; exposure and ground height readbacks are
-  asynchronous; the galaxy sky cube rebuilds in strips; dynamic resolution aims for 55+ fps.
+  asynchronous; the galaxy sky cube rebuilds in strips; dynamic resolution aims for 55+ fps, then trims ray march
+  steps and terrain detail if that is not enough.
 
-**Interface:** search (planets, moons, named stars, nebulae, galaxies), Places menu, guided tour (T), system browser,
-date picker, shareable location links, latitude/longitude readout, GPU timing overlay (F3), settings saved between visits.
+**Interface:** search (planets, moons, named stars, nebulae, galaxies), Places and Explore menus, guided tour (T),
+saved views (B), system browser, date picker, shareable location links, latitude/longitude readout, GPU timing
+overlay (F3), settings saved between visits.
 
 ## Layout
 

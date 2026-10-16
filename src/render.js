@@ -378,7 +378,7 @@ export class Renderer {
         if (!b._ringOnly) {
           gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND);
           const starRad = isStar ? 1.47e4 * b.lum / ((b.radius / C.Rsun) ** 2) * clamp((b.pxRadius - 0.8) / 1.2, 0, 1) : 0;
-          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
+          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, pxPerRadMax: h / (2 * Math.tan(3 * Math.PI / 180)), sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);
         }
         b._ringOnly = false;

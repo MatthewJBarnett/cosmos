@@ -9,7 +9,7 @@ import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 import { bodyMaps } from './assets.js';
 
-export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true };
+export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1 };
 const FACES = [
   { N: [1, 0, 0], A: [0, 0, -1], B: [0, 1, 0] }, { N: [-1, 0, 0], A: [0, 0, 1], B: [0, 1, 0] },
   { N: [0, 1, 0], A: [1, 0, 0], B: [0, 0, -1] }, { N: [0, -1, 0], A: [1, 0, 0], B: [0, 0, 1] },
@@ -466,7 +466,8 @@ export function drawPlanet(body, o) {
   const Rmin = R + hmin, alt = Math.max(camDist - (R + st.groundH), 0.5);
   const horizon = Math.acos(clamp(Rmin / Math.max(camDist, Rmin + 1), -1, 1)) + Math.acos(clamp(Rmin / (R + hmax + 1), -1, 1));
   const rot3 = Q.mat3(o.rotQ);
-  const K = 1.45 * cfg.T / o.pxPerRad / cfg.lodScale;
+  // telephoto views would otherwise ask for unbounded detail: LOD saturates below a ~6 degree field of view
+  const K = 1.45 * cfg.T / Math.min(o.pxPerRad, o.pxPerRadMax || o.pxPerRad) / (cfg.lodScale * cfg.autoLod);
   const draws = [];
   const visit = (ch) => {
     ch.last = frame;
@@ -538,6 +539,10 @@ export function planetHousekeeping() {
   for (const c of queue) if (frame - c.last > 3) c.queued = false;
   for (let i = queue.length - 1; i >= 0; i--) if (!queue[i].queued) queue.splice(i, 1);
   pendingBakes = queue.length;
+  // if the view needs more tiles than the cache can hold (or than we can bake soon), coarsen the LOD until it fits
+  const demand = totalChunks() + queue.length;
+  if (demand > cfg.maxChunks * 0.9 || queue.length > 400) cfg.autoLod = Math.max(0.15, cfg.autoLod * 0.94);
+  else if (queue.length < 30 && demand < cfg.maxChunks * 0.6) cfg.autoLod = Math.min(1, cfg.autoLod * 1.01);
   if (frame % 20 === 0) {
     const total = totalChunks();
     const maxAge = total > cfg.maxChunks ? 30 : 600;

@@ -7,7 +7,7 @@ page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 
 page.on('pageerror', e => errs.push(e.message));
 await page.goto('http://localhost:8642/?test=1&tex=49&cube=32&galr=0.1&scale=0.5', { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos !== undefined', { timeout: 300000 });
-const r = await page.evaluate(async () => { const m = await import('/src/gl.js'); return m.allPrograms.map(p => p.name + ':' + (p.broken ? 'BROKEN' : p.linked ? 'ok' : 'unlinked')); });
+const r = await page.evaluate(async () => { const m = await import(new URL('src/gl.js', location.href).href); return m.allPrograms.map(p => p.name + ':' + (p.broken ? 'BROKEN' : p.linked ? 'ok' : 'unlinked')); });
 const bad = r.filter(x => !x.endsWith(':ok'));
 console.log(r.length + ' programs, ' + bad.length + ' not ok' + (bad.length ? ': ' + bad.join(', ') : ''));
 for (const e of errs) console.log('[error]', e);
