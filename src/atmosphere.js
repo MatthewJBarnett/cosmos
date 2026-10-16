@@ -110,7 +110,7 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   if (alt < 85000. || alt > 380000.) return vec3(0.);
   vec3 n = normalize(p);
   // airglow: O(1S) 557.7 nm layer at ~95 km, everywhere; only noticeable on the night side and at the limb
-  vec3 glow = vec3(0.3, 1., 0.32)*exp(-pow((alt*1e-3 - 95.)/5.5, 2.))*6e-13*(0.75 + 0.5*textureLod(uNoise3, n*3. + uTime*1e-5, 0.).r);
+  vec3 glow = vec3(0.3, 1., 0.32)*exp(-pow((alt*1e-3 - 95.)/5.5, 2.))*4e-14*(0.75 + 0.5*textureLod(uNoise3, n*3. + uTime*1e-5, 0.).r);
   if (dot(n, sunDir) > 0.05) return glow;
   vec3 nb = uBodyRotInv*n;
   float cm = dot(nb, uMagPole);
@@ -316,7 +316,8 @@ layout(location=0) out vec4 oIn;
 layout(location=1) out vec4 oTr;
 void main(){
   vec3 L, T; float d, rep; volumetrics(vUV, L, T, d, rep);
-  oIn = vec4(L, d); oTr = vec4(T, log2(max(rep, 1.)));
+  // store exposed values: unexposed night-sky radiance (~1e-8) would underflow half floats
+  oIn = vec4(min(L*uExposure, vec3(60000.)), d); oTr = vec4(T, log2(max(rep, 1.)));
 }
 #else
 out vec4 oColor;
@@ -371,7 +372,7 @@ void main(){
 // Full resolution composite with depth aware upsampling of the volumetrics.
 const UPSAMPLE_FS = `
 in vec2 vUV; out vec4 oColor;
-uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform float uExposure;
+uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform float uExpRatio;
 void main(){
   vec4 scene = texture(uScene, vUV);
   float d = texture(uDepth, vUV).r;
@@ -389,7 +390,7 @@ void main(){
     if (dd < best) { best = dd; bL = a.rgb; bT = b.rgb; }
   }
   if (ws > 1e-6) { L /= ws; T /= ws; } else { L = bL; T = bT; }
-  vec3 col = scene.rgb*T + L*uExposure;
+  vec3 col = scene.rgb*T + L*uExpRatio;
   if (any(isnan(col)) || any(isinf(col))) col = scene.rgb;
   oColor = vec4(clamp(col, 0., 60000.), 1.);
 }`;
@@ -518,7 +519,7 @@ export class VolumetricTAA {
     // composite at full resolution
     gl.bindFramebuffer(gl.FRAMEBUFFER, o.outFBO); gl.viewport(0, 0, o.w, o.h);
     if (o.scissor) { gl.enable(gl.SCISSOR_TEST); gl.scissor(...o.scissor); }
-    pUp.use().set({ uScene: o.scene, uDepth: o.depth, uIn: dst.a, uTr: dst.b, uHalfSize: [this.w, this.h], uExposure: o.exposure });
+    pUp.use().set({ uScene: o.scene, uDepth: o.depth, uIn: dst.a, uTr: dst.b, uHalfSize: [this.w, this.h], uExpRatio: 1 });
     drawFS();
     gl.disable(gl.SCISSOR_TEST);
   }

@@ -56,7 +56,7 @@ float eclipse(vec3 p, int i){
   float as = uLightRad[i]/dl, vis = 1.;
   for (int k = 0; k < uNumOcc; k++) {
     vec3 O = uOcc[k].xyz - p; float d = length(O);
-    if (d > dl) continue;
+    if (d > dl*0.999) continue;     // also skips the light's own body (planetshine sources)
     float ao = uOcc[k].w/d;
     float sep = acos(clamp(dot(O/d, L), -1., 1.));
     float cover = smoothstep(as + ao, abs(ao - as), sep) * min(1., (ao*ao)/(as*as));
