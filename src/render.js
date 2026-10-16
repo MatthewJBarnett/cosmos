@@ -303,7 +303,8 @@ export class Renderer {
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
     if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear }, common));
     T('galaxies');
-    if (gal && insideGal) {
+    // the Milky Way's glow is far below visibility at daylight exposures
+    if (gal && insideGal && exposure > 3e3) {
       // view direction -> galaxy local
       const rl = Q.mat3(Q.mul(Q.conj(gal.quat), nav.q));
       // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs

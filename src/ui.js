@@ -425,10 +425,13 @@ export class UI {
       const l = this.label(n++); l.textContent = text; l.className = 'label ' + cls; l.style.display = 'block';
       l.style.transform = `translate(${(p[0] * rect.width + (offPx || 6)).toFixed(1)}px, ${(p[1] * rect.height - 8).toFixed(1)}px)`;
     };
+    const groundUp = nav.anchor && nav.altitude < nav.anchor.radius * 0.05 ? V.norm(V.sub(nav.S, nav.anchor.wpos)) : null;
     if (this.showLabels) {
       if (nav.system && nav.level === 'system') {
         for (const b of nav.system.bodies) {
           if (b.kind === 'barycenter' || !b.rel) continue;
+          // standing on a body: no labels for things below the horizon
+          if (groundUp && b !== nav.anchor && V.dot(b.rel, groundUp) / (b.dist || 1) < -0.01) continue;
           const px = b.pxRadius || 0;
           if (px > 60) continue;
           if (b.kind === 'moon' || (b.parent && b.parent.kind === 'planet')) { const pd = b.parent.dist || 1e30; if (b.orbit.a / pd * r.pxPerRad < 25) continue; }
