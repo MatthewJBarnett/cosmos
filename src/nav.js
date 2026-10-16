@@ -4,6 +4,7 @@ import { V, Q, C, clamp } from './math.js';
 import { gl, makeVAO } from './gl.js';
 import { MILKY_WAY, REAL_GALAXIES, galaxyName, SUN_POS, galDir } from './universe.js';
 import { visibleNebulae, REAL_NEBULAE } from './exotic.js';
+import { catalog, loadCatalog } from './assets.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
@@ -23,6 +24,13 @@ function fieldFor(g) {
   f = new StarField(g);
   if (g === MILKY_WAY) {
     addFixed(f, sunDescriptor(g), 4.83, 5772);
+    // real stars around the Sun (HYG catalogue); procedural stars are suppressed where it is complete
+    f.catalogCenter = SUN_POS;
+    loadCatalog().then(() => {
+      if (!catalog.ready) return;
+      f.cells.set('catalog', { fixedCell: true, catalog: true, origin: SUN_POS, n: catalog.count, data: catalog.data, last: Infinity,
+        vao: makeVAO([{ data: catalog.data, stride: 20, parts: [{ loc: 0, size: 3, offset: 0 }, { loc: 1, size: 2, offset: 12 }] }]) });
+    });
     // Cygnus X-1: stellar black hole with a blue supergiant companion
     const d = galDir(71.33, 3.07);
     addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
@@ -357,6 +365,11 @@ export function findByName(nav, name) {
   if (nav.system) { const b = nav.system.bodies.find(b => b.name.toLowerCase() === n) || nav.system.bodies.find(b => b.name.toLowerCase().startsWith(n)); if (b) return { type: 'body', body: b }; }
   const sol = solSystem(); const b = sol.bodies.find(b => b.name.toLowerCase() === n) || (n.length > 2 && sol.bodies.find(b => b.name.toLowerCase().startsWith(n)));
   if (b) return { type: 'body', body: b };
+  if (catalog.ready) {
+    const cf = fieldFor(MILKY_WAY), cell = cf.cells.get('catalog');
+    const hit = catalog.named.find(x => x.name.toLowerCase() === n) || catalog.named.find(x => x.desig && x.desig.toLowerCase() === n) || (n.length > 2 && catalog.named.find(x => x.name.toLowerCase().startsWith(n)));
+    if (hit && cell) return { type: 'star', desc: cf.starAt(cell, hit.i) };
+  }
   const mwf = fieldFor(MILKY_WAY).fixed.find(f => f.desc.name && f.desc.name.toLowerCase().includes(n));
   if (mwf) return { type: 'star', desc: mwf.desc };
   const nb = REAL_NEBULAE.find(x => x.name.toLowerCase().includes(n));
@@ -372,5 +385,6 @@ export function searchList(nav) {
   for (const g of REAL_GALAXIES) out.push(g.name);
   for (const x of REAL_NEBULAE) out.push(x.name);
   out.push('Sagittarius A*', 'Cygnus X-1');
+  if (catalog.ready) for (const x of catalog.named) if (!/^HIP /.test(x.name)) out.push(x.name);
   return out;
 }

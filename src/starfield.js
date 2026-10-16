@@ -1,7 +1,8 @@
 // Procedural stars of one galaxy: magnitude binned grids of cells generated on demand around the camera.
 import { gl, makeVAO } from './gl.js';
 import { RNG, hashCombine } from './rng.js';
-import { LF, LF_MIN, YOUNG, makeStar } from './stars.js';
+import { LF, LF_MIN, YOUNG, makeStar, starFromCatalog } from './stars.js';
+import { catalog } from './assets.js';
 import { makeDensityFn, SUN_POS } from './universe.js';
 
 const NB = LF.length;
@@ -52,6 +53,11 @@ export class StarField {
       if (u * dmax > dt) continue;
       const young = (u * dmax) < dy;
       const MV = LF_MIN + b + um;
+      if (this.catalogCenter) {
+        // the real catalogue is complete to about magnitude 8.5 around the Sun: no procedural stars there
+        const cx = p[0] - this.catalogCenter[0], cy = p[1] - this.catalogCenter[1], cz = p[2] - this.catalogCenter[2];
+        if (cx * cx + cy * cy + cz * cz < Math.pow(10, (8.5 - MV + 5) / 2.5)) continue;
+      }
       const st = makeStar(MV, u1, u2, young);
       // compensate thinning in dense regions by brightening (keeps integrated light)
       data[m * 5] = x; data[m * 5 + 1] = y; data[m * 5 + 2] = z; data[m * 5 + 3] = MV - 2.5 * Math.log10(1 / thin) * 0.0; data[m * 5 + 4] = st.kind >= 4 ? (st.kind === 4 ? 30000 : 2000) : st.T;
@@ -106,6 +112,11 @@ export class StarField {
   dispose() { for (const c of this.cells.values()) if (c.vao) c.vao.free(); this.cells.clear(); }
 
   starAt(cell, i) {
+    if (cell.catalog) {
+      const d = cell.data, n = catalog.byIndex.get(i);
+      return { galaxy: this.g, seed: hashCombine(this.g.seed, 0xca7, i), pos: [cell.origin[0] + d[i * 5], cell.origin[1] + d[i * 5 + 1], cell.origin[2] + d[i * 5 + 2]],
+        star: starFromCatalog(d[i * 5 + 3], d[i * 5 + 4], n && n.spect), key: this.g.id + '/cat:' + i, name: n ? n.name : 'CAT ' + (i + 1), catIndex: i, named: n || null };
+    }
     const d = cell.data, a = cell.aux;
     const star = makeStar(d[i * 5 + 3], a[i * 3], a[i * 3 + 1], a[i * 3 + 2] > 0.5);
     return {
@@ -132,8 +143,8 @@ export class StarField {
     };
     for (const f of this.fixed) test(f.pos[0], f.pos[1], f.pos[2], f.MV, null, 0, f);
     for (const cell of this.cells.values()) {
-      if (cell.fixedCell) continue;
-      const s = this.bins[cell.b].size, o = cell.origin, dt = cell.data;
+      if (cell.fixedCell && !cell.catalog) continue;
+      const s = cell.catalog ? 1e6 : this.bins[cell.b].size, o = cell.origin, dt = cell.data;
       // quick reject: cell bounding sphere vs cone
       const cx = o[0] + s / 2 - cam[0], cy = o[1] + s / 2 - cam[1], cz = o[2] + s / 2 - cam[2];
       const cd = Math.hypot(cx, cy, cz), rad = s * 0.87;
@@ -150,9 +161,9 @@ export class StarField {
     let best = null, bd = maxDist;
     for (const f of this.fixed) { const d = Math.hypot(f.pos[0] - cam[0], f.pos[1] - cam[1], f.pos[2] - cam[2]); if (d < bd) { bd = d; best = { fixed: f }; } }
     for (const cell of this.cells.values()) {
-      if (cell.fixedCell) continue;
-      const s = this.bins[cell.b].size, o = cell.origin;
-      if (cam[0] < o[0] - bd || cam[0] > o[0] + s + bd || cam[1] < o[1] - bd || cam[1] > o[1] + s + bd || cam[2] < o[2] - bd || cam[2] > o[2] + s + bd) continue;
+      if (cell.fixedCell && !cell.catalog) continue;
+      const s = cell.catalog ? 1e6 : this.bins[cell.b].size, o = cell.origin;
+      if (!cell.catalog && (cam[0] < o[0] - bd || cam[0] > o[0] + s + bd || cam[1] < o[1] - bd || cam[1] > o[1] + s + bd || cam[2] < o[2] - bd || cam[2] > o[2] + s + bd)) continue;
       const dt = cell.data;
       for (let i = 0; i < cell.n; i++) {
         const d = Math.hypot(o[0] + dt[i * 5] - cam[0], o[1] + dt[i * 5 + 1] - cam[1], o[2] + dt[i * 5 + 2] - cam[2]);

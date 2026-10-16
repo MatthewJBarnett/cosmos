@@ -7,6 +7,8 @@ import { galaxyName, REAL_GALAXIES } from './universe.js';
 import { rcfg } from './render.js';
 import { RNG } from './rng.js';
 import { visibleNebulae } from './exotic.js';
+import { catalog, loadCatalog } from './assets.js';
+import { SUN_POS, MILKY_WAY } from './universe.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -67,7 +69,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N</td><td>Toggle orbits, labels</td></tr>
+      <tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2</td><td>Hide interface</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table><p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
@@ -84,7 +86,8 @@ export class UI {
     this.buildSettings();
     this.bind();
     this.lastInfoKey = null; this.labelPool = []; this.sysKey = null;
-    document.getElementById('searchlist').innerHTML = searchList(nav).map(n => `<option value="${n}">`).join('');
+    const fillSearch = () => { document.getElementById('searchlist').innerHTML = searchList(nav).map(n => `<option value="${n}">`).join(''); };
+    fillSearch(); loadCatalog().then(fillSearch);
   }
   buildSettings() {
     const s = this.setPanel;
@@ -96,6 +99,7 @@ export class UI {
       <label><input type="checkbox" id="sClouds" checked> Volumetric clouds</label>
       <label><input type="checkbox" id="sOrbits" checked> Orbits</label>
       <label><input type="checkbox" id="sLabels" checked> Labels</label>
+      <label><input type="checkbox" id="sConst"> Constellations</label>
       <label><input type="checkbox" id="sAuto" checked> Auto exposure</label>
       <label><input type="checkbox" id="sFxaa" checked> Anti-aliasing</label>
       <label><input type="checkbox" id="sFlare" checked> Lens flare</label>
@@ -109,6 +113,7 @@ export class UI {
     q('sClouds').onchange = (e) => { rcfg.clouds = e.target.checked; };
     q('sOrbits').onchange = (e) => { rcfg.orbits = e.target.checked; };
     q('sLabels').onchange = (e) => { this.showLabels = e.target.checked; };
+    q('sConst').onchange = (e) => { rcfg.constellations = e.target.checked; };
     q('sAuto').onchange = (e) => { rcfg.autoExposure = e.target.checked; rcfg.manualExposure = this.r.exposure; };
     q('sFxaa').onchange = (e) => { rcfg.fxaa = e.target.checked; };
     q('sFlare').onchange = (e) => { rcfg.flare = e.target.checked; };
@@ -147,6 +152,7 @@ export class UI {
       else if (k === '.') this.stepRate(1); else if (k === ',') this.stepRate(-1);
       else if (k === 'j') nav.rate = -nav.rate; else if (k === '\\') { nav.rate = 1; nav.paused = false; }
       else if (k === 'h' || k === '?') this.toggle(this.help);
+      else if (k === 'k') rcfg.constellations = !rcfg.constellations;
       else if (k === 'o') rcfg.orbits = !rcfg.orbits; else if (k === 'n') this.showLabels = !this.showLabels;
       else if (k === '[') rcfg.exposureBias -= 0.5; else if (k === ']') rcfg.exposureBias += 0.5;
       else if (k === 'escape') { nav.goto = null; [this.sysPanel, this.setPanel, this.help].forEach(p => p.classList.add('hidden')); }
@@ -276,6 +282,26 @@ export class UI {
       if (nav.level !== 'system' || (nav.system && V.len(nav.S) > 3e13)) {
         const cu = nav.camU();
         for (const g of REAL_GALAXIES) { const rel = V.sub(g.posU, cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name, 'galaxy', 10); }
+      }
+      if (nav.galaxy === MILKY_WAY && nav.level !== 'universe' && catalog.ready) {
+        const cam = nav.camLocal(), gq = nav.galaxy.quat, d = catalog.data;
+        const ds = V.dist(cam, SUN_POS);
+        if (ds < 300) {
+          const rel = (i) => Q.rot(gq, [SUN_POS[0] + d[i * 5] - cam[0], SUN_POS[1] + d[i * 5 + 1] - cam[1], SUN_POS[2] + d[i * 5 + 2] - cam[2]]);
+          if (rcfg.constellations) for (const c of catalog.constellations) {
+            if (!c.lines.length) continue;
+            let sx = 0, sy = 0, sz = 0, k = 0;
+            for (const [a] of c.lines) { const r = V.norm(rel(a)); sx += r[0]; sy += r[1]; sz += r[2]; k++; }
+            put([sx / k, sy / k, sz / k], c.name, 'const', 0);
+          }
+          // brightest named stars as seen from here
+          let nlab = 0;
+          for (const n of catalog.named) {
+            if (nlab > 25) break;
+            const r = rel(n.i), dist = V.len(r), m = d[n.i * 5 + 3] + 5 * Math.log10(Math.max(dist, 1e-6)) - 5;
+            if (m < 1.6 && !/^(HIP|HYG) /.test(n.name)) { put(r, n.name, 'star', 7); nlab++; }
+          }
+        }
       }
       if (nav.level !== 'universe' && nav.galaxy) {
         for (const v of visibleNebulae) if (v.px > 6 && v.px < 500 && v.nb.name) put(v.rel, v.nb.name, 'galaxy', Math.min(v.px, 60) + 6);

@@ -294,3 +294,23 @@ export class GalaxySky {
     drawFS();
   }
 }
+
+// ----- constellation figures (3D lines between catalogue stars, so they distort as you travel) -----
+const CON_VS = `layout(location=0) in vec3 aPos; uniform mat4 uViewProj; uniform vec3 uOffset; out float vD;
+void main(){ vec3 p = aPos + uOffset; vD = length(p); gl_Position = uViewProj*vec4(p, 1.); gl_Position.z = 0.; }`;
+const CON_FS = `in float vD; out vec4 o; uniform float uAlpha; void main(){ o = vec4(vec3(0.22, 0.42, 0.85)*uAlpha, 0.); }`;
+let pCon = null, conVAO = null, conCount = 0;
+export function drawConstellations(catalog, sunLocal, camLocal, viewProjLocal, alpha) {
+  if (!catalog.ready || alpha <= 0) return;
+  if (!pCon) {
+    pCon = new Program('constellations', CON_VS, CON_FS);
+    const pts = [], d = catalog.data;
+    for (const c of catalog.constellations) for (const [a, b] of c.lines) pts.push(d[a * 5], d[a * 5 + 1], d[a * 5 + 2], d[b * 5], d[b * 5 + 1], d[b * 5 + 2]);
+    conVAO = gl.createVertexArray(); gl.bindVertexArray(conVAO);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0); conCount = pts.length / 3;
+  }
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
+  pCon.use().set({ uViewProj: viewProjLocal, uOffset: [sunLocal[0] - camLocal[0], sunLocal[1] - camLocal[1], sunLocal[2] - camLocal[2]], uAlpha: alpha });
+  gl.bindVertexArray(conVAO); gl.drawArrays(gl.LINES, 0, conCount);
+}

@@ -84,6 +84,32 @@ export function makeStar(MV, u1, u2, young) {
   return { kind, MV, T, mass: mass * C.Msun, radius: R, lum: L, cls };
 }
 
+// Main sequence absolute magnitude for an effective temperature (inverse of the MS table)
+function msMVofT(T) {
+  for (let i = 0; i < MS.length - 1; i++) {
+    const a = MS[i], b = MS[i + 1];
+    if (T <= a[1] && T >= b[1]) { const t = (Math.log(a[1]) - Math.log(T)) / (Math.log(a[1]) - Math.log(b[1])); return { MV: a[0] + (b[0] - a[0]) * t, mass: Math.exp(Math.log(a[2]) + (Math.log(b[2]) - Math.log(a[2])) * t) }; }
+  }
+  return T > MS[0][1] ? { MV: MS[0][0], mass: MS[0][2] } : { MV: MS[MS.length - 1][0], mass: MS[MS.length - 1][2] };
+}
+// A star from catalogue data: absolute magnitude, effective temperature and (optional) spectral type string
+export function starFromCatalog(MV, T, spect) {
+  spect = spect || '';
+  const ms = msMVofT(T);
+  let kind = KIND.MS, lum = 'V';
+  const m = /^(sd|D)?([OBAFGKMLTY])(\d?\.?\d*)\s*(Ia\+?|Iab|Ib|III|II|IV|V|VI)?/.exec(spect);
+  if (m && m[1] === 'D') kind = KIND.WD;
+  else if (m && m[4]) { lum = m[4]; kind = lum.startsWith('I') && !lum.startsWith('IV') ? (lum === 'III' || lum === 'II' ? KIND.GIANT : KIND.SUPERGIANT) : KIND.MS; if (lum === 'III' || lum === 'II') kind = KIND.GIANT; }
+  else if (MV < ms.MV - 1.6) { kind = MV < -4.5 ? KIND.SUPERGIANT : KIND.GIANT; lum = MV < -4.5 ? 'Ib' : 'III'; }
+  else if (MV > ms.MV + 4.5 && T > 4500) { kind = KIND.WD; lum = ''; }
+  const bc = kind === KIND.WD ? bcOfT(T) * 0.6 : bcOfT(T);
+  const L = Math.pow(10, 0.4 * (4.74 - (MV + bc)));
+  const R = Math.sqrt(L) / Math.pow(T / C.Tsun, 2) * C.Rsun;
+  let mass = kind === KIND.MS ? ms.mass : kind === KIND.GIANT ? clamp(Math.pow(L / 50, 0.3), 0.8, 6) : kind === KIND.SUPERGIANT ? clamp(Math.pow(L, 0.3) * 0.6, 8, 60) : 0.6;
+  const cls = m ? (m[1] || '') + m[2] + m[3] + (m[1] === 'D' ? '' : (m[4] || lum)) : (kind === KIND.WD ? 'DA' + Math.min(9, Math.round(50400 / T)) : spectralName(spOfT(T), lum));
+  return { kind, MV, T, mass: mass * C.Msun, radius: R, lum: L, cls };
+}
+
 // Blackbody colour in linear sRGB, normalised so max channel = 1. Based on CIE 1931 fits (Krystek / Kim et al.).
 export function bbColor(T) {
   T = clamp(T, 800, 60000);

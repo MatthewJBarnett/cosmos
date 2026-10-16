@@ -5,11 +5,13 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
-import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg } from './sky.js';
+import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations } from './sky.js';
+import { catalog } from './assets.js';
+import { MILKY_WAY, SUN_POS } from './universe.js';
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -213,6 +215,10 @@ export class Renderer {
       nStars = drawStars(nav.field, camLocal, viewProjLocal, Object.assign({ hide }, common));
     }
     T('stars');
+    if (rcfg.constellations && gal === MILKY_WAY && camLocal) {
+      const ds = V.dist(camLocal, SUN_POS);
+      drawConstellations(catalog, SUN_POS, camLocal, viewProjLocal, 0.35 * clamp(1 - ds / 300, 0, 1));
+    }
     drawNebulaeAndFx(nav, { viewProj, viewProjLocal, camLocal, camRot, tanFov: [tanX, tanY], exposure, noise3: this.noise3, time: nav.time, frame: this.frameNo, pxPerRad });
 
     // system bodies

@@ -194,7 +194,9 @@ export function nebulaeNear(galaxy, cam, dens) {
     if (!list) {
       list = []; const rng = new RNG(hashCombine(galaxy.seed, 0x4eb, x, y, z));
       dens([(x + 0.5) * NEB_CELL, (y + 0.5) * NEB_CELL, (z + 0.5) * NEB_CELL], dd);
-      const n = rng.poisson(Math.min(dd[1] * 0.35 + dd[0] * 0.05, 3));
+      let n = rng.poisson(Math.min(dd[1] * 0.35 + dd[0] * 0.05, 3));
+      // around the Sun the sky is the real one: only catalogued nebulae there
+      if (galaxy === MILKY_WAY && Math.hypot((x + 0.5) * NEB_CELL - SUN_POS[0], (y + 0.5) * NEB_CELL - SUN_POS[1], (z + 0.5) * NEB_CELL - SUN_POS[2]) < 2200) n = 0;
       for (let i = 0; i < n; i++) {
         const u = rng.f(), type = u < 0.6 ? 0 : u < 0.8 ? 1 : 2, seed = rng.range(0, 50);
         const radius = type === 0 ? rng.logRange(4, 45) : type === 1 ? rng.logRange(0.15, 0.9) : rng.logRange(3, 30);
