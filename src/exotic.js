@@ -136,19 +136,22 @@ void main(){
     float n = fbm(q + w*0.35);
     float d = 0., dust = 0.; vec3 col = uColA;
     if (uType == 0) {
-      // diffuse emission nebula: irregular turbulent cloud with a blown-out cavity around the hot stars
-      float shape = 0.45 + 1.1*texture(uNoise3, p*0.045 + uSeed*0.7).a;
-      float rr = r/shape;
-      float env = smoothstep(1., 0.25, rr)*smoothstep(1., 0.8, r);
+      // diffuse emission nebula: irregular turbulent cloud lit by hot stars inside a blown-out cavity
+      vec3 pe = p*vec3(1., 1.45, 0.8);
+      float shape = 0.3 + 1.3*texture(uNoise3, pe*0.06 + uSeed*0.7).a + 0.4*texture(uNoise3, pe*0.17 + uSeed).r;
+      float rr = length(pe)/shape;
+      float env = exp(-rr*rr*2.6)*smoothstep(1., 0.6, r);
       float wisp = pow(1. - abs(fbm(q*1.7 + 3.1)*2. - 1.), 3.);
       d = smoothstep(0.42, 0.7, n + 0.1*env)*env;
       float cav = smoothstep(0.05, 0.28, length(p - vec3(0.1, 0.05, -0.05))/shape);
       d *= mix(0.12, 1., cav);
       // hydrogen-alpha glow inside, blue reflection haze outside, teal oxygen near the ionising stars
-      col = mix(uColA, uColB, smoothstep(0.45, 0.95, rr + (n - 0.5)*0.5));
+      col = mix(uColA, uColB, 0.35*smoothstep(0.55, 1.1, rr + (n - 0.5)*0.5));
       col += vec3(0.08, 0.5, 0.42)*(1. - cav)*2.5;
       dust = smoothstep(0.5, 0.6, fbm(q*1.6 + 7.3))*smoothstep(1., 0.5, r)*6.;
-      d = d*2.4 + wisp*env*0.55;
+      // ionising stars near the cavity: emission falls off with distance from them
+      float ion = 1. + 7./(1. + dot(p - vec3(0.1, 0.05, -0.05), p - vec3(0.1, 0.05, -0.05))*30.);
+      d = (d*2.4 + wisp*env*0.55)*ion*0.5;
     } else if (uType == 1) {
       // planetary nebula: nested shells, slightly bipolar
       float rr = length(p*vec3(1., 0.78, 1.));
@@ -158,12 +161,18 @@ void main(){
       col = mix(uColA, uColB, smoothstep(0.35, 0.75, rr));
       d *= 2.;
     } else {
-      // supernova remnant: thin filamentary shell
-      float sh = exp(-pow((r - 0.78 - (n - 0.5)*0.25)/0.06, 2.));
+      // supernova remnant: filamentary shell; young ones with a pulsar also have a blue-white synchrotron interior
+      vec3 pr = p*vec3(1., 1.35, 1.);
+      float re = length(pr);
+      float sh = exp(-pow((re - 0.78 - (n - 0.5)*0.25)/0.07, 2.));
       float f1 = 1. - abs(texture(uNoise3, q*2.3).r*2. - 1.), f2 = 1. - abs(texture(uNoise3, q*5.1 + 0.4).g*2. - 1.);
       float fil = pow(f1, 6.)*1.5 + pow(f2, 8.);
-      d = sh*fil*5.;
-      col = mix(uColA, uColB, smoothstep(0.3, 0.9, f2 + (n - 0.5)));
+      float filD = sh*fil*5. + smoothstep(0.85, 0.5, re)*pow(f1, 10.)*2.;
+      vec3 filC = mix(vec3(1.0, 0.3, 0.12), vec3(1.0, 0.65, 0.3), smoothstep(0.3, 0.9, f2 + (n - 0.5)));
+      float syn = uColB.b > 0.9 && uSeed < 3. ? smoothstep(0.85, 0.2, re)*(0.6 + 0.6*n) : 0.;
+      if (uSeed >= 3.) filC = mix(uColA, uColB, smoothstep(0.3, 0.9, f2 + (n - 0.5)));
+      d = filD + syn*1.2;
+      col = (filC*filD + vec3(0.55, 0.7, 1.0)*syn*1.2)/max(d, 1e-4);
     }
     float k = dust*1.5;
     float st = exp(-k*dt*3.);
