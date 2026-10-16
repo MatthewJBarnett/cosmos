@@ -260,6 +260,12 @@ float terrain(vec3 d, vec3 P){
     h += gCrack * uHillAmp * 0.6 * (uLava > 0.5 ? -2. : 1.);
   }
   if (uCrater > 0.) h += craters(d);
+  // icy worlds: wind-carved ridges and pressure ridges at metre to hundred-metre scales
+  if (uCracks > 0. && uOMax >= 13) {
+    float rr = 0., a2 = 1.;
+    for (int o = 13; o <= min(uOMax, 20); o++) { float q = 1. - abs(gn(o, 24u, d*vec3(1., 1., 1.)).x); rr += a2*q*q; a2 *= 0.5; }
+    h += rr*uRadius/(exp2(13.)*uFreq)*0.008;
+  }
   return h + boulders(d);
 }
 
@@ -368,7 +374,10 @@ vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis){
     // snow and ice
     float snow = smoothstep(1.5, -2.5, tC + nf*1.5 + rock*3.);
     if (uOcean > 0.5 && alt < 0.) snow = smoothstep(-7., -11., tC + n2*4.);
-    c = mix(c, uColIce, snow);
+    // snow is never perfectly uniform: drifts, wind crust and blue shadows in hollows
+    float sv = uOMax >= 12 ? gn(min(uOMax, 14), 17u, d).x*0.5 + gn(min(uOMax, 17), 18u, d).x*0.3 : 0.;
+    vec3 snowC = uColIce*(0.9 + 0.1*sv) * mix(vec3(1.), vec3(0.86, 0.92, 1.0), clamp(slope*1.6 + max(-gFine, 0.)*0.4, 0., 1.));
+    c = mix(c, snowC, snow);
     if (uCity > 0. && alt > 1.) {
       float cm = fbm(5, min(uOMax, 9), 91u, d, 0.7);
       float city = smoothstep(0.35, 0.9, cm + 0.5*n1) * smoothstep(3000., 300., alt) * smoothstep(-5., 8., tC) * smoothstep(0.15, 0.45, moist) * (1.-snow);
@@ -379,9 +388,15 @@ vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis){
   } else {
     c = mix(c, uColRock, rock*0.7);
     c *= 1. + gFresh*0.9;
-    c = mix(c, uColCrack, clamp(gCrack*1.5, 0., 1.) * (uLava > 0.5 ? 0. : 1.));
+    c = mix(c, uColCrack, clamp(gCrack*1.5, 0., 1.) * (uLava > 0.5 ? 0. : 1.) * (0.4 + 0.6*smoothstep(-0.2, 0.3, n2)));
     float cap = smoothstep(uIceLat - 0.02, uIceLat + 0.02, lat + n1*0.05 + n2*0.02);
     c = mix(c, uColIce, cap);
+    // icy surfaces: fractured, layered albedo at every scale so low sun reveals structure
+    if (uCracks > 0. || cap > 0.) {
+      float iv = uOMax >= 10 ? fbm(10, min(uOMax, 18), 19u, d, 0.6)*0.35 : 0.;
+      c *= 1. + iv*0.3;
+      c = mix(c, c*vec3(0.82, 0.9, 1.0), clamp(slope*1.4, 0., 1.)*0.6);
+    }
     if (uLava > 0.) {
       float lv = clamp(gCrack*2.5, 0., 1.) + smoothstep(-0.25, -0.55, gCont + n2*0.3)*0.9;
       float hot = smoothstep(0.3, 1.0, lv + 0.3*n2 + nf*0.2);

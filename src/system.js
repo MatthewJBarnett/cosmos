@@ -89,7 +89,7 @@ export function surfacePreset(cls, rng, b) {
     }
     case 'ice': {
       const tint = rng.pick([[1, 1, 1], [1, 0.95, 0.88], [0.9, 0.95, 1], [1, 0.9, 0.8]]);
-      Object.assign(s, { crater: rng.range(0.1, 0.9), cracks: rng.range(0.2, 1), contAmp: 600 * gs, mtnAmp: 1500 * gs, hillAmp: 150 * gs, spec: 0.3,
+      Object.assign(s, { crater: rng.range(0.1, 0.9), cracks: rng.range(0.2, 1), contAmp: 900 * gs, mtnAmp: 2600 * gs, hillAmp: 420 * gs, spec: 0.3,
         colA: col(0.75 * tint[0], 0.75 * tint[1], 0.75 * tint[2]), colB: col(0.55 * tint[0], 0.55 * tint[1], 0.55 * tint[2]), colRock: col(0.4, 0.38, 0.36), colLow: col(0.5 * tint[0], 0.48 * tint[1], 0.46 * tint[2]), colCrack: vary(rng, col(0.35, 0.18, 0.1), 0.3), iceLat: 2 });
       break;
     }
