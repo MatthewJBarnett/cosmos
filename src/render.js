@@ -5,13 +5,13 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
-import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations } from './sky.js';
+import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS } from './universe.js';
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true, realSky: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -231,7 +231,9 @@ export class Renderer {
       camLocal = nav.camLocal();
       const cn = V.mul(camLocal, 1 / gal.radius);
       insideGal = V.len(cn) < 1.12;
-      if (insideGal) this.galSky.update(gal, cn, this.noise3, this.sync);
+      // near the Sun the photographed sky replaces the model entirely, so the cube needs no updates
+      const fullyReal = gal === MILKY_WAY && rcfg.realSky && V.dist(camLocal, SUN_POS) < 150 && this.galSky.valid;
+      if (insideGal && !fullyReal) this.galSky.update(gal, cn, this.noise3, this.sync);
       // galaxy local -> view
       const gq = gal.quat, r3 = Q.mat3(gq), m = new Float32Array(16);
       m[0] = r3[0]; m[1] = r3[1]; m[2] = r3[2]; m[4] = r3[3]; m[5] = r3[4]; m[6] = r3[5]; m[8] = r3[6]; m[9] = r3[7]; m[10] = r3[8]; m[15] = 1;
@@ -262,12 +264,18 @@ export class Renderer {
     gl.depthMask(true); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.depthMask(false);
     // galaxies
-    drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null }, common));
+    const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && V.dist(camLocal, SUN_POS) < 300;
+    // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
+    if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear }, common));
     T('galaxies');
     if (gal && insideGal) {
       // view direction -> galaxy local
       const rl = Q.mat3(Q.mul(Q.conj(gal.quat), nav.q));
-      this.galSky.draw(rl, [tanX, tanY], exposure);
+      // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs
+      let wReal = 0;
+      if (gal === MILKY_WAY && rcfg.realSky) wReal = clamp(1 - (V.dist(camLocal, SUN_POS) - 150) / 350, 0, 1);
+      const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal);
+      this.galSky.draw(rl, [tanX, tanY], exposure, drewReal ? 1 - wReal : 1);
     }
     T('galsky');
     let nStars = 0;

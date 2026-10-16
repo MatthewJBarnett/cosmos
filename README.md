@@ -39,6 +39,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | Q E, arrows | Roll, turn |
 | Click, double click | Select, go to |
 | G, L, C | Go to, land on, look at the selection |
+| T | Guided tour (T again for the next stop, Esc to stop) |
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time |
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Tab | System browser |

@@ -5,6 +5,7 @@ import { V, Q } from './math.js';
 import { GLSL_GALAXY, GLEVELS, galaxyCell, REAL_GALAXIES, galUniforms } from './universe.js';
 import { GLSL_BB } from './stars.js';
 import { CUBE_FACES } from './atmosphere.js';
+import { loadTexture } from './assets.js';
 
 export const skyCfg = { cubeSize: 1024, galBoost: 22, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
@@ -156,11 +157,11 @@ void main(){
 }`;
 const CUBEDRAW_FS = `
 in vec2 vUV; out vec4 o;
-uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale;
-void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, clamp(c.a, 0., 1.)); }`;
+uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale, uFade;
+void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, mix(1., clamp(c.a, 0., 1.), uFade)); }`;
 
 let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
-export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); }
+export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); initSkyMapProgram(); }
 function init() {
   if (pStar) return;
   pStar = new Program('stars', STAR_VS, STAR_FS);
@@ -255,7 +256,11 @@ export function drawGalaxies(camU, viewProj, o) {
       drawCell(galaxyCell(lv, x, y, z));
     }
   }
-  drawCell(REAL_CELL);
+  if (o.realSkyNear) {
+    // the photographed sky already contains the Magellanic Clouds, M31 and M33
+    const keep = { key: 'real-far', list: REAL_GALAXIES.filter(g => !/Magellanic|M31|M33/.test(g.name)), origin: [0, 0, 0] };
+    drawCell(keep);
+  } else drawCell(REAL_CELL);
   if (galFrame % 60 === 0) for (const [k, b] of galBuffers) if (galFrame - b.last > 300) { gl.deleteVertexArray(b.vao); gl.deleteBuffer(b.buf); galBuffers.delete(k); }
 }
 
@@ -288,10 +293,10 @@ export class GalaxySky {
     gl.disable(gl.SCISSOR_TEST);
     if (this.face >= 6) { const t = this.front; this.front = this.back; this.back = t; this.face = -1; this.pos = this.newPos; this.valid = true; }
   }
-  draw(rotLocalFromView, tanFov, exposure) {
-    if (!this.valid) return;
+  draw(rotLocalFromView, tanFov, exposure, weight = 1) {
+    if (!this.valid || weight <= 0) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
-    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure });
+    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure * weight, uFade: weight });
     drawFS();
   }
 }
@@ -314,4 +319,27 @@ export function drawConstellations(catalog, sunLocal, camLocal, viewProjLocal, a
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   pCon.use().set({ uViewProj: viewProjLocal, uOffset: [sunLocal[0] - camLocal[0], sunLocal[1] - camLocal[1], sunLocal[2] - camLocal[2]], uAlpha: alpha });
   gl.bindVertexArray(conVAO); gl.drawArrays(gl.LINES, 0, conCount);
+}
+
+// ----- the real Milky Way seen from near the Sun (ESO panorama in galactic coordinates, stars removed) -----
+const MAP_FS = `in vec2 vUV; out vec4 o;
+uniform sampler2D uMap; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale;
+void main(){
+  vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  float l = atan(-d.z, d.x), b = asin(clamp(d.y, -1., 1.));
+  vec2 uv = vec2(0.5 - l/6.2831853, 0.5 - b/3.14159265);
+  vec3 c = textureLod(uMap, uv, 0.).rgb;
+  o = vec4(max(c - 0.0017, 0.)*uScale, 1.);
+}`;
+let pMap = null;
+export function initSkyMapProgram() { if (!pMap) pMap = new Program('skymap', FS_VS, MAP_FS); }
+// rotLocalFromView: view -> galaxy local (galactic) axes. weight: 0..1 blend with the procedural sky.
+export function drawSkyMap(rotLocalFromView, tanFov, exposure, weight) {
+  const e = loadTexture('data/milkyway.jpg', 'color');
+  if (!e.ready || weight <= 0) return false;
+  initSkyMapProgram();
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
+  pMap.use().set({ uMap: e.tex, uRot: rotLocalFromView, uTanFov: tanFov, uScale: 1.6e-8 * skyCfg.galBoost * exposure * weight });
+  drawFS();
+  return true;
 }

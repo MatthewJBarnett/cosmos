@@ -9,6 +9,7 @@ import { RNG } from './rng.js';
 import { visibleNebulae } from './exotic.js';
 import { catalog, loadCatalog } from './assets.js';
 import { SUN_POS, MILKY_WAY } from './universe.js';
+import { Tour } from './tour.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -53,7 +54,7 @@ export class UI {
     this.top = root.appendChild(el('div', 'panel top'));
     this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
       <select id="places" title="Places"><option value="">Places…</option></select>
-      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
+      <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bRand" title="Travel somewhere new">Explore</button><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
     this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
@@ -71,7 +72,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table><p class="dim">Press H or ? to close.</p>`;
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
@@ -165,7 +166,8 @@ export class UI {
       else if (k === 'k') rcfg.constellations = !rcfg.constellations;
       else if (k === 'o') rcfg.orbits = !rcfg.orbits; else if (k === 'n') this.showLabels = !this.showLabels;
       else if (k === '[') rcfg.exposureBias -= 0.5; else if (k === ']') rcfg.exposureBias += 0.5;
-      else if (k === 'escape') { nav.goto = null; [this.sysPanel, this.setPanel, this.help].forEach(p => p.classList.add('hidden')); }
+      else if (k === 't') { if (this.tour.active) this.tour.next(); else this.tour.start(); }
+      else if (k === 'escape') { if (this.tour.active) this.tour.stop(); nav.goto = null; [this.sysPanel, this.setPanel, this.help].forEach(p => p.classList.add('hidden')); }
       else if (k === 'f3' || (k === 'p' && e.shiftKey)) { e.preventDefault(); rcfg.gpuTimes = !rcfg.gpuTimes; this.perf.classList.toggle('hidden', !rcfg.gpuTimes); }
       else if (k === 'f2') { e.preventDefault(); this.hidden = !this.hidden; this.root.classList.toggle('hide', this.hidden); }
       else if (k === 'p') this.screenshot();
@@ -180,6 +182,8 @@ export class UI {
     $('bSet').onclick = () => this.toggle(this.setPanel);
     $('bHelp').onclick = () => this.toggle(this.help);
     $('bRand').onclick = () => this.explore();
+    this.tour = new Tour(nav, this);
+    $('bTour').onclick = () => { if (this.tour.active) this.tour.stop(); else this.tour.start(); };
     $('search').addEventListener('change', e => { this.search(e.target.value); });
     const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
       'Exoplanets': ['Proxima Centauri', 'TRAPPIST-1', 'Helvetios', 'Ran', 'Tau Ceti', "Barnard's Star", 'Sirius'],
@@ -209,6 +213,12 @@ export class UI {
       const txt = u.toString();
       (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => this.toast('Link copied'), () => prompt('Link to this place', txt));
     };
+  }
+  caption(title, text, i, n) {
+    if (!this.capEl) this.capEl = this.root.appendChild(el('div', 'panel caption'));
+    if (!title) { this.capEl.classList.add('hidden'); return; }
+    this.capEl.classList.remove('hidden');
+    this.capEl.innerHTML = `<div class="ct">${title}<span class="dim"> · ${i}/${n}</span></div><div>${text}</div><div class="dim">T next stop · Esc ends the tour</div>`;
   }
   toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
   // planetographic latitude/longitude of the camera over the anchor body (degrees)
@@ -264,6 +274,7 @@ export class UI {
   fatal(e) { this.root.appendChild(el('div', 'fatal', 'Error: ' + e.message)); }
 
   update(dt) {
+    if (this.tour) this.tour.update(dt);
     if (this.hidden) return;
     const nav = this.nav, r = this.r;
     // status

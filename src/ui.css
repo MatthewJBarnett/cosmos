@@ -65,3 +65,6 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .ld-msg { color: #7d8ea3; font-size: 13px; }
 .ld-bar { width: 220px; height: 2px; background: rgba(255,255,255,0.1); }
 .ld-bar div { height: 100%; width: 0; background: #8fb4e6; transition: width 0.2s; }
+.caption { left: 50%; top: 70px; transform: translateX(-50%); max-width: 560px; text-align: center; }
+.caption .ct { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.caption div { margin: 2px 0; }
