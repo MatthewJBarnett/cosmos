@@ -256,6 +256,43 @@ export class Nav {
     }
   }
 
+  // ----- orbital flight: Newtonian two-body motion around the anchor body -----
+  enterOrbit() {
+    const b = this.anchor; if (!b || this.level !== 'system' || !b.mass) return false;
+    const r = V.sub(this.S, b.wpos), rl = V.len(r), up = V.mul(r, 1 / rl);
+    let f = Q.rot(this.q, [0, 0, -1]); f = V.sub(f, V.mul(up, V.dot(f, up)));
+    if (V.len(f) < 1e-6) f = V.cross(up, [0, 1, 0]);
+    f = V.norm(f);
+    const v = Math.sqrt(C.G * b.mass / rl);
+    this.orbit = { body: b, v: V.mul(f, v) };      // velocity relative to the body, in the inertial (non-rotating) frame
+    this.goto = null;
+    return true;
+  }
+  stepOrbit(dt, input) {
+    const o = this.orbit, b = o.body, GM = C.G * b.mass;
+    // thrust from the movement keys (camera axes), ~1% of orbital speed per second
+    const vl = V.len(o.v), th = vl * 0.01 * (input.fast ? 10 : 1) * (input.slow ? 0.1 : 1);
+    if (input.mx || input.my || input.mz) o.v = V.add(o.v, Q.rot(this.q, V.mul([input.mx, input.my, input.mz], th * dt)));
+    // integrate in simulation time (leapfrog, substeps), relative to the body; the anchor follow keeps us with it
+    let T = this.paused ? 0 : dt * this.rate;
+    let r = V.sub(this.S, b.wpos);
+    const n = Math.min(400, Math.max(1, Math.ceil(Math.abs(T) / Math.max(1, 0.002 * 2 * Math.PI * Math.sqrt(V.len(r) ** 3 / GM)))));
+    const h = T / n;
+    for (let i = 0; i < n; i++) {
+      let rl = V.len(r); o.v = V.addm(o.v, r, -GM / (rl * rl * rl) * h * 0.5);
+      r = V.addm(r, o.v, h);
+      rl = V.len(r); o.v = V.addm(o.v, r, -GM / (rl * rl * rl) * h * 0.5);
+    }
+    // undo the co-rotation applied by the anchor follow: orbits are inertial
+    this.S = V.add(b.wpos, r);
+    // orbital elements for the HUD
+    const rl = V.len(r), v2 = V.dot(o.v, o.v), eps = v2 / 2 - GM / rl, a = -GM / (2 * eps);
+    const hv = V.cross(r, o.v), e = Math.sqrt(Math.max(0, 1 + 2 * eps * V.dot(hv, hv) / (GM * GM)));
+    o.peri = a * (1 - e) - b.radius; o.apo = eps < 0 ? a * (1 + e) - b.radius : Infinity; o.period = eps < 0 ? 2 * Math.PI * Math.sqrt(a * a * a / GM) : Infinity; o.speed = Math.sqrt(v2);
+    this.speedNow = o.speed;
+    if (rl < b.radius + (b._groundH || 0) + 50) { this.orbit = null; this.vel = [0, 0, 0]; }
+  }
+
   // ----- per frame -----
   update(dt, input) {
     if (!this.paused) this.time += dt * this.rate;
@@ -272,7 +309,7 @@ export class Nav {
       if (prev) {
         this.S = V.add(this.S, V.sub(prev.wpos, prevPos));
         const rel = V.sub(this.S, prev.wpos), alt = V.len(rel) - prev.radius;
-        const w = prev.kind === 'star' ? 0 : clamp((1.2 * prev.radius - alt) / (1.0 * prev.radius), 0, 1);
+        const w = prev.kind === 'star' || this.orbit ? 0 : clamp((1.2 * prev.radius - alt) / (1.0 * prev.radius), 0, 1);
         if (w > 0 && prev.rotPeriod && !this.paused) {
           const dAng = 2 * Math.PI * dt * this.rate / prev.rotPeriod * w;
           const axis = Q.rot(prev.wrot, [0, 1, 0]), rq = Q.axis(axis, dAng);
@@ -332,7 +369,9 @@ export class Nav {
     if (input.wheel) this.speed = clamp(this.speed * Math.pow(1.0018, -input.wheel), 0.5, 3e25);
 
     // translate
-    if (this.goto) { this.stepGoto(dt); this.vel = [0, 0, 0]; }
+    if (this.orbit && (this.goto || !anchor || anchor !== this.orbit.body || this.level !== 'system')) this.orbit = null;
+    if (this.orbit) { this.stepOrbit(dt, input); }
+    else if (this.goto) { this.stepGoto(dt); this.vel = [0, 0, 0]; }
     else {
       let sp = this.speed * (input.fast ? 10 : 1) * (input.slow ? 0.1 : 1);
       if (anchor && alt < anchor.radius * 4) sp = Math.min(sp, Math.max(alt * 1.5, 3) * (input.fast ? 4 : 1));

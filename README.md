@@ -44,6 +44,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | T | Guided tour (T again for the next stop, Esc to stop) |
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time |
 | 0 to 9 | Sun, Mercury ... Pluto |
+| Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | B | Save the current view (Saved menu) |
 | Tab | System browser |
 | O, N, K | Orbits, labels, constellation figures |
