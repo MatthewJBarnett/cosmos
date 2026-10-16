@@ -85,6 +85,7 @@ uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
 uniform float cBase, cTop, cDens, cHas, cKind, cMapped; uniform vec3 cColor;
 uniform float uAurora; uniform mat3 uBodyRotInv; uniform vec3 uMagPole;
+uniform sampler2D uLightsTex; uniform float uHasLights;
 uniform sampler2D uIrrLUT;
 uniform int uSteps, uCloudSteps;
 ${LIGHT_UNIFORMS}
@@ -307,6 +308,23 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       }
     }
   }
+  // light pollution: city light scattered by the air above an observer near the ground (Walker / Garstang-like falloff)
+  if (uHasLights > 0.5 && uNumLights > 0) {
+    float camAlt = length(ro) - aR0;
+    vec3 cn = normalize(ro);
+    float sunEl = dot(cn, normalize(uLightPos[0] - uPlanetRel));
+    if (camAlt < 40000. && sunEl < 0.05 && !hitGround) {
+      vec3 nb = uBodyRotInv*cn;
+      float zb = abs(nb.z) < 1e-9 ? -1e-9 : nb.z;
+      vec2 uv = vec2(atan(-zb, nb.x)*0.15915494 + 0.5, 0.5 - asin(clamp(nb.y, -1., 1.))*0.31830989);
+      float lc = textureLod(uLightsTex, uv, 3.).r*0.6 + textureLod(uLightsTex, uv, 5.).r*0.4;
+      float el = max(dot(rd, cn), 0.);
+      float prof = 0.25 + 0.75*pow(1. - el, 3.);
+      float night = smoothstep(0.05, -0.12, sunEl)*smoothstep(40000., 2000., camAlt);
+      // overcast skies reflect much more of it back down
+      L += vec3(1.0, 0.72, 0.45)*lc*lc*prof*night*3e-6*(1. + 2.*(1. - cloudT));
+    }
+  }
   inscatter = L + cloudL*Tc; trans = T*cloudT;
   if (any(isnan(inscatter)) || any(isinf(inscatter)) || any(isnan(trans))) { inscatter = vec3(0.); trans = vec3(1.); }
   inscatter = clamp(inscatter, 0., 60000.); trans = clamp(trans, 0., 1.);
@@ -484,7 +502,7 @@ export function drawAtmosphere(body, o) {
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    uAurora: body.aurora || 0, uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
+    uAurora: body.aurora || 0, uHasLights: ms && ms.lights && ms.lights.tex ? 1 : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });

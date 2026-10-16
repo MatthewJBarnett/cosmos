@@ -338,7 +338,13 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     if (uOMax >= o0 + 3) {
       float towns = smoothstep(0.45, 0.8, 0.5 + 0.5*(gn(o0 + 3, 81u, d).x + 0.5*gn(o0 + 4, 81u, d).x));
       float k = towns*3.2;
-      if (uOMax >= o0 + 8) { float st = max(gn(o0 + 8, 82u, d).x, 0.) + max(gn(o0 + 9, 83u, d).x, 0.)*0.7; k *= pow(st*1.6, 4.)*3.; }
+      if (uOMax >= o0 + 7) {
+        // road network: thin ridge lines of noise at a few scales, plus scattered points
+        float r1 = 1. - abs(gn(o0 + 7, 82u, d).x), r2 = uOMax >= o0 + 9 ? 1. - abs(gn(o0 + 9, 83u, d).x) : 0.5;
+        float roads = pow(r1, 14.)*1.2 + pow(r2, 20.);
+        float pts = uOMax >= o0 + 11 ? smoothstep(0.55, 0.9, gn(min(uOMax, o0 + 12), 84u, d).x) : 0.;
+        k *= 0.12 + roads*4. + pts*3.;
+      }
       emis *= mix(1., k, fine);
     }
   }
