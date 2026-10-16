@@ -211,7 +211,7 @@ export function initExtraPrograms() {
 }
 
 // ---------------- ring particles (when flying through a ring) ----------------
-const RP_GRID = 56, RP_PER = 6;
+const RP_GRID = 64, RP_PER = 5;
 const RP_VS = `
 layout(location=0) in vec2 aCorner;
 uniform mat4 uViewProj; uniform mat3 uRot;          // ring local -> world
@@ -229,13 +229,14 @@ void main(){
   vec2 c = uCell0 + vec2(ix, iz);                     // integer cell coordinates (comoving along the tangent)
   uint seed = hh(uint(int(c.x) + 100000)*73856093u ^ uint(int(c.y) + 100000)*19349663u ^ uint(k)*83492791u);
   float a = rnd(seed), b = rnd(seed + 1u), h = rnd(seed + 2u), u = rnd(seed + 3u);
-  float radial = (c.x + a)*uCellM, tang = (c.y + b)*uCellM - uShift;
+  // positions relative to the camera's cell; the absolute cell index only seeds the random numbers
+  float radial = (float(ix) - float(${RP_GRID})*0.5 + a)*uCellM, tang = (float(iz) - float(${RP_GRID})*0.5 + b)*uCellM - uShift;
   float rr = uCamR + radial;
   float t = (rr - uRin)/(uRout - uRin);
   vec4 tc = textureLod(uTex, vec2(t, 0.5), 0.);
   // keep a fraction of particles matching the local optical depth
   float keep = clamp(tc.a*1.3, 0., 1.)*step(0., t)*step(t, 1.);
-  float rad = min(0.08*pow(u + 0.0008, -0.62), 7.);
+  float rad = min(0.25*pow(u + 0.002, -0.55), 9.);
   vec3 local = uU*radial + uW*tang + vec3(0., (h - 0.5)*uThick, 0.);
   vec3 cen = uRot*(local - uU*0.) + uOriginRel;
   vec3 f = normalize(cen); vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 up = cross(r, f);
@@ -246,22 +247,26 @@ void main(){
 }`;
 const RP_FS = `
 in vec2 vC; in vec3 vCenter; in float vRad; in vec3 vCol;
-uniform float uExposure, uFcoef; uniform vec3 uSunDir, uSunCol, uPlanetRel, uShineCol; uniform float uPlanetR;
+uniform float uExposure, uFcoef; uniform vec3 uSunDir, uSunCol, uPlanetRel, uShineCol, uFwd; uniform float uPlanetR;
 out vec4 o;
 void main(){
-  float d2 = dot(vC, vC); if (d2 > 1.) discard;
+  // lumpy ice: perturb the silhouette and the normal with a cheap per-particle pattern
+  float ang = atan(vC.y, vC.x), sd = fract(sin(dot(vCenter, vec3(12.9898, 78.233, 37.719)))*43758.5453);
+  float edge = 1. - 0.22*(0.5 + 0.5*sin(ang*3. + sd*20.)) - 0.12*(0.5 + 0.5*sin(ang*5. + sd*47.));
+  float d2 = dot(vC, vC); if (d2 > edge*edge) discard;
   vec3 f = normalize(vCenter); vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 up = cross(r, f);
-  vec3 n = normalize(r*vC.x + up*vC.y - f*sqrt(1. - d2));
+  vec2 q = vC/edge;
+  vec3 n = normalize(r*q.x + up*q.y - f*sqrt(max(1. - dot(q, q), 0.)));
+  n = normalize(n + 0.35*vec3(sin(q.x*7. + sd*9.), sin(q.y*6. + sd*13.), sin((q.x + q.y)*5. + sd*5.)));
   vec3 p = vCenter + n*vRad;
   // planet shadow
   vec3 oc = p - uPlanetRel; float b = dot(oc, uSunDir), c = dot(oc, oc) - uPlanetR*uPlanetR;
   float sh = (b < 0. && b*b - c > 0.) ? 0. : 1.;
   float nl = max(dot(n, uSunDir), 0.);
   vec3 toP = normalize(uPlanetRel - p);
-  vec3 col = vCol*(uSunCol*nl*sh + uShineCol*max(dot(n, toP), 0.))/3.14159;
+  vec3 col = vCol*0.7*(uSunCol*nl*sh + uShineCol*max(dot(n, toP), 0.))/3.14159;
   o = vec4(col*uExposure, 1.);
-  float w = length(p)*dot(normalize(p), f);
-  gl_FragDepth = log2(1. + max(w, 1e-3))*uFcoef*0.5;
+  gl_FragDepth = log2(1. + max(dot(p, uFwd), 1e-3))*uFcoef*0.5;
 }`;
 let pRP = null, rpVAO = null;
 export function initRingParticles() { if (!pRP) { pRP = new Program('ringparticles', RP_VS, RP_FS); rpVAO = makeVAO([{ data: new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), size: 2, loc: 0 }]); } }
@@ -285,6 +290,6 @@ export function drawRingParticles(b, nav, o) {
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
   pRP.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: Q.mat3(b.wrot), uOriginRel: originRel, uU: U, uW: W, uCell0: c0, uCellM: cellM, uThick: 30, uRin: rg.inner, uRout: rg.outer,
     uShift: shift - Math.floor(shift / cellM) * cellM, uCamR: rCam, uTex: tex, uExposure: o.exposure, uSunDir: sunDir, uSunCol: sun ? sun.col : [1, 1, 1], uPlanetRel: b.rel, uPlanetR: b.radius,
-    uShineCol: sun ? sun.col.map(x => x * 0.02) : [0, 0, 0] });
+    uShineCol: sun ? sun.col.map(x => x * 0.02) : [0, 0, 0], uFwd: Q.rot(nav.q, [0, 0, -1]) });
   gl.bindVertexArray(rpVAO.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, RP_GRID * RP_GRID * RP_PER);
 }

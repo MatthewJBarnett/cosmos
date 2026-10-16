@@ -281,7 +281,13 @@ export class Nav {
       }
       // choose anchor for the next frame
       let best = 30;
-      for (const b of sys.bodies) { if (!b.radius) continue; const d = V.dist(b.wpos, this.S) / b.radius; if (d < best) { best = d; anchor = b; } }
+      for (const b of sys.bodies) {
+        if (!b.radius) continue;
+        // ringed planets keep you anchored out to the edge of their rings
+        const reach = b.rings ? Math.max(30, b.rings.outer / b.radius * 1.5) : 30;
+        const d = V.dist(b.wpos, this.S) / b.radius / (reach / 30);
+        if (d < best) { best = d; anchor = b; }
+      }
       if (!anchor && this.selected && this.selected.type === 'body' && this.selected.body.system === sys && !this.goto) { const b = this.selected.body; if (b.radius && V.dist(b.wpos, this.S) < b.radius * 3000) anchor = b; }
       if (this.goto && this.goto.target.type === 'body' && this.goto.target.body.system === sys) anchor = this.goto.target.body;
     }
