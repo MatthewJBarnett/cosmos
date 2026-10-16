@@ -6,7 +6,7 @@ import { cfg as planetCfg } from './planet.js';
 import { skyCfg } from './sky.js';
 import { atmoCfg } from './atmosphere.js';
 import { UI } from './ui.js';
-import { loading, loadCatalog } from './assets.js';
+import { loading, loadCatalog, bodyMaps } from './assets.js';
 import { initPlanetPrograms } from './planet.js';
 import { initAtmoPrograms } from './atmosphere.js';
 import { initSkyPrograms } from './sky.js';
@@ -109,6 +109,17 @@ async function waitPrograms() {
 }
 await waitPrograms();
 loadCatalog();
+// fetch the real surface maps of the starting body before the first visible frame, so it never pops from
+// procedural to real terrain
+{
+  const sel = nav.selected && nav.selected.type === 'body' ? nav.selected.body : null;
+  if (sel && sel.maps) {
+    showLoading('Downloading ' + sel.name + ' data');
+    bodyMaps(sel);
+    const t0 = performance.now(), n0 = Math.max(1, loading.count);
+    while (loading.count > 0 && performance.now() - t0 < 25000) { setLoading(0.15 + 0.75 * (1 - loading.count / n0)); await new Promise(r => setTimeout(r, 100)); }
+  }
+}
 // draw a few frames behind the loading screen so the first visible frame is complete
 for (let i = 0; i < 3; i++) { try { frame(0.016); } catch (e) { console.error(e); } setLoading(0.9 + i * 0.03); await new Promise(r => setTimeout(r, 0)); }
 hideLoading();
