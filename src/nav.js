@@ -198,8 +198,21 @@ export class Nav {
     const off = V.mul(dir, body.radius + h + (body.surface.gen === 'terra' ? 1200 : body.radius * 0.02));
     this.goTo({ type: 'body', body, offset: off }, Object.assign({ dist: 1, land: { dir } }, opt));
   }
+  // shift time (by less than one rotation) so that it is `hour` local solar time at longitude lon on body
+  setLocalTime(body, lon, hour) {
+    const sys = body.system, star = sys.stars[0]; if (!star || !body.rotPeriod) return;
+    sys.update(this.time);
+    const d = Q.rot(Q.conj(body.wrot), V.norm(V.sub(star.wpos, body.wpos)));
+    const subLon = Math.atan2(-d[2], d[0]) * 180 / Math.PI;
+    let want = lon - (hour - 12) * 15;                 // sub-solar longitude needed
+    let delta = ((subLon - want) % 360 + 540) % 360 - 180;
+    // rotating eastward moves the sub-solar point west
+    this.time += delta / 360 * Math.abs(body.rotPeriod) * Math.sign(body.rotPeriod);
+    sys.update(this.time);
+  }
   // land at a planetographic latitude/longitude (degrees)
   landAt(body, lat, lon, opt = {}) {
+    if (opt.hour !== undefined) this.setLocalTime(body, lon, opt.hour);
     const la = lat * Math.PI / 180, lo = lon * Math.PI / 180;
     const dirL = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)];
     body.system.update(this.time);
