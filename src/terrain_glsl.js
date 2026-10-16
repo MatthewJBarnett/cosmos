@@ -43,7 +43,7 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
 // ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
 uniform sampler2D uCMap, uHMap, uMMap, uLMap;
 uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
-uniform vec2 uHRange; uniform vec3 uMapTint;
+uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve;
 const float MPI = 3.14159265358979;
 vec2 mapUV(vec3 P){ vec3 n = normalize(P); return vec2(atan(-n.z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
 float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
@@ -264,9 +264,16 @@ float terrain(vec3 d, vec3 P){
 }
 
 vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis);
+// Blue Marble is a display product: its sRGB values are close to proportional to reflectance, not to the
+// linearised value. Map it back to approximate surface albedo (forest ~5%, desert ~40%, snow ~85%).
+vec3 albedoFromMap(vec3 lin){
+  if (uMapCurve < 0.5) return lin;
+  vec3 v = pow(max(lin, 0.), vec3(1./2.2));
+  return 0.45*v + 0.5*pow(v, vec3(8.));
+}
 vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   vec2 uv = mapUV(P);
-  vec3 m = texture(uCMap, uv).rgb*uMapTint;
+  vec3 m = albedoFromMap(texture(uCMap, uv).rgb)*uMapTint;
   emis = 0.;
   int o0 = int(uMapOct);
   // how far below the map's resolution this tile is (0 = map scale, 1 = much finer)

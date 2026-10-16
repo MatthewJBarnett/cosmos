@@ -166,8 +166,13 @@ void main(){
       if (i == 0 && uHasClouds > 0.5 && mus > 0.) {
         // cloud shadows: follow the sun ray up to the cloud deck and look up the weather map there
         vec3 pc = (vWorld - uPlanetRel) + L*(uCloudAlt/max(mus, 0.08));
-        float cov = texture(uCloudMap, uCloudRotInv*pc).r;
-        float sh = smoothstep(0.15, 0.75, cov);
+        vec3 pl = uCloudRotInv*pc;
+        float cov = texture(uCloudMap, pl).r;
+        // same cloud cells as the volumetric layer, so shadows fall where the clouds are
+        float S = textureLod(uNoise3, pl/52000. + 0.53, 0.).r*0.5 + textureLod(uNoise3, pl/15000. + 0.21, 0.).g*0.33 + textureLod(uNoise3, pl/5200. + 0.7, 0.).b*0.17;
+        float soft = mix(0.06, 0.2, cov), thr = 0.5 + (0.5 - cov)*0.75;
+        float fade = clamp(dist/2.5e6, 0., 1.);       // from far away, average coverage reads better than cells
+        float sh = mix(smoothstep(thr - soft, thr + soft, S)*smoothstep(0.02, 0.25, cov), smoothstep(0.15, 0.75, cov), fade);
         sunT *= 1. - 0.8*sh; amb *= 1. - 0.35*sh;
       }
     }
@@ -341,7 +346,7 @@ class PlanetState {
     const mapOct = Math.ceil(Math.log2(sz / (4 * Math.PI * s.freq)));
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
-      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp),
+      uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
       uCraterO0: mp && mp.height ? mapOct : 2 });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,

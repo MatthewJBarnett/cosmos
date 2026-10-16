@@ -357,9 +357,9 @@ function buildSol(sys) {
   const ALB = { mercury: 0.14, io: 0.62, europa: 0.64, ganymede: 0.42, callisto: 0.2, titan: 0.2, enceladus: 0.95, pluto: 0.5, charon: 0.33, ceres: 0.09 };
   const setMaps = (b, maps) => { b.maps = maps; if (b.surface) b.surface.freq = 1; };
   const tintOf = (c) => { const l = 0.3 * c[0] + 0.5 * c[1] + 0.2 * c[2]; return [c[0] / l * 0.5, c[1] / l * 0.5, c[2] / l * 0.5]; };
-  setMaps(earth, { color: D + 'earth_color.jpg', height: D + 'earth_height16.png', hRange: [-11000, 9000], mask: D + 'earth_mask.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
-  setMaps(moon, { color: D + 'moon_color.jpg', height: D + 'moon_height16.png', hRange: [-9500, 11000] });
-  setMaps(mars, { color: D + 'mars_color.jpg', height: D + 'mars_height16.png', hRange: [-8500, 21500] });
+  setMaps(earth, { curve: 'bmng', color: D + 'earth_color.jpg', height: D + 'earth_height16.png', hRange: [-11000, 9000], mask: D + 'earth_mask.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
+  setMaps(moon, { color: D + 'moon_color.jpg', height: D + 'moon_height16.png', hRange: [-9500, 11000], albedo: 0.12 });
+  setMaps(mars, { color: D + 'mars_color.jpg', height: D + 'mars_height16.png', hRange: [-8500, 21500], albedo: 0.2 });
   for (const [b, f, tint] of [[mercury, 'mercury', [0.62, 0.6, 0.57]], [io, 'io', null], [eu, 'europa', [1.0, 0.92, 0.82]], [ga, 'ganymede', [0.9, 0.86, 0.8]], [ca, 'callisto', [0.85, 0.8, 0.74]],
     [titan, 'titan', [1.0, 0.75, 0.45]], [sys.root.children.find(x => x.name === 'Saturn').children.find(x => x.name === 'Enceladus'), 'enceladus', [1, 1, 1]], [pluto, 'pluto', [1.0, 0.82, 0.66]], [ceres, 'ceres', [0.62, 0.6, 0.58]]]) {
     if (b) setMaps(b, { color: D + f + '_color.jpg', tint: tint || [1, 1, 1], albedo: ALB[f] });
