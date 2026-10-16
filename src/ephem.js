@@ -109,7 +109,8 @@ export function galilean(t) {
 
 // IAU prime meridian angle W = W0 + Wd * days (degrees)
 export const PRIME = { Sun: [84.176, 14.1844000], Mercury: [329.5469, 6.1385025], Venus: [160.20, -1.4813688], Mars: [176.630, 350.89198226], Jupiter: [284.95, 870.5360000],
-  Saturn: [38.90, 810.7939024], Uranus: [203.81, -501.1600928], Neptune: [249.978, 541.1397757], Pluto: [302.695, 56.3625225] };
+  Saturn: [38.90, 810.7939024], Uranus: [203.81, -501.1600928], Neptune: [249.978, 541.1397757], Pluto: [302.695, 56.3625225],
+  Moon: [38.3213, 13.17635815] };
 // node of a body's equator on the Earth's equator, as an engine-frame unit vector
 export function iauNode(ra, dec) {
   const a = ra * D2R;

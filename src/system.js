@@ -352,6 +352,8 @@ function buildSol(sys) {
   // geomagnetic north pole (2025): 80.8 N, 72.6 W
   { const la = 80.8 * D2R, lo = -72.6 * D2R; earth.magPole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; earth.aurora = 1; }
   for (const b of [sun, ...sun.children]) if (PRIME[b.name]) b.iauW = PRIME[b.name];
+  // the Moon rotates uniformly (IAU model) on an eccentric, inclined orbit: libration emerges by itself
+  moon.iauW = PRIME.Moon; moon.faceParent = false;
   const gal = ['Io', 'Europa', 'Ganymede', 'Callisto'];
   jup.children.forEach(m => { const i = gal.indexOf(m.name); if (i >= 0) { m.ephem = 'galilean'; m.galIndex = i; } });
   for (const b of sun.children) if (['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'].includes(b.name)) b.ephem = 'planet';
