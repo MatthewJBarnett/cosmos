@@ -78,3 +78,41 @@ export function moonPos(t) {
   const x = dist * Math.cos(bet) * Math.cos(lam), y = dist * Math.cos(bet) * Math.sin(lam), z = dist * Math.sin(bet);
   return [x, z, -y];
 }
+
+// IAU north pole directions (J2000 equatorial RA, Dec in degrees)
+export const POLES = { Sun: [286.13, 63.87], Mercury: [281.0103, 61.4155], Venus: [272.76, 67.16], Earth: [0, 90], Mars: [317.269, 54.432], Jupiter: [268.057, 64.495],
+  Saturn: [40.589, 83.537], Uranus: [257.311, -15.175], Neptune: [299.36, 43.46], Pluto: [132.993, -6.163], Moon: [269.9949, 66.5392], Io: [268.05, 64.5], Europa: [268.08, 64.51], Ganymede: [268.2, 64.57], Callisto: [268.72, 64.83], Titan: [39.4827, 83.4279] };
+// equatorial (RA, Dec) -> unit vector in J2000 ecliptic frame, engine axes
+export function eqToEngine(ra, dec) {
+  const e = 23.4392911 * D2R, a = ra * D2R, d = dec * D2R;
+  const x = Math.cos(d) * Math.cos(a), y = Math.cos(d) * Math.sin(a), z = Math.sin(d);
+  const ye = y * Math.cos(e) + z * Math.sin(e), ze = -y * Math.sin(e) + z * Math.cos(e);
+  return [x, ze, -ye];
+}
+// Galilean satellites (Meeus ch. 44, low accuracy). Returns for each moon [u (rad, from superior conjunction as seen from Earth), r (Jupiter radii)].
+export function galilean(t) {
+  const d = (t + 69.2) / 86400;
+  const V = (172.74 + 0.00111588 * d) * D2R, M = (357.529 + 0.9856003 * d) * D2R;
+  const N = (20.020 + 0.0830853 * d + 0.329 * Math.sin(V)) * D2R, J = 66.115 + 0.9025179 * d - 0.329 * Math.sin(V);
+  const A = 1.915 * Math.sin(M) + 0.020 * Math.sin(2 * M), B = 5.555 * Math.sin(N) + 0.168 * Math.sin(2 * N);
+  const K = (J + A - B) * D2R;
+  const R = 1.00014 - 0.01671 * Math.cos(M) - 0.00014 * Math.cos(2 * M), r = 5.20872 - 0.25208 * Math.cos(N) - 0.00611 * Math.cos(2 * N);
+  const Dl = Math.sqrt(r * r + R * R - 2 * r * R * Math.cos(K));
+  const psi = Math.asin(R / Dl * Math.sin(K)) / D2R;
+  const dd = d - Dl / 173;
+  let u1 = 163.8069 + 203.4058646 * dd + psi - B, u2 = 358.4140 + 101.2916335 * dd + psi - B, u3 = 5.7176 + 50.2345180 * dd + psi - B, u4 = 224.8092 + 21.4879800 * dd + psi - B;
+  const G = (331.18 + 50.310482 * dd) * D2R, H = (87.45 + 21.569231 * dd) * D2R;
+  const c1 = 0.473 * Math.sin(2 * (u1 - u2) * D2R), c2 = 1.065 * Math.sin(2 * (u2 - u3) * D2R), c3 = 0.165 * Math.sin(G), c4 = 0.843 * Math.sin(H);
+  const r1 = 5.9057 - 0.0244 * Math.cos(2 * (u1 - u2) * D2R), r2 = 9.3966 - 0.0882 * Math.cos(2 * (u2 - u3) * D2R), r3 = 14.9883 - 0.0216 * Math.cos(G), r4 = 26.3627 - 0.1939 * Math.cos(H);
+  return [[(u1 + c1) * D2R, r1], [(u2 + c2) * D2R, r2], [(u3 + c3) * D2R, r3], [(u4 + c4) * D2R, r4]];
+}
+
+// IAU prime meridian angle W = W0 + Wd * days (degrees)
+export const PRIME = { Sun: [84.176, 14.1844000], Mercury: [329.5469, 6.1385025], Venus: [160.20, -1.4813688], Mars: [176.630, 350.89198226], Jupiter: [284.95, 870.5360000],
+  Saturn: [38.90, 810.7939024], Uranus: [203.81, -501.1600928], Neptune: [249.978, 541.1397757], Pluto: [302.695, 56.3625225] };
+// node of a body's equator on the Earth's equator, as an engine-frame unit vector
+export function iauNode(ra, dec) {
+  const a = ra * D2R;
+  // Q = z_eq x pole = direction (RA = ra + 90 deg, Dec = 0)
+  return eqToEngine(ra + 90, 0);
+}

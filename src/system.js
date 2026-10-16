@@ -3,7 +3,7 @@ import { RNG, hashCombine, makeName } from './rng.js';
 import { V, Q, C, clamp, mix } from './math.js';
 import { makeStar, bbColor, KIND } from './stars.js';
 import { galDir } from './universe.js';
-import { planetPos, moonPos } from './ephem.js';
+import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
 const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
@@ -172,12 +172,18 @@ export class StarSystem {
         const qn = Q.look([n[0] === 0 && n[2] === 0 ? 1 : -n[2], 0, n[0] === 0 && n[2] === 0 ? 0 : n[0]], n);
         pole = Q.rot(qn, [Math.sin(ob) * Math.cos(lon), Math.cos(ob), -Math.sin(ob) * Math.sin(lon)]);
       }
-      if (b.poleEcl) { const lo = b.poleEcl[0] * D2R, la = b.poleEcl[1] * D2R; pole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; }
+      if (b.poleRD) pole = eqToEngine(b.poleRD[0], b.poleRD[1]);
+      else if (b.poleEcl) { const lo = b.poleEcl[0] * D2R, la = b.poleEcl[1] * D2R; pole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]; }
       if (b.parent && b.parent.axisQ && b.equatorial) pole = Q.rot(b.parent.axisQ, [Math.sin(ob) * Math.cos(lon), Math.cos(ob), -Math.sin(ob) * Math.sin(lon)]);
       b.pole = V.norm(pole);
       const x = Math.abs(b.pole[1]) > 0.9999 ? [1, 0, 0] : V.norm(V.cross([0, 1, 0], b.pole));
       const z = V.cross(x, b.pole);
       b.axisQ = Q.fromBasis(x, b.pole, z);
+      if (b.iauW && b.poleRD) {
+        // offset between our longitude-0 reference and the IAU node, so prime meridians match real maps
+        const qd = iauNode(b.poleRD[0], b.poleRD[1]), px = V.cross(b.pole, x);
+        b.iauPhi = Math.atan2(V.dot(px, qd), V.dot(x, qd));
+      }
     }
   }
   // t: seconds since J2000
@@ -192,12 +198,24 @@ export class StarSystem {
         b.parent.pos = [ep[0] - g[0] * mu, ep[1] - g[1] * mu, ep[2] - g[2] * mu];
         b.parent.wpos = Q.rot(this.worldQ, b.parent.pos);
         b.pos = [b.parent.pos[0] + g[0], b.parent.pos[1] + g[1], b.parent.pos[2] + g[2]];
+      } else if (b.ephem === 'galilean' && b.parent) {
+        // position angle from superior conjunction as seen from Earth, in Jupiter's equatorial plane
+        const par = b.parent;
+        if (!this._gal || this._galT !== t) { this._gal = galilean(t); this._galT = t; }
+        const [u, rr] = this._gal[b.galIndex];
+        const earth = this.find('Earth');
+        const pole = Q.rot(par.axisQ, [0, 1, 0]);
+        let sdir = V.sub(par.pos, earth ? earth.pos : [0, 0, 0]); sdir = V.norm(V.sub(sdir, V.mul(pole, V.dot(sdir, pole))));
+        const tdir = V.cross(pole, sdir);
+        const p = V.mul(V.add(V.mul(sdir, Math.cos(u)), V.mul(tdir, Math.sin(u))), rr * 71492e3);
+        b.pos = [par.pos[0] + p[0], par.pos[1] + p[1], par.pos[2] + p[2]];
       } else if (b.orbit && b.parent) {
         let p = keplerPos(b.orbit, t);
         if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
         const pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
       } else if (!b.parent) b.pos = [0, 0, 0];
       b.rotAngle = b.rotPeriod ? ((b.rot0 || 0) + 2 * Math.PI * ((t / b.rotPeriod) % 1)) : 0;
+      if (b.iauW) b.rotAngle = ((b.iauW[0] + b.iauW[1] * (t / 86400)) % 360) * D2R + (b.iauPhi || 0);
       // Earth: sidereal angle is measured from the equinox of date; our frame is the J2000 equinox (precession in RA)
       if (b.precessRA) b.rotAngle -= b.precessRA * (t / 3155760000);
       if (b.faceParent && b.parent && b.axisQ) {
@@ -307,7 +325,12 @@ function buildSol(sys) {
   mkIce(Mn(pluto, 'Charon', 'Ice world', 19591, 0.0002, 0.08, 1.586e21, 606, 0.35), { crater: 0.6, cracks: 0.5, colA: [0.42, 0.4, 0.38], colB: [0.33, 0.31, 0.3], colLow: [0.25, 0.14, 0.1] });
   const eris = P('Eris', 'Dwarf planet', 67.864, 0.43607, 44.04, 35.95, 187.1, 392.0, 0.0028, 1163, 378.9, 78, 0.96, 30, { kind: 'dwarf' });
   mkIce(eris, { crater: 0.3, cracks: 0.2, colA: [0.92, 0.92, 0.9], colB: [0.85, 0.85, 0.84] });
-  // real ephemerides
+  // real ephemerides and pole directions
+  for (const b of [sun, ...sun.children, ...sun.children.flatMap(x => x.children)]) if (POLES[b.name] && b.name !== 'Earth') b.poleRD = POLES[b.name];
+  earth.poleRD = [0, 90];
+  for (const b of [sun, ...sun.children]) if (PRIME[b.name]) b.iauW = PRIME[b.name];
+  const gal = ['Io', 'Europa', 'Ganymede', 'Callisto'];
+  jup.children.forEach(m => { const i = gal.indexOf(m.name); if (i >= 0) { m.ephem = 'galilean'; m.galIndex = i; } });
   for (const b of sun.children) if (['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'].includes(b.name)) b.ephem = 'planet';
   moon.ephem = 'moon';
   // real surface data where we have it
