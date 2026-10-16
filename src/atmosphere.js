@@ -338,10 +338,35 @@ void main(){
   oIn = vec4(min(L*uExposure, vec3(60000.)), d); oTr = vec4(T, log2(max(rep, 1.)));
 }
 #else
+
+// Astronomical refraction for an observer near the ground: we see sky light from a slightly lower true direction
+// (Bennett's formula), slightly different per colour (dispersion gives the green rim of the setting sun).
+uniform float uRefract; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
+vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanFov, vec3 fallback){
+  if (uRefract <= 0.) return fallback;
+  float sh = dot(rd, uUpR); if (sh < -0.03 || sh > 0.5) return fallback;
+  float h = degrees(asin(sh));
+  float Rm = uRefract/tan(radians(h + 7.31/(h + 4.4)));   // arcminutes
+  if (Rm <= 0.) return fallback;
+  vec3 t = normalize(uUpR - rd*sh);
+  vec3 col = fallback;
+  vec3 disp = vec3(0.992, 1.0, 1.012);
+  for (int c = 0; c < 3; c++) {
+    float R = radians(Rm/60.)*disp[c];
+    vec3 r2 = rd*cos(R) - t*sin(R);
+    vec3 v = uCamRotInvR*r2; if (v.z >= 0.) continue;
+    vec2 uv2 = (v.xy/(-v.z)/tanFov)*0.5 + 0.5;
+    if (any(lessThan(uv2, vec2(0.))) || any(greaterThan(uv2, vec2(1.)))) continue;
+    if (texture(depthT, uv2).r < 0.99999) continue;     // only re-map sky onto sky
+    col[c] = texture(scene, uv2)[c];
+  }
+  return col;
+}
 out vec4 oColor;
 void main(){
   vec4 scene = texture(uScene, vUV);
   vec3 L, T; float d, rep; volumetrics(vUV, L, T, d, rep);
+  if (d >= 0.99999) scene.rgb = refractedSky(uScene, uDepth, vUV, normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.)), uTanFov, scene.rgb);
   oColor = vec4(clamp(scene.rgb*T + L*uExposure, 0., 60000.), 1.);
 }
 #endif
@@ -390,10 +415,35 @@ void main(){
 // Full resolution composite with depth aware upsampling of the volumetrics.
 const UPSAMPLE_FS = `
 in vec2 vUV; out vec4 oColor;
-uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform float uExpRatio;
+uniform sampler2D uScene, uDepth, uIn, uTr; uniform vec2 uHalfSize; uniform float uExpRatio; uniform mat3 uCamRot; uniform vec2 uTanFov;
+
+// Astronomical refraction for an observer near the ground: we see sky light from a slightly lower true direction
+// (Bennett's formula), slightly different per colour (dispersion gives the green rim of the setting sun).
+uniform float uRefract; uniform mat3 uCamRotInvR; uniform vec3 uUpR;
+vec3 refractedSky(sampler2D scene, sampler2D depthT, vec2 uv, vec3 rd, vec2 tanFov, vec3 fallback){
+  if (uRefract <= 0.) return fallback;
+  float sh = dot(rd, uUpR); if (sh < -0.03 || sh > 0.5) return fallback;
+  float h = degrees(asin(sh));
+  float Rm = uRefract/tan(radians(h + 7.31/(h + 4.4)));   // arcminutes
+  if (Rm <= 0.) return fallback;
+  vec3 t = normalize(uUpR - rd*sh);
+  vec3 col = fallback;
+  vec3 disp = vec3(0.992, 1.0, 1.012);
+  for (int c = 0; c < 3; c++) {
+    float R = radians(Rm/60.)*disp[c];
+    vec3 r2 = rd*cos(R) - t*sin(R);
+    vec3 v = uCamRotInvR*r2; if (v.z >= 0.) continue;
+    vec2 uv2 = (v.xy/(-v.z)/tanFov)*0.5 + 0.5;
+    if (any(lessThan(uv2, vec2(0.))) || any(greaterThan(uv2, vec2(1.)))) continue;
+    if (texture(depthT, uv2).r < 0.99999) continue;     // only re-map sky onto sky
+    col[c] = texture(scene, uv2)[c];
+  }
+  return col;
+}
 void main(){
   vec4 scene = texture(uScene, vUV);
   float d = texture(uDepth, vUV).r;
+  if (d >= 0.99999) scene.rgb = refractedSky(uScene, uDepth, vUV, normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.)), uTanFov, scene.rgb);
   vec2 hp = vUV*uHalfSize - 0.5; vec2 f = fract(hp); ivec2 i0 = ivec2(floor(hp));
   ivec2 mx = ivec2(uHalfSize) - 1;
   vec3 L = vec3(0.), T = vec3(0.); float ws = 0.; float best = 1e9; vec3 bL = vec3(0.), bT = vec3(1.);
@@ -457,6 +507,17 @@ function buildCloudCube(body, l) {
     pCloudMap.set({ uFace: new Float32Array(CUBE_FACES[i]) }); drawFS(); gl.deleteFramebuffer(fb);
   }
 }
+// refraction strength scales with air density and refractivity (relative to Earth sea level); only near the surface
+function refractUniforms(body, o) {
+  const a = body.atmo, up = V.norm(V.mul(o.planetRel || [0, 0, 0], -1));
+  const camAlt = V.len(o.planetRel || [0, 0, 0]) - body.radius;
+  let k = 0;
+  if (a && camAlt < a.hR * 2.5) {
+    const refr = a.comp && a.comp.CO2 > 0.5 ? 1.5 : a.comp && a.comp.H2 > 0.5 ? 0.47 : 1;
+    k = Math.min(20, (a.P / 101325) * (288 / (a.T || 288)) * refr) * Math.exp(-Math.max(camAlt, 0) / a.hR);
+  }
+  return { uRefract: k, uCamRotInvR: o.camRotInv || o.camRot, uUpR: up };
+}
 let dummy2D = null;
 function getDummy2D() { if (!dummy2D) dummy2D = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.CLAMP_TO_EDGE, new Uint8Array([0, 0, 0, 255])); return dummy2D; }
 export function getAtmoLUT(body) {
@@ -499,7 +560,8 @@ export function drawAtmosphere(body, o) {
   const rotInv = cloudRotInv(body, o.rotQ, o.time);
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
   const cmap = ms && ms.clouds && ms.clouds.tex;
-  (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
+  const rf = refractUniforms(body, o);
+  (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set(rf).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
     uAurora: body.aurora || 0, uHasLights: ms && ms.lights && ms.lights.tex ? 1 : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
@@ -537,7 +599,7 @@ export class VolumetricTAA {
     // composite at full resolution
     gl.bindFramebuffer(gl.FRAMEBUFFER, o.outFBO); gl.viewport(0, 0, o.w, o.h);
     if (o.scissor) { gl.enable(gl.SCISSOR_TEST); gl.scissor(...o.scissor); }
-    pUp.use().set({ uScene: o.scene, uDepth: o.depth, uIn: dst.a, uTr: dst.b, uHalfSize: [this.w, this.h], uExpRatio: 1 });
+    pUp.use().set(refractUniforms(body, o)).set({ uScene: o.scene, uDepth: o.depth, uIn: dst.a, uTr: dst.b, uHalfSize: [this.w, this.h], uExpRatio: 1, uCamRot: o.camRot, uTanFov: o.tanFov });
     drawFS();
     gl.disable(gl.SCISSOR_TEST);
   }

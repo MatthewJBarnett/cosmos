@@ -132,6 +132,8 @@ export function drawOrbits(sys, nav, o) {
     if (b.kind === 'moon') alpha *= clamp(apparent * 30, 0, 1);
     if (alpha <= 0.01) continue;
     const sel = o.selected && o.selected.body === b;
+    // minor bodies (asteroids, dwarf planets, comets) only show their orbit when selected
+    if (!sel && (b.kind === 'dwarf' || b.kind === 'comet')) continue;
     const col = sel ? [1, 0.85, 0.4] : b.kind === 'star' ? [1, 0.7, 0.3] : b.kind === 'moon' ? [0.45, 0.55, 0.7] : b.kind === 'dwarf' || b.kind === 'comet' ? [0.5, 0.5, 0.5] : [0.35, 0.6, 1.0];
     const M0 = orb.M0 + 2 * Math.PI * nav.time / orb.period;
     const start = data.length / 7;

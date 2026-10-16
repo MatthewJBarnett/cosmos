@@ -383,7 +383,7 @@ export class UI {
           const px = b.pxRadius || 0;
           if (px > 60) continue;
           if (b.kind === 'moon' || (b.parent && b.parent.kind === 'planet')) { const pd = b.parent.dist || 1e30; if (b.orbit.a / pd * r.pxPerRad < 25) continue; }
-          if ((b.kind === 'dwarf' || b.kind === 'comet') && b.orbit && b.orbit.a / (b.parent.dist || 1) * r.pxPerRad < 60 && b.dist > b.orbit.a * 0.2) continue;
+          if ((b.kind === 'dwarf' || b.kind === 'comet') && b.dist > b.radius * 2e4 && !(nav.selected && nav.selected.body === b)) continue;
           if (b.kind === 'planet' && b.orbit.a / Math.max(b.parent.dist || 1, 1) * r.pxPerRad < 9) continue;
           put(b.rel, b.name, b.kind, Math.max(6, px + 4));
         }
