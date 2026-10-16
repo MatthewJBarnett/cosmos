@@ -102,6 +102,19 @@ if (!testMode) requestAnimationFrame(loop);
 window.cosmos = {
   nav, renderer, rcfg, V, Q, C, findByName, solSystem, systemFor, ui,
   frame,
+  // test helper: travel to a procedural planet of a given class (searching stars around a point away from the Sun)
+  async visitClass(cls, seedShift = 0) {
+    nav.selected = null; nav.G = V.add([-8200, 20, 0], [140 + seedShift, 6, 90]); nav.level = 'galaxy'; nav.system = null;
+    await this.settle(8);
+    const f = nav.field;
+    for (let i = 0; i < 30000; i++) {
+      const x = f.pick(nav.camLocal(), [Math.sin(i * 1.7) * Math.cos(i * 0.37), Math.sin(i * 0.37), Math.cos(i * 1.7) * Math.cos(i * 0.37)], 0.2);
+      if (!x || x.sol || x.catIndex !== undefined) continue;
+      const sys = systemFor(x); const b = sys.bodies.find(b => b.cls === cls && b.kind === 'planet');
+      if (b) { nav.goTo({ type: 'star', desc: x }, { dur: 0.01 }); await this.settle(10); nav.goTo({ type: 'body', body: b }, { dur: 0.01 }); await this.settle(10); return b; }
+    }
+    return null;
+  },
   // run frames until no textures are loading any more (maps of nearby bodies are requested by rendering)
   async waitAssets(maxSec = 60) {
     const t0 = performance.now();

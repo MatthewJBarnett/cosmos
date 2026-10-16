@@ -3,6 +3,7 @@ import { gl, Program, tex2D, texCube, fbo, drawFS, FS_VS } from './gl.js';
 import { Q, V, clamp } from './math.js';
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, ATMO_TRANS_FS, ATMO_MULTI_FS, ATMO_IRR_FS } from './atmo_glsl.js';
 import { LIGHT_UNIFORMS } from './planet.js';
+import { loadTexture } from './assets.js';
 
 let pTrans, pMulti, pIrr, pComp, pCloudMap;
 const luts = new Map();
@@ -10,7 +11,7 @@ export const atmoCfg = { steps: 28, cloudSteps: 32, cloudRes: 768 };
 
 const CLOUDMAP_FS = `
 in vec2 vUV; out vec4 o;
-uniform mat3 uFace; uniform float uSeed, uCover, uKind, uHasTex; uniform sampler2D uCloudTex;
+uniform mat3 uFace; uniform float uSeed, uCover, uKind, uHasTex, uLonOff, uFlip, uCoverBias; uniform sampler2D uCloudTex;
 uint h3(ivec3 c){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ uint(c.z)*0xcb1ab31fu; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15; return h; }
 float vn(vec3 x){
   vec3 i = floor(x), f = x - i; f = f*f*f*(f*(f*6.-15.)+10.); ivec3 c = ivec3(i);
@@ -25,9 +26,9 @@ void main(){
   vec3 p = dir;
   if (uHasTex > 0.5) {
     // observed cloud cover (brightness ~ optical thickness)
-    vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))/3.14159265);
-    float v = texture(uCloudTex, uv).r;
-    float v2 = texture(uCloudTex, uv + vec2(0.0012, 0.0008)).r;
+    vec2 uv = vec2(atan(-dir.z, dir.x)/6.2831853 + 0.5 + uLonOff, 0.5 - asin(clamp(dir.y*uFlip, -1., 1.))/3.14159265);
+    float v = texture(uCloudTex, uv).r + uCoverBias;
+    float v2 = texture(uCloudTex, uv + vec2(0.0012, 0.0008)).r + uCoverBias;
     o = vec4(smoothstep(0.2, 0.72, v), smoothstep(0.5, 0.92, max(v, v2)), fbm(dir*30., 3), 1.); return;
   }
   float lat = asin(clamp(dir.y, -1., 1.));
@@ -147,8 +148,7 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
   // break the weather map up with mid-scale structure (tens to hundreds of km)
   float mid = textureLod(uNoise3, pl/1.7e6 + 0.11, max(lod - 7., 0.)).g*0.55 + textureLod(uNoise3, pl/4.3e5 + 0.37, max(lod - 5., 0.)).b*0.45;
-  if (cMapped < 0.5) cov = clamp(cov*(0.35 + 1.3*smoothstep(0.25, 0.62, mid)), 0., 1.);
-  else {
+  {
     // The map gives the fraction of sky covered within each ~10 km pixel. Turn that into cloud cells:
     // a fractal field thresholded so that the covered area matches the map. Cumulus where cover is
     // broken, stratiform where it is near total.
@@ -160,7 +160,7 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     cov = cell*smoothstep(0.02, 0.25, cov);
   }
   if (cov < 0.01) return 0.;
-  float topH = cMapped > 0.5 ? mix(0.3, 1.0, wm.g)*mix(0.7, 1., cov) : mix(0.35, 1.0, wm.g*cov);
+  float topH = mix(0.3, 1.0, wm.g)*mix(0.7, 1., cov);
   float prof = smoothstep(0., 0.07, hfrac) * smoothstep(topH, topH*0.45, hfrac);
   float d = cov*prof;
   if (!cheap) {
@@ -168,11 +168,10 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float big = textureLod(uNoise3, pl/170000. + 0.2, lod - 4.).a;
     float n = textureLod(uNoise3, q + vec3(uTime*0.0004, 0., 0.), lod).r*0.6 + textureLod(uNoise3, q*3.1 + 0.3, lod + 1.6).g*0.28 + textureLod(uNoise3, q*9.7, lod + 3.3).b*0.12;
     n = mix(n, big, 0.35);
-    if (cMapped > 0.5) { float er = (n - 0.3)*0.9; d = clamp((d - er)*1.6, 0., 1.); }   // billowy edges; the coverage already matches the map
-    else d = clamp((d - n*0.8*(1.05 - cov*0.6))*2.2, 0., 1.);
-  } else d = cMapped > 0.5 ? d*0.6 : clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
+    float er = (n - 0.3)*0.9; d = clamp((d - er)*1.6, 0., 1.);   // billowy edges; the coverage already matches the map
+  } else d = d*0.6;
   // optical thickness spans thin veils to dense towers
-  return cMapped > 0.5 ? d*(0.3 + 1.6*wm.g) : d*d*(0.35 + 1.4*wm.g);
+  return d*(0.3 + 1.6*wm.g);
 }
 // Volumetric integration along the view ray through pixel uv. inscatter is not yet multiplied by exposure.
 void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, out float repDist){
@@ -414,11 +413,18 @@ export { CUBE_FACES };
 function buildCloudCube(body, l) {
   const c = body.atmo.clouds, S = atmoCfg.cloudRes;
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
-  const ct = ms && ms.clouds && ms.clouds.tex;
-  l.mapsVersion = body.mapsVersion || 0;
+  let ct = ms && ms.clouds && ms.clouds.tex, lonOff = 0, flip = 1, bias = 0;
+  if (!ct && c.kind === 'earth') {
+    // Earth-like worlds borrow real cloud morphology: Earth's cloud map, shifted and possibly mirrored,
+    // with the coverage scaled to this planet's cloudiness
+    const e = loadTexture('data/planets/earth_clouds.jpg', 'gray');
+    if (e.ready) { ct = e.tex; const r = (body.uid * 0.6180339) % 1; lonOff = r; flip = body.uid % 2 ? -1 : 1; bias = (c.cover - 0.5) * 0.45; }
+    else if (!l.waitClouds) { l.waitClouds = true; e.promise.then(() => { l.mapsVersion = -1; }); }
+  }
+  l.mapsVersion = l.mapsVersion === -1 && ct ? -2 : (body.mapsVersion || 0);
   if (!l.cloud) l.cloud = texCube(S, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
   gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-  pCloudMap.use().set({ uSeed: (body.uid * 7.31) % 50 + (body.surface.seed ? body.surface.seed[0] % 13 : 0), uCover: c.cover, uKind: c.kind === 'venus' ? 1 : 0, uHasTex: ct ? 1 : 0, uCloudTex: ct || getDummy2D() });
+  pCloudMap.use().set({ uSeed: (body.uid * 7.31) % 50 + (body.surface.seed ? body.surface.seed[0] % 13 : 0), uCover: c.cover, uKind: c.kind === 'venus' ? 1 : 0, uHasTex: ct ? 1 : 0, uCloudTex: ct || getDummy2D(), uLonOff: lonOff, uFlip: flip, uCoverBias: bias });
   for (let i = 0; i < 6; i++) {
     const fb = fbo([l.cloud], null, i); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, S, S);
     pCloudMap.set({ uFace: new Float32Array(CUBE_FACES[i]) }); drawFS(); gl.deleteFramebuffer(fb);
@@ -429,7 +435,7 @@ function getDummy2D() { if (!dummy2D) dummy2D = tex2D(1, 1, gl.RGBA8, gl.RGBA, g
 export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
-  if (l && l.mapsVersion !== (body.mapsVersion || 0) && body.atmo.clouds) { buildCloudCube(body, l); }
+  if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
   const u = atmoUniforms(body);
   l = { uniforms: u, last: performance.now() };

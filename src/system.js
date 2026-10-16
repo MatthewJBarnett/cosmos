@@ -547,7 +547,7 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
     }
     if (Ts > 1100 || (Teq > 800 && P === 0)) cls = 'lava';
     else if (P > 0) {
-      if (Ts > 255 && Ts < 345 && P > 6000 && P < 3e6 && massE > 0.08) { cls = rng.chance(0.3) ? 'ocean' : (rng.chance(0.75) ? 'terra' : 'desert'); }
+      if (Ts > 255 && Ts < 345 && P > 6000 && P < 3e6 && massE > 0.08) { cls = rng.chance(0.3) ? 'ocean' : (rng.chance(0.75) ? 'terra' : 'desert'); if (cls !== 'desert') P = Math.exp(Math.log(0.4e5) + (Math.log(P) - Math.log(6000)) / (Math.log(3e6) - Math.log(6000)) * (Math.log(3e5) - Math.log(0.4e5))); }
       else if (Ts < 255) cls = Ts < 130 && rng.chance(0.6) ? 'titan' : (icy ? 'ice' : 'desert');
       else if (P > 2e6) cls = 'venus'; else cls = 'desert';
     } else cls = icy ? 'ice' : (Teq > 500 && rng.chance(0.25) ? 'io' : 'selena');
