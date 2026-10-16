@@ -154,7 +154,7 @@ void main(){
   float emisNight = 1.;
   for (int i = 0; i < uNumLights; i++) {
     vec3 Lv = uLightPos[i] - vWorld; float dl = length(Lv); vec3 L = Lv/dl;
-    float vis = eclipse(vWorld, i) * ringShadow(vWorld, L);
+    float vis = i == 0 ? eclipse(vWorld, i) * ringShadow(vWorld, L) : 1.;
     vec3 lc = uLightCol[i] * vis;
     float mus = dot(up, L);
     vec3 sunT = vec3(1.), amb = vec3(0.);
@@ -162,7 +162,7 @@ void main(){
       float r = max(length(vWorld - uPlanetRel), aRg + 1.);
       sunT = atmoSunTrans(r, mus);
       amb = texture(uIrrLUT, vec2(mus*0.5 + 0.5, 0.5)).rgb * uLightCol[i] * mix(1., vis, 0.9);
-      if (uHasClouds > 0.5 && mus > 0.) {
+      if (i == 0 && uHasClouds > 0.5 && mus > 0.) {
         // cloud shadows: follow the sun ray up to the cloud deck and look up the weather map there
         vec3 pc = (vWorld - uPlanetRel) + L*(uCloudAlt/max(mus, 0.08));
         float cov = texture(uCloudMap, uCloudRotInv*pc).r;
@@ -170,7 +170,7 @@ void main(){
         sunT *= 1. - 0.8*sh; amb *= 1. - 0.35*sh;
       }
     }
-    emisNight *= smoothstep(0.06, -0.12, mus);
+    if (i == 0) emisNight *= smoothstep(0.06, -0.12, mus);
     float nl = dot(N, L);
     if (uKind == 1) {
       // gas giant cloud tops: soft terminator
@@ -190,7 +190,7 @@ void main(){
     // crude self shadowing of terrain near the terminator from the macro normal
     shade *= smoothstep(-0.02, 0.06, mus);
     // terrain shadows: march the height tile towards the sun (within this tile)
-    if (uKind == 0 && uShadows > 0.5 && shade > 0. && mus < 0.75 && water < 0.5) {
+    if (i == 0 && uKind == 0 && uShadows > 0.5 && shade > 0. && mus < 0.75 && water < 0.5) {
       vec3 Ll = L*uRot;                         // sun direction in the planet frame
       vec3 t1 = normalize(uFaceA - dir*dot(dir, uFaceA)), t2 = cross(dir, t1);
       vec2 sl = vec2(dot(Ll, t1), dot(Ll, t2)); float lz = dot(Ll, dir);

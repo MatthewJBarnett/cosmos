@@ -320,7 +320,16 @@ export class Renderer {
         for (const o of sys.bodies) {
           if (o === b || o.kind === 'star' || o.kind === 'barycenter' || !o.radius) continue;
           const d = V.dist(o.wpos, b.wpos); const ang = o.radius / d;
-          if (ang > 2e-4) occ.push({ o, ang });
+          if (ang <= 2e-4) continue;
+          // only keep occluders that can actually shadow some part of b from one of its lights right now
+          const toO = V.mul(V.sub(o.wpos, b.wpos), 1 / d);
+          let can = false;
+          for (const l of L) {
+            const dl = V.dist(l.body.wpos, b.wpos); if (d > dl) continue;
+            const sep = Math.acos(clamp(V.dot(toO, V.mul(V.sub(l.body.wpos, b.wpos), 1 / dl)), -1, 1));
+            if (sep < ang + l.body.radius / dl + 1.2 * b.radius / d) { can = true; break; }
+          }
+          if (can) occ.push({ o, ang });
         }
         occ.sort((x, y) => y.ang - x.ang);
         const ou = new Float32Array(24); const no = Math.min(occ.length, 6);
