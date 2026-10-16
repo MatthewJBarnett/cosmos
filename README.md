@@ -100,7 +100,11 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
 - **Atmospheres:** physically based scattering (Hillaire 2020 LUTs) with coefficients from pressure, temperature,
   gravity and composition; ozone and methane absorption; Martian dust with wavelength-dependent phase; planet shadow,
   eclipses and cloud shadows in the air (crepuscular rays).
-- **Clouds:** volumetric ray marching driven by the real cloud map on Earth and weather maps elsewhere.
+- **Clouds:** volumetric ray marching driven by the real cloud map on Earth (Earth-like exoplanets borrow its
+  morphology), cloud cells whose area matches the observed cover, billowy cumulus from GPU-baked Worley noise, light
+  marched through the whole layer (overcast bases stay grey at sunset), lightning in storm clouds at night.
+- **Ground:** instanced trees where the land is green (stands, clearings, conifers and broadleaf), boulders on barren
+  ground, degraded small craters, ice and snow textures, triaxial shapes for small moons and asteroids.
 - **Oceans:** a directional wind-wave spectrum near the camera that becomes microfacet roughness with distance,
   Fresnel reflection of a horizon-weighted sky, the sun's glitter path, depth-dependent colour.
 - **Seeing from the ground:** astronomical refraction lifts and flattens the setting Sun and Moon and raises stars
@@ -112,16 +116,17 @@ an Earth-like planet with life, a ringed planet, a giant star or another galaxy.
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.
 - **Exotic objects:** ray traced Schwarzschild black holes with Doppler-beamed accretion disks, volumetric nebulae,
   coronae, ray marched comets (coma, curved dust tail, straight ion tail, sized by distance from the Sun), pulsar beams.
-- **Camera:** HDR pipeline, auto exposure that switches to the corona during totality, bloom, ACES tone mapping and
-  temporal anti-aliasing with sub-pixel jitter.
+- **Camera:** HDR pipeline with centre-weighted auto exposure (switches to the corona during totality, lets a sunlit
+  limb blow out to show city lights), bloom, ACES tone mapping and temporal anti-aliasing with sub-pixel jitter.
 - **Performance:** shaders compile in parallel behind a loading screen; terrain tiles bake ambient occlusion once; atmosphere and clouds render at half
   resolution with temporal accumulation when they fill the screen; exposure and ground height readbacks are
   asynchronous; the galaxy sky cube rebuilds in strips; dynamic resolution aims for 55+ fps, then trims ray march
   steps and terrain detail if that is not enough.
 
 **Interface:** search (planets, moons, named stars, nebulae, galaxies), Places and Explore menus, guided tour (T),
-saved views (B), system browser, date picker, shareable location links, latitude/longitude readout, GPU timing
-overlay (F3), settings saved between visits.
+eclipse finder (Shift+E), orbit mode (Y), saved views (B), system browser, date picker, shareable location links,
+latitude/longitude and local solar time, illuminated fraction and moon phase, GPU timing overlay (F3), settings saved
+between visits.
 
 ## Layout
 
