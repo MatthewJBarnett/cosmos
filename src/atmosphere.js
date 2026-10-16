@@ -109,7 +109,9 @@ float cloudShadowAt(vec3 p, vec3 L){
 vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   if (alt < 85000. || alt > 380000.) return vec3(0.);
   vec3 n = normalize(p);
-  if (dot(n, sunDir) > 0.05) return vec3(0.);
+  // airglow: O(1S) 557.7 nm layer at ~95 km, everywhere; only noticeable on the night side and at the limb
+  vec3 glow = vec3(0.3, 1., 0.32)*exp(-pow((alt*1e-3 - 95.)/5.5, 2.))*6e-13*(0.75 + 0.5*textureLod(uNoise3, n*3. + uTime*1e-5, 0.).r);
+  if (dot(n, sunDir) > 0.05) return glow;
   vec3 nb = uBodyRotInv*n;
   float cm = dot(nb, uMagPole);
   vec3 mp = cm > 0. ? uMagPole : -uMagPole;
@@ -121,7 +123,7 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   vec3 e1 = normalize(cross(mp, vec3(0., 0., 1.))), e2 = cross(mp, e1);
   float phi = atan(dot(nb, e2), dot(nb, e1));
   float band = exp(-pow((th - th0)/0.045, 2.));
-  if (band < 0.01) return vec3(0.);
+  if (band < 0.01) return glow;
   // folded curtains drifting slowly
   float t = uTime*0.003;
   float w = textureLod(uNoise3, vec3(phi*1.6, th*6., t*0.2), 0.).r;
@@ -133,7 +135,7 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   float red = 0.07*exp(-pow((a - 240.)/55., 2.));
   float blue = 0.25*exp(-pow((a - 98.)/5., 2.));
   float k = (fold + band*0.03)*rays*act*uAurora*smoothstep(0.05, -0.12, dot(n, sunDir));
-  return (vec3(0.18, 1., 0.38)*green + vec3(1., 0.15, 0.12)*red + vec3(0.55, 0.25, 1.)*blue)*k*6e-11;
+  return glow + (vec3(0.18, 1., 0.38)*green + vec3(1., 0.15, 0.12)*red + vec3(0.55, 0.25, 1.)*blue)*k*6e-11;
 }
 float lodDist;
 float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){

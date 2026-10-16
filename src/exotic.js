@@ -221,6 +221,8 @@ export function drawNebulaeAndFx(nav, o) {
     const relL = V.sub(nb.pos, o.camLocal), d = V.len(relL);
     const px = nb.radius / Math.max(d, 1e-9) * o.pxPerRad;
     if (px < 1.5 && d > nb.radius) continue;
+    // distant nebulae are seen through the galaxy's dust and are hard to pick out: fade them with distance
+    if (d > 300 && !nb.name.match(/Orion|Lagoon|Carina|Ring|Crab|Veil/)) continue;
     vis.push({ nb, rel: Q.rot(gq, relL), d, px });
   }
   vis.sort((a, b) => b.d - a.d);

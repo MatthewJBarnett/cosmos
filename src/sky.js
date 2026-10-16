@@ -156,6 +156,8 @@ void main(){
     vec3 p = ro + rd*t;
     if (abs(p.y) > ylim) { if (p.y*rd.y > 0.) break; continue; }
     vec3 e; float k; galSample(g, p, t < 0.25 ? 2. : 1., e, k);
+    // stars within a few hundred parsecs are drawn individually by the star field: don't count their light twice
+    e *= smoothstep(0.004, 0.02, t);
     vec3 kk = k*vec3(0.72, 1.0, 1.4);
     vec3 st = exp(-kk*dt);
     L += T*e*(k > 1e-4 ? (1. - st)/kk : vec3(dt));
