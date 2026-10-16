@@ -262,7 +262,7 @@ function buildSol(sys) {
   // Venus
   const venus = P('Venus', 'Venusian', 0.72333566, 0.00677672, 3.39467605, 76.67984255, 131.60246718, 181.9790995, 0.815, 6051.8, -5832.5, 177.36, 0.76, 737);
   venus.surface = surfacePreset('venus', rng, venus);
-  venus.atmo = makeAtmosphere(venus, 9.2e6, { CO2: 0.965, N2: 0.035 }, { T: 400, hR: 15900, top: 150000, mieS: [2e-5, 1.9e-5, 1.4e-5], mieA: [2e-7, 6e-7, 3e-6], hM: 12000,
+  venus.atmo = makeAtmosphere(venus, 9.2e6, { CO2: 0.965, N2: 0.035 }, { T: 400, hR: 11200, top: 150000, mieS: [2e-5, 1.9e-5, 1.4e-5], mieA: [3e-7, 1.6e-6, 9e-6], hM: 12000,
     clouds: { base: 48000, top: 68000, cover: 1.0, density: 3.0, color: [1.0, 0.93, 0.72], kind: 'venus' } });
   // Earth
   const earth = P('Earth', 'Terra', 1.00000261, 0.01671123, -0.00001531, 0, 102.93768193, 100.46457166, 1, 6371, 23.9345, 23.4393, 0.3, 288, { poleLon: 90, poleAbs: true, life: true });
