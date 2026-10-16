@@ -11,7 +11,7 @@ import { MILKY_WAY, SUN_POS } from './universe.js';
 import { drawRings, drawOrbits, drawBelts } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -75,6 +75,56 @@ void main(){
   float lB = lum(b);
   o = vec4((lB < mn || lB > mx) ? a : b, 1.);
 }`;
+
+const TAA_FS = `in vec2 vUV; out vec4 o;
+uniform sampler2D uCur, uHist, uDepth;
+uniform vec2 uTexel, uTanFov, uPrevTanFov, uJit;
+uniform mat3 uCamRot, uPrevInvSky, uBodyInv, uPrevInvBody;
+uniform vec3 uCamB, uPrevCamB;
+uniform float uFcoef, uValid, uHasBody;
+vec3 toY(vec3 c){ return vec3(0.25*c.r + 0.5*c.g + 0.25*c.b, 0.5*c.r - 0.5*c.b, -0.25*c.r + 0.5*c.g - 0.25*c.b); }
+vec3 fromY(vec3 y){ return vec3(y.x + y.y - y.z, y.x + y.z, y.x - y.y - y.z); }
+vec3 tm(vec3 c){ return c/(1. + max(c.r, max(c.g, c.b))); }
+vec3 itm(vec3 c){ return c/max(1. - max(c.r, max(c.g, c.b)), 1e-4); }
+void main(){
+  vec3 cur = tm(texture(uCur, vUV).rgb);
+  vec3 mn = vec3(1e9), mx = vec3(-1e9), m1 = vec3(0.), m2 = vec3(0.);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec3 c = toY(tm(texture(uCur, vUV + vec2(x, y)*uTexel).rgb));
+    mn = min(mn, c); mx = max(mx, c); m1 += c; m2 += c*c;
+  }
+  m1 /= 9.; m2 /= 9.;
+  vec3 sd = sqrt(max(m2 - m1*m1, 0.));
+  mn = max(mn, m1 - 1.25*sd); mx = min(mx, m1 + 1.25*sd);
+  if (uValid < 0.5) { o = vec4(itm(cur), 1.); return; }
+  vec2 uv = vUV - uJit;
+  vec3 rdc = vec3((uv*2. - 1.)*uTanFov, -1.);
+  float d = texture(uDepth, vUV).r;
+  vec3 rd = uCamRot*rdc;            // not normalised: z = -1 in view space
+  vec3 pv;
+  if (d < 0.99999 && uHasBody > 0.5) {
+    float w = exp2(d*2./uFcoef) - 1.;
+    vec3 Pb = uBodyInv*(rd*w) + uCamB;          // point in the body-fixed frame
+    pv = uPrevInvBody*(Pb - uPrevCamB);
+  } else pv = uPrevInvSky*rd;
+  if (pv.z >= 0.) { o = vec4(itm(cur), 1.); return; }
+  vec2 puv = (pv.xy/(-pv.z)/uPrevTanFov)*0.5 + 0.5;
+  if (any(lessThan(puv, vec2(0.))) || any(greaterThan(puv, vec2(1.)))) { o = vec4(itm(cur), 1.); return; }
+  // bicubic (Catmull-Rom, 5 taps) history fetch keeps it sharp
+  vec2 sz = 1./uTexel, sp = puv*sz, tp = floor(sp - 0.5) + 0.5, f = sp - tp;
+  vec2 w0 = f*(-0.5 + f*(1. - 0.5*f)), w1 = 1. + f*f*(-2.5 + 1.5*f), w2 = f*(0.5 + f*(2. - 1.5*f)), w3 = f*f*(-0.5 + 0.5*f);
+  vec2 w12 = w1 + w2, tc0 = (tp - 1.)*uTexel, tc3 = (tp + 2.)*uTexel, tc12 = (tp + w2/w12)*uTexel;
+  vec3 h = texture(uHist, vec2(tc12.x, tc0.y)).rgb*(w12.x*w0.y) + texture(uHist, vec2(tc0.x, tc12.y)).rgb*(w0.x*w12.y)
+         + texture(uHist, tc12).rgb*(w12.x*w12.y) + texture(uHist, vec2(tc3.x, tc12.y)).rgb*(w3.x*w12.y) + texture(uHist, vec2(tc12.x, tc3.y)).rgb*(w12.x*w3.y);
+  float ws = w12.x*w0.y + w0.x*w12.y + w12.x*w12.y + w3.x*w12.y + w12.x*w3.y;
+  h = max(h/ws, 0.);
+  vec3 hy = clamp(toY(tm(h)), mn, mx);
+  float motion = length((puv - vUV)/uTexel);
+  float a = mix(0.08, 0.35, clamp(motion/12., 0., 1.));
+  vec3 r = fromY(mix(hy, toY(cur), a));
+  if (any(isnan(r))) r = cur;
+  o = vec4(itm(clamp(r, 0., 0.9999)), 1.);
+}`;
 const COPY_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; void main(){ o = texture(uTex, vUV); }`;
 
 export function makeNoise3D() {
@@ -102,11 +152,11 @@ export function makeNoise3D() {
 }
 
 // label of the pass that starts after each marker
-const NEXT = { bake: 'setup', pre: 'galaxies', galaxies: 'galaxy sky', galsky: 'stars', stars: 'nebulae + planets', planets: 'rings, points', 'rings+pts': 'atmosphere', atmo: 'orbits, black holes', 'orbits+bh': 'post', post: 'end' };
+const NEXT = { bake: 'setup', pre: 'galaxies', galaxies: 'galaxy sky', galsky: 'stars', stars: 'nebulae + planets', planets: 'rings, points', 'rings+pts': 'atmosphere', atmo: 'orbits, black holes', 'orbits+bh': 'temporal AA', taa: 'post', post: 'end' };
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
-    this.pDown = new Program('down', FS_VS, DOWN_FS); this.pUp = new Program('up', FS_VS, UP_FS); this.pTone = new Program('tone', FS_VS, TONE_FS); this.pCopy = new Program('copy', FS_VS, COPY_FS); this.pFxaa = new Program('fxaa', FS_VS, FXAA_FS);
+    this.pDown = new Program('down', FS_VS, DOWN_FS); this.pUp = new Program('up', FS_VS, UP_FS); this.pTone = new Program('tone', FS_VS, TONE_FS); this.pCopy = new Program('copy', FS_VS, COPY_FS); this.pFxaa = new Program('fxaa', FS_VS, FXAA_FS); this.pTAA = new Program('taa', FS_VS, TAA_FS); this.taaIdx = 0; this.taaValid = false;
     this.noise3 = makeNoise3D();
     this.galSky = new GalaxySky();
     this.volTAA = new VolumetricTAA(); this.prevCam = null;
@@ -120,7 +170,8 @@ export class Renderer {
     if (w === this.w && h === this.h) return;
     this.w = w; this.h = h; this.canvas.width = w; this.canvas.height = h;
     const del = (t) => t && gl.deleteTexture(t);
-    del(this.hdrTex); del(this.depthTex); del(this.copyTex); del(this.ldrTex);
+    del(this.hdrTex); del(this.depthTex); del(this.copyTex); del(this.ldrTex); if (this.taaTex) this.taaTex.forEach(del);
+    this.taaTex = [0, 1].map(() => tex2D(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR)); this.taaFBO = this.taaTex.map(t => fbo([t])); this.taaValid = false;
     this.hdrTex = tex2D(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
     this.copyTex = tex2D(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
     this.depthTex = tex2D(w, h, gl.DEPTH_COMPONENT32F, gl.DEPTH_COMPONENT, gl.FLOAT, gl.NEAREST);
@@ -143,7 +194,13 @@ export class Renderer {
     const w = this.w, h = this.h, aspect = w / h;
     const fov = nav.fov, tanY = Math.tan(fov / 2), tanX = tanY * aspect;
     const pxPerRad = h / (2 * tanY), pxSA = 1 / (pxPerRad * pxPerRad);
-    const view = M4.viewFromQuat(nav.q), proj = M4.persp(fov, aspect, 0.1, 1000), viewProj = M4.mul(proj, view);
+    const view = M4.viewFromQuat(nav.q), proj = M4.persp(fov, aspect, 0.1, 1000);
+    // sub-pixel jitter (Halton 2,3) for temporal anti-aliasing
+    const useTAA = rcfg.taa && !this.sync;
+    const hal = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
+    const jx = useTAA ? hal(this.frameNo % 8 + 1, 2) - 0.5 : 0, jy = useTAA ? hal(this.frameNo % 8 + 1, 3) - 0.5 : 0;
+    proj[8] -= jx * 2 / w; proj[9] -= jy * 2 / h;
+    const viewProj = M4.mul(proj, view);
     const camRot = Q.mat3(nav.q);
     const fcoef = 2 / Math.log2(FAR + 1);
     const exposure = this.exposure;
@@ -348,9 +405,29 @@ export class Renderer {
     gl.depthMask(true);
 
     T('orbits+bh');
-    // ---- post ----
+    // ---- temporal anti-aliasing ----
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-    let src = this.hdrTex, sw2 = w, sh2 = h;
+    let sceneTex = this.hdrTex;
+    {
+      const an = nav.anchor && nav.level === 'system' ? nav.anchor : null;
+      const bInv = an ? Q.conj(an.wrot) : null;
+      const cur = { q: nav.q.slice(), tanFov: [tanX, tanY], body: an, camB: an ? Q.rot(bInv, V.sub(nav.S, an.wpos)) : null, qB: an ? Q.mul(bInv, nav.q) : null, level: nav.level, sys };
+      if (useTAA) {
+        const pv = this.taaPrev;
+        const valid = this.taaValid && pv && pv.level === cur.level && pv.sys === cur.sys && pv.body === cur.body;
+        const dst = this.taaIdx, srcH = 1 - dst;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.taaFBO[dst]); gl.viewport(0, 0, w, h);
+        this.pTAA.use().set({ uCur: this.hdrTex, uHist: this.taaTex[srcH], uDepth: this.depthTex, uTexel: [1 / w, 1 / h], uTanFov: [tanX, tanY], uPrevTanFov: valid ? pv.tanFov : [tanX, tanY], uJit: [jx / w, jy / h],
+          uCamRot: camRot, uPrevInvSky: Q.mat3(Q.conj(valid ? pv.q : nav.q)), uBodyInv: Q.mat3(bInv || Q.ident()), uPrevInvBody: Q.mat3(Q.conj(valid && pv.qB ? pv.qB : Q.ident())),
+          uCamB: cur.camB || [0, 0, 0], uPrevCamB: valid && pv.camB ? pv.camB : [0, 0, 0], uFcoef: fcoef, uValid: valid ? 1 : 0, uHasBody: an ? 1 : 0 });
+        drawFS();
+        sceneTex = this.taaTex[dst]; this.taaIdx = srcH; this.taaValid = true;
+      } else this.taaValid = false;
+      this.taaPrev = cur;
+    }
+    T('taa');
+    // ---- post ----
+    let src = sceneTex, sw2 = w, sh2 = h;
     for (const m of this.mips) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, m.f); gl.viewport(0, 0, m.w, m.h);
       this.pDown.use().set({ uTex: src, uTexel: [1 / sw2, 1 / sh2] }); drawFS();
@@ -365,9 +442,9 @@ export class Renderer {
       this.pUp.use().set({ uTex: acc, uBase: m.t, uTexel: [1 / n.w, 1 / n.h], uMix: 0.55 }); drawFS();
       acc = m.u;
     }
-    const useFxaa = rcfg.fxaa;
+    const useFxaa = rcfg.fxaa && !useTAA;
     gl.bindFramebuffer(gl.FRAMEBUFFER, useFxaa ? this.ldrFBO : null); gl.viewport(0, 0, w, h);
-    this.pTone.use().set({ uHDR: this.hdrTex, uBloom: acc, uBloomAmt: rcfg.bloom, uGhost: rcfg.flare ? 0.0012 : 0, uFrame: this.frameNo % 97, uRes: [w, h] }); drawFS();
+    this.pTone.use().set({ uHDR: sceneTex, uBloom: acc, uBloomAmt: rcfg.bloom, uGhost: rcfg.flare ? 0.0012 : 0, uFrame: this.frameNo % 97, uRes: [w, h] }); drawFS();
     if (useFxaa) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); this.pFxaa.use().set({ uTex: this.ldrTex, uTexel: [1 / w, 1 / h] }); drawFS(); }
 
     T('post');

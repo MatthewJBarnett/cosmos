@@ -72,7 +72,7 @@ const COMP_FS = `
 in vec2 vUV;
 uniform sampler2D uScene, uDepth;
 uniform sampler3D uNoise3;
-uniform samplerCube uCloudMap;
+uniform samplerCube uCloudMap; uniform sampler2D uCloudTex2;
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
@@ -85,12 +85,20 @@ uniform float uFcoef;
 float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 toWorld(vec3 p){ return uOblate > 0. ? transpose(uPlanetRotInv)*(p*vec3(1., 1. - uOblate, 1.)) : p; }
 // density of cloud at point p (relative to planet centre, world axes)
+float lodDist;
 float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
   float r = length(p); float alt = r - aR0;
   hfrac = (alt - cBase)/(cTop - cBase);
   if (hfrac <= 0. || hfrac >= 1.) return 0.;
   vec3 pl = uPlanetRotInv*p; vec3 dir = pl/r;
-  vec4 wm = texture(uCloudMap, dir);
+  vec4 wm;
+  if (cMapped > 0.5) {
+    // observed clouds straight from the equirectangular map (smoother than the cube), plus detail
+    vec2 uv = vec2(atan(-dir.z, dir.x)*0.15915494 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))*0.31830989);
+    float mlod = log2(max(lodDist*uPixAngle/(6.2832*aR0/float(textureSize(uCloudTex2, 0).x)), 1.));
+    float v = textureLod(uCloudTex2, uv, mlod).r;
+    wm = vec4(smoothstep(0.08, 0.55, v), smoothstep(0.4, 0.9, v), 1., 0.);
+  } else wm = texture(uCloudMap, dir);
   float cov = wm.r;
   if (cov < 0.01) return 0.;
   if (cKind > 0.5) return (0.75 + 0.5*wm.g) * smoothstep(0., 0.2, hfrac) * smoothstep(1., 0.6, hfrac);
@@ -107,10 +115,11 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     float big = textureLod(uNoise3, pl/170000. + 0.2, lod - 4.).a;
     float n = textureLod(uNoise3, q + vec3(uTime*0.0004, 0., 0.), lod).r*0.6 + textureLod(uNoise3, q*3.1 + 0.3, lod + 1.6).g*0.28 + textureLod(uNoise3, q*9.7, lod + 3.3).b*0.12;
     n = mix(n, big, 0.35);
-    d = clamp((d - n*0.8*(1.05 - cov*0.6)) * 2.2, 0., 1.);
-  } else d = clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
+    if (cMapped > 0.5) d = clamp(d*(0.5 + 1.0*n) - (1. - cov)*0.2*n, 0., 1.);   // the map already says where clouds are: modulate, don't erode
+    else d = clamp((d - n*0.8*(1.05 - cov*0.6))*2.2, 0., 1.);
+  } else d = cMapped > 0.5 ? d*0.6 : clamp((d - 0.36*(1.05 - cov*0.6))*2.2, 0., 1.);
   // optical thickness spans thin veils to dense towers
-  return d*d*(0.35 + 1.4*wm.g);
+  return cMapped > 0.5 ? d*(0.3 + 1.6*wm.g) : d*d*(0.35 + 1.4*wm.g);
 }
 // Volumetric integration along the view ray through pixel uv. inscatter is not yet multiplied by exposure.
 void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, out float repDist){
@@ -158,7 +167,7 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       for (int i = 0; i < NS; i++) {
         float t = s0 + (float(i) + cjit)*dt;
         vec3 p = ro + rd*t; float hf;
-        float d = cloudDensity(p, false, log2(max(t*uPixAngle/170., 1.)), hf);
+        lodDist = t; float d = cloudDensity(p, false, log2(max(t*uPixAngle/170., 1.)), hf);
         if (d > 0.002) {
           float sig = d*cDens*0.0045;
           vec3 lsum = vec3(0.);
@@ -382,10 +391,12 @@ export function drawAtmosphere(body, o) {
   if (!dummyCube) dummyCube = texCube(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
   // cloud layer drifts slowly relative to the ground
   const rotInv = cloudRotInv(body, o.rotQ, o.time);
+  const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
+  const cmap = ms && ms.clouds && ms.clouds.tex;
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    cMapped: body.maps && body.maps.clouds && l.mapsVersion ? 1 : 0, uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
+    cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uOblate: body.oblate || 0, cHas: c && o.clouds ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
   drawFS();
