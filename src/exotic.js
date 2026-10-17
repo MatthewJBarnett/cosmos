@@ -118,7 +118,7 @@ function quad() { if (!quadVAO) quadVAO = makeVAO([{ data: new Float32Array([-1,
 // ---------------- nebulae ----------------
 const NEB_FS = `
 in vec2 vUV; out vec4 o;
-uniform sampler3D uNoise3; uniform mat3 uCamRot; uniform vec2 uTanFov; uniform vec3 uCen; uniform float uRad, uScale, uSeed, uFrame; uniform int uType; uniform vec3 uColA, uColB;
+uniform sampler3D uNoise3; uniform mat3 uCamRot; uniform vec2 uTanFov; uniform vec3 uCen; uniform float uRad, uScale, uSeed, uFrame, uDust; uniform int uType; uniform vec3 uColA, uColB;
 float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 float fbm(vec3 p){ float a = .5, s = 0.; for (int i = 0; i < 5; i++) { s += a*texture(uNoise3, p).r; p = p*2.07 + 13.7; a *= .5; } return s; }
 void main(){
@@ -182,7 +182,7 @@ void main(){
   }
   vec3 res = L*uScale;
   if (any(isnan(res)) || any(isinf(res))) res = vec3(0.);
-  o = vec4(min(res, vec3(60000.)), clamp(T, 0., 1.));
+  o = vec4(min(res, vec3(60000.)), mix(1., clamp(T, 0., 1.), uDust));
 }`;
 let pNeb;
 const nebCache = new Map();
@@ -266,7 +266,7 @@ export function drawNebulaeAndFx(nav, o) {
       if (x1 <= x0 || y1 <= y0) continue; sc = [x0, y0, x1 - x0, y1 - y0];
     }
     if (sc) { gl.enable(gl.SCISSOR_TEST); gl.scissor(sc[0], sc[1], sc[2], sc[3]); }
-    pNeb.use().set({ uNoise3: o.noise3, uCamRot: o.camRot, uTanFov: o.tanFov, uCen: v.rel, uRad: nb.radius, uScale: GAL_I0 * nb.lum * mix(1, skyCfg.galBoost, clamp((14 - v.d / nb.radius) / 10, 0, 1)) * 0.25 * o.exposure, uSeed: nb.seed, uFrame: o.frame % 16, uType: nb.type, uColA: nb.colA, uColB: nb.colB });
+    pNeb.use().set({ uNoise3: o.noise3, uCamRot: o.camRot, uTanFov: o.tanFov, uCen: v.rel, uRad: nb.radius, uScale: GAL_I0 * nb.lum * mix(1, skyCfg.galBoost, clamp((14 - v.d / nb.radius) / 10, 0, 1)) * 0.25 * o.exposure, uDust: mix(0.15, 1, clamp((14 - v.d / nb.radius) / 10, 0, 1)), uSeed: nb.seed, uFrame: o.frame % 16, uType: nb.type, uColA: nb.colA, uColB: nb.colB });
     drawFS();
     gl.disable(gl.SCISSOR_TEST);
   }
