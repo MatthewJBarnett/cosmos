@@ -145,7 +145,7 @@ window.cosmos = {
   async lookAtStar(name, auOut = 60, fov = 70) {
     updateWorld(nav.time);
     const t = findByName(nav, name); if (!t) return 'no ' + name;
-    const sol = solSystem(); nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null; nav.goto = null;
+    const sol = solSystem(); nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; nav.goto = null;
     sol.update(nav.time);
     nav.S = [0, C.AU * auOut, 0]; nav.selected = t;
     const rel = nav.relTo(t); nav.q = Q.look(rel, [0, 1, 0]); nav.fov = fov * Math.PI / 180;

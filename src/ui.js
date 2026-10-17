@@ -562,7 +562,7 @@ export class UI {
         nav.selected = t;
       } else {
         // deep space just outside the Solar System, looking at the star
-        nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null;
+        nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
         nav.S = [0, C.AU * 80, 0]; nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]);
       }
       return;
@@ -582,14 +582,14 @@ export class UI {
       if (v.lg === 'outside') {
         // above the orbital plane of the pair, looking at the collision
         const n = V.norm(V.cross(LG_R0, LG_V0));
-        nav.level = 'universe'; nav.galaxy = null; nav.system = null; nav.field = null; nav.anchor = null;
+        nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null;
         const mid = t ? V.mul(t.galaxy.posU, 0.5) : [0, 0, 0];
         nav.U = V.add(mid, V.mul(n, 0.16)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
         if (t) nav.selected = t;
       } else {
         // from the Solar System, looking at Andromeda
         const sol = solSystem(); sol.update(nav.time);
-        nav.system = sol; nav.level = 'system'; nav.galaxy = sol.galaxy; nav.anchor = null;
+        nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
         nav.S = [0, C.AU * 80, 0];
         if (t) { nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]); }
         nav.fov = 80 * Math.PI / 180;
@@ -599,7 +599,7 @@ export class UI {
     if (v.galaxy) {
       // above (or beside) the Milky Way, with the Sun selected and its galactic orbit drawn
       const mw = findByName(nav, 'Milky Way').galaxy, sunT = { type: 'star', desc: sol.desc };
-      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
+      nav.useGalaxy(mw); nav.system = null; nav.anchor = null; nav.level = 'galaxy';
       const sp = Q.rot(mw.quat, world.sunP);
       if (v.galaxy === 'top') { nav.G = Q.rot(mw.quat, [0, 42000, 0]); nav.q = Q.look(V.mul(nav.G, -1), Q.rot(mw.quat, [1, 0, 0])); }
       else { const out = V.norm([sp[0], 0, sp[2]]); nav.G = V.add(sp, V.add(V.mul(V.cross(out, [0, 1, 0]), 3500), [0, 600, 0])); nav.q = Q.look(V.sub(sp, nav.G), [0, 1, 0]); }

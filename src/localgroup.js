@@ -228,8 +228,8 @@ export class LocalGroup {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.cubeFB[f]); gl.viewport(0, 0, 256, 256);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.viewport(-GB, -GB, 256 + 2 * GB, 256 + 2 * GB);
-      // the same visibility boosts as the regular renderer: the host galaxy's glow, other galaxies
-      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.extBoost, 1.5);
+      // seen from inside, both galaxies are diffuse glow across the sky: the same visibility boost as the Milky Way band
+      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.galBoost, 1.5);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }

@@ -150,8 +150,10 @@ export class Nav {
   transitions() {
     this.frame++;
     if (this.level === 'system') {
+      if (!this.field && this.galaxy) this.field = fieldFor(this.galaxy);
       if (V.len(this.S) > 0.25 * PC) { this.G = this.camG(); this.level = 'galaxy'; this.system = null; this.anchor = null; }
     } else if (this.level === 'galaxy') {
+      if (!this.field) this.field = fieldFor(this.galaxy);
       // overlapping (merging) galaxies: switch to the one that holds the go-to target
       if (this.goto) {
         const t = this.goto.target, tg = t.type === 'body' ? t.body.system.galaxy : t.type === 'star' ? t.desc.galaxy : t.type === 'nebula' ? t.galaxy : null;
@@ -177,6 +179,8 @@ export class Nav {
     }
   }
 
+  // switch the current galaxy (and its star field)
+  useGalaxy(g) { this.galaxy = g; this.field = g ? fieldFor(g) : null; }
   // enter a system that is not in the star field (the physics sandbox)
   enterCustomSystem(sys, camS, q) {
     this.galaxy = sys.galaxy; this.field = fieldFor(sys.galaxy); this.system = sys; this.level = 'system';
