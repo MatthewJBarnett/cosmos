@@ -4,6 +4,7 @@ import { V, Q, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { keplerPos } from './system.js';
+import { planetOrbitPath } from './ephem.js';
 import { loadTexture } from './assets.js';
 
 // ---------------- rings ----------------
@@ -140,9 +141,11 @@ export function drawOrbits(sys, nav, o) {
     const M0 = orb.M0 + 2 * Math.PI * nav.time / orb.period;
     const start = data.length / 7;
     const fake = Object.assign({}, orb, { period: 1 });
+    // real planets follow their ephemeris (orbits that slowly change shape, and widen as the Sun loses mass)
+    const eph = b.ephem === 'planet' ? (sys.oScale || 1) : 0, path = eph ? planetOrbitPath(b.name, nav.time, ORB_N) : null;
     for (let i = 0; i <= ORB_N; i++) {
       fake.M0 = M0 + i / ORB_N * Math.PI * 2;
-      let p = keplerPos(fake, 0);
+      let p = path ? V.mul(path[i], eph) : keplerPos(fake, 0);
       if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
       p = Q.rot(sys.worldQ, p);
       // fade the stretch right behind the body to show direction of motion

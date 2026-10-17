@@ -69,7 +69,7 @@ function secularInit() {
     i: modes(B, el.map(x => Math.sin(D(x[2])) * Math.sin(D(x[5]))), el.map(x => Math.sin(D(x[2])) * Math.cos(D(x[5])))),
   };
 }
-let secT = NaN, secR = null;
+let secT = NaN, secR = null, secJoinP = null, secJoinM = null;
 // h = e sin(perihelion longitude), k = e cos(..), p = sin I sin(node), q = sin I cos(node), at t years from J2000
 export function secularAt(t) {
   if (t === secT) return secR;
@@ -98,7 +98,8 @@ export function earthOrbitAt(t) {
   return { e: Math.hypot(h, k), varpi: Math.atan2(h, k) / D2R };
 }
 // t: seconds since J2000 (UTC); returns heliocentric position (m) in the J2000 ecliptic frame, engine axes (y = north)
-export function planetPos(name, t) {
+// orbital elements [a (m), e, I, node, longitude of perihelion (deg), mean longitude (deg)] at t (s from J2000)
+export function planetElements(name, t) {
   const el = JPL[name]; if (!el) return null;
   const T = (t + 69.2) / (36525 * 86400);
   const [e0, r] = el;
@@ -109,15 +110,22 @@ export function planetPos(name, t) {
   // further out, the Laplace-Lagrange secular solution carries the orbits' slow changes (continuous at the join)
   const si = SEC_NAMES.indexOf(name);
   if (T !== Ts && si >= 0) {
-    const s1 = secularAt(T * 100), s0 = secularAt(Ts * 100);
+    const s0 = Ts > 0 ? (secJoinP || (secJoinP = secularAt(5000))) : (secJoinM || (secJoinM = secularAt(-5000))), s1 = secularAt(T * 100);
     const h = e * Math.sin(w * D2R) + s1.h[si] - s0.h[si], k = e * Math.cos(w * D2R) + s1.k[si] - s0.k[si];
     const p = Math.sin(I) * Math.sin(O) + s1.p[si] - s0.p[si], q = Math.sin(I) * Math.cos(O) + s1.q[si] - s0.q[si];
     const wn = Math.atan2(h, k) / D2R;
     e = Math.min(Math.hypot(h, k), 0.9); I = Math.asin(Math.min(Math.hypot(p, q), 1)); O = Math.atan2(p, q);
     // the mean longitude carries on at the mean motion; the mean anomaly is measured from the moving perihelion
-    return keplerPos(a, e, I, O, wn, e0[3] + r[3] * T);
+    return [a, e, I, O, wn, e0[3] + r[3] * T];
   }
-  return keplerPos(a, e, I, O, w, e0[3] + r[3] * T + (r[4] * (T - Ts)));
+  return [a, e, I, O, w, e0[3] + r[3] * T + (r[4] * (T - Ts))];
+}
+export function planetPos(name, t) { const el = planetElements(name, t); return el ? keplerPos(...el) : null; }
+// points along the current orbit, ending at the planet: n + 1 positions (m, heliocentric, engine axes)
+export function planetOrbitPath(name, t, n) {
+  const el = planetElements(name, t); if (!el) return null; const out = [];
+  for (let i = 0; i <= n; i++) out.push(keplerPos(el[0], el[1], el[2], el[3], el[4], el[5] + (i / n - 1) * 360));
+  return out;
 }
 function keplerPos(a, e, I, O, w, L) {
   const argp = w * D2R - O;

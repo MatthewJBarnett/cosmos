@@ -220,7 +220,7 @@ export class StarSystem {
       }
     }
     // the Sun's evolution, mass loss widening the orbits, Earth's precession and the Moon's recession
-    let oScale = 1, mScale = 1;
+    let oScale = 1, mScale = 1; this.oScale = 1;
     if (this.desc.sol) {
       const ss = sunState(tyr), sun = this.root;
       this.sunState = ss;
@@ -230,7 +230,7 @@ export class StarSystem {
       this.activity = act;
       sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.12 + 0.88 * act; sun.whiteDwarf = ss.R < 0.05;
       const earthB = this.root.children.find(b => b.name === 'Earth'); if (earthB) earthB.aurora = 0.35 + 0.9 * act;
-      oScale = orbitScale(tyr); mScale = moonScale(tyr);
+      oScale = orbitScale(tyr); mScale = moonScale(tyr); this.oScale = oScale;
       let changed = false;
       for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
       // tidal decay: Phobos breaks up into a ring around Mars in ~40 Myr (Black & Mittal 2015); Triton, on a retrograde
