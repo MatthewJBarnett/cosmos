@@ -61,9 +61,9 @@ export function stellarState(b, tyr) {
       return { L, R, T: 5772 * Math.pow(L / Math.pow(R / C.Rsun, 2), 0.25), m, phase: (5772 * Math.pow(L / Math.pow(R / C.Rsun, 2), 0.25) > 7000 ? 'blue' : 'red') + ' supergiant (burning helium and heavier elements)', kind: KIND.SUPERGIANT };
     }
     const tr = (g - 1) * 0.1 * e.life;    // years since the core collapsed
-    if (m >= 20) return { L: 0, R: 2 * C.G * 0.4 * m * C.Msun / C.c ** 2, T: 0, m: 0.4 * m, phase: 'black hole (its core collapsed ' + fmtY(tr) + ' ago)', kind: KIND.BH };
+    if (m >= 20) return { L: 0, R: 2 * C.G * 0.4 * m * C.Msun / C.c ** 2, T: 0, m: 0.4 * m, phase: 'black hole (its core collapsed ' + fmtY(tr) + ' ago)', kind: KIND.BH, snrAge: tr };
     const T = Math.max(3e4, 1e6 * Math.pow(1 + tr / 1e5, -0.3));
-    return { L: 4 * Math.PI * 12e3 ** 2 * C.sigma * T ** 4 / C.Lsun, R: 12e3, T, m: 1.4, phase: 'neutron star (supernova ' + fmtY(tr) + ' ago)', kind: KIND.NS };
+    return { L: 4 * Math.PI * 12e3 ** 2 * C.sigma * T ** 4 / C.Lsun, R: 12e3, T, m: 1.4, phase: 'neutron star (supernova ' + fmtY(tr) + ' ago)', kind: KIND.NS, snrAge: tr };
   }
   if (g < 1) {
     // subgiant, red giant branch, helium burning, asymptotic giant branch (luminosity up to ~1000x the end of the main sequence)
@@ -73,7 +73,7 @@ export function stellarState(b, tyr) {
   // white dwarf: the bare core, cooling (the ejected envelope glows as a planetary nebula for ~10,000 years)
   const mw = wdMass(m), R = 0.0127 * C.Rsun * Math.pow(mw / 0.6, -1 / 3), tc = (g - 1) * 0.1 * e.life + 1e4;
   const T = Math.max(300, Math.min(1.5e5, 2.5e4 * Math.pow(tc / 1e8, -0.38)));
-  return { L: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, R, T, m: mw, phase: tc < 3e4 ? 'planetary nebula nucleus' : T < 3000 ? 'black dwarf (a cold white dwarf)' : 'white dwarf, cooling', kind: KIND.WD };
+  return { L: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, R, T, m: mw, phase: tc < 3e4 ? 'planetary nebula nucleus' : T < 3000 ? 'black dwarf (a cold white dwarf)' : 'white dwarf, cooling', kind: KIND.WD, pnAge: tc };
 }
 // initial-final mass relation (Cummings et al. 2018, simplified)
 export const wdMass = (m) => clamp(0.08 * m + 0.47, 0.5, 1.35);

@@ -223,7 +223,7 @@ export class StarSystem {
     for (const s of this.stars) {
       const e = s.evo; if (!e) continue;
       const st = stellarState(s, tyr); if (!st) continue;
-      s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase;
+      s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase; s.pnAge = st.pnAge; s.snrAge = st.snrAge;
       if (s.surface) s.surface.T = st.T;
       const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
       if (!!s.blackHole !== bh) { s.blackHole = bh; if (bh) { s.accretion = 0; s.spin = s.spin || 0.7; s.rotPeriod = 0; } else s.rotPeriod = e.rot0 || s.rotPeriod; }

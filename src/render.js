@@ -415,6 +415,13 @@ export class Renderer {
       if (gal === MILKY_WAY && ageMyr > 0 && ageMyr < 12) {
         sne.remnants.push(this._ppd = Object.assign(this._ppd || {}, { pos: world.sunP.slice(), radius: 120 * C.AU / C.PC, type: 3, seed: 3.3, colA: [1.0, 0.72, 0.45], colB: [0.8, 0.5, 0.35], lum: 14000 * Math.exp(-ageMyr / 4) * Math.min(1, ageMyr / 0.2), name: 'The Sun\'s protoplanetary disk' }));
       }
+      // any visited star that has just died: its planetary nebula (~20 km/s, lit for ~30,000 years) or its supernova
+      // remnant (free expansion, then Sedov-Taylor, fading over ~100,000 years)
+      if (sys && sys.posLocal && sys.root && !sys.desc.sol && !sys.sandbox) {
+        const st = sys.root;
+        if (st.pnAge !== undefined && st.pnAge < 3e4) { const r = Math.max(20e3 * st.pnAge * C.YEAR / C.PC, 1e-4); sne.remnants.push(this._pnX = Object.assign(this._pnX || {}, { pos: sys.posLocal.slice(), radius: r, type: 1, seed: 4.4, colA: [0.25, 0.85, 0.75], colB: [1.0, 0.32, 0.25], lum: 900 * Math.min(1, Math.pow(0.15 / Math.max(r, 1e-3), 1.5)) * Math.min(1, (3e4 - st.pnAge) / 1e4), name: st.name + ' planetary nebula' })); }
+        if (st.snrAge !== undefined && st.snrAge < 1e5) { const a = Math.max(st.snrAge, 1), rf = 5.1e-3 * a, rs = 12.5 * Math.pow(a / 1e4, 0.4), R = 1 / Math.sqrt(1 / (rf * rf) + 1 / (rs * rs)); sne.remnants.push(this._snrX = Object.assign(this._snrX || {}, { pos: sys.posLocal.slice(), radius: Math.max(R, 0.002), type: 2, seed: 2.9, colA: [1.0, 0.35, 0.3], colB: [0.3, 0.75, 1.0], lum: 70 * Math.pow(Math.max(a, 100) / 1000, -0.3) * Math.exp(-a / 6e4), name: st.name + ' supernova remnant' })); }
+      }
       if (pn && pn.lit > 0.01) {
         const rpc = pn.r / C.PC;
         sne.remnants.push(this._pn = Object.assign(this._pn || {}, { pos: world.sunP.slice(), radius: Math.max(rpc, 1e-4), type: 1, seed: 7.7, colA: [0.25, 0.85, 0.75], colB: [1.0, 0.32, 0.25], lum: 900 * pn.lit * Math.min(1, Math.pow(0.15 / Math.max(rpc, 1e-3), 1.5)), name: 'The Sun\'s planetary nebula' }));
