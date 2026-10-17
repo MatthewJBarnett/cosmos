@@ -43,6 +43,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Last ice age](docs/ice_age.jpg) 20,000 years ago: ice sheets over North America, the sea 120 m lower (Milankovitch model) | ![Drifting continents](docs/drift.jpg) 80 million years from now: Australia has drifted north into the western Pacific |
 | ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | ![Merging shadows](docs/bbh_shadow.jpg) 12 ms before a black hole merger: light traced through both holes at once, their shadows fuse |
 | ![Kerr shadows](docs/kerr_spins.jpg) Black hole shadows at spin 0, 0.5 and 0.94: the D shape of a fast spinning (Kerr) hole | ![S-stars](docs/sstars.jpg) The S-stars around Sagittarius A* in 2018: S2 at its 120 AU pericentre |
+| ![Typhoon](docs/typhoon.jpg) A typhoon over the Philippine Sea in August: eye, central dense overcast and rain bands | |
 | ![Shoemaker-Levy 9](docs/sl9.jpg) Jupiter on 25 July 1994, scarred by the fragments of Comet Shoemaker-Levy 9 | ![Chicxulub](docs/chicxulub.jpg) 66 million years ago: the fireball of the Chicxulub impact on Earth's night side |
 | ![Deep past](docs/deep_past.jpg) Snowball Earth (690 Myr ago), bare continents (520 Myr ago), the magma ocean (4.5 Gyr ago) and the ancient ocean of Mars | ![Young Sun](docs/young_sun.jpg) The newborn Sun in its protoplanetary disk, gaps cleared by forming planets |
 
@@ -253,7 +254,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   near the horizon; stars twinkle more near the horizon; light pollution from the real night-lights map glows over
   cities; airglow at 95 km; aurora around the real geomagnetic pole.
 - **Seasons and ages:** Earth's snow cover follows the date (continental interiors first, forests show through the
-  snow) and so does sea ice (the Arctic largest in March, the Antarctic in September); ice sheets and sea level follow the Milankovitch cycles; the continents drift with the plates.
+  snow) and so does sea ice (the Arctic largest in March, the Antarctic in September); tropical cyclones form in
+  their basins and seasons, drift west and recurve poleward over about a week; ice sheets and sea level follow the Milankovitch cycles; the continents drift with the plates.
 - **Orbit mode (Y):** Newtonian two-body flight with thrusters; a 400 km orbit around Earth takes 92.4 minutes.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.

@@ -16,6 +16,34 @@ import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthO
 const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
 
+// ---------- tropical cyclones ----------
+// Storms born over warm tropical oceans in their seasons (North Atlantic and NE Pacific Jun-Nov, NW Pacific most of the
+// year, the southern Indian Ocean and Australia Dec-Apr), drifting west with the trade winds and recurving poleward,
+// each living about a week. Up to four at a time; a statistical model, not a forecast.
+const BASINS = [
+  // [genesis lat, lon (deg), westward speed (deg/day), season peak (solar longitude, deg), storms per year]
+  [13, -40, 3.5, 170, 12], [14, -110, 3.0, 150, 15], [13, 140, 3.0, 160, 25], [-13, 70, 2.8, 330, 10], [-14, 140, 2.5, 330, 9],
+];
+function tropicalCyclones(t, solarLon, climate) {
+  if (climate && (climate.dry > 0.3 || climate.magma > 0 || climate.snowball)) return null;
+  const day = t / 86400, out = [];
+  for (let k = 0; k < BASINS.length && out.length < 4; k++) {
+    const [la0, lo0, vw, peak, rate] = BASINS[k];
+    const season = Math.max(0, Math.cos((solarLon - peak) * D2R)) ** 2;
+    // storms born in 3-day bins; check the bins whose storms could still be alive
+    for (let n = Math.floor(day / 3) - 3; n <= Math.floor(day / 3) && out.length < 4; n++) {
+      const h = Math.abs(Math.sin(n * 12.9898 + k * 78.233) * 43758.5453) % 1;
+      if (h > rate * 3 / 365 * season * 1.6) continue;
+      const age = day - (n + (h * 7.31) % 1) * 3; if (age < 0 || age > 9) continue;
+      const hs = la0 > 0 ? 1 : -1, lat = la0 + hs * (0.8 * age + 0.25 * age * age), lon = lo0 - vw * age * Math.max(0, 1 - age / 12) + 1.5 * Math.max(0, age - 5) ** 2 * 0.5;
+      const str = Math.min(1, age / 2) * Math.min(1, (9 - age) / 2.5) * (0.6 + 0.4 * ((h * 13.7) % 1));
+      const la = lat * D2R, lo = lon * D2R;
+      out.push([Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), hs * Math.max(str, 0.01)]);
+    }
+  }
+  return out.length ? out : null;
+}
+
 // ---------- Kepler ----------
 // an orbit whose elements are given in the plane of the sky (visual binaries, the S-stars): x north, y east, z away
 export function skyToFrame(sky, r) { const x = r[0], y = -r[2], z = r[1]; return [sky[0][0] * x + sky[1][0] * y + sky[2][0] * z, sky[0][1] * x + sky[1][1] * y + sky[2][1] * z, sky[0][2] * x + sky[1][2] * y + sky[2][2] * z]; }
@@ -400,6 +428,7 @@ export class StarSystem {
         // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
         // (no weather clouds over a magma ocean or once the oceans have boiled away)
         b.noClouds = b.climate.magma > 0 || b.climate.dry > 0.9;
+        b.cyclones = tropicalCyclones(t, b.solarLon || 0, b.climate);
         // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W
         { const ageH = (t / YEAR + 66.043e6) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 21.4 * D2R, lo = -89.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
