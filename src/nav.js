@@ -136,9 +136,10 @@ export class Nav {
   // ----- level transitions -----
   enterSystem(desc) {
     const sys = systemFor(desc);
+    sys.update(this.time);     // (its position moves with time: bring it up to date before placing the camera)
     const g = this.camG();
     this.S = [(g[0] - sys.posGu[0]) * PC, (g[1] - sys.posGu[1]) * PC, (g[2] - sys.posGu[2]) * PC];
-    this.system = sys; this.level = 'system'; sys.update(this.time);
+    this.system = sys; this.level = 'system';
     // a go-to aimed at the star continues towards its body
     if (this.goto && this.goto.target.type === 'star' && this.goto.target.desc.key === desc.key) this.retarget({ type: 'body', body: sys.stars[0] });
     if (this.selected && this.selected.type === 'star' && this.selected.desc.key === desc.key) this.selected = { type: 'body', body: sys.stars[0] };
