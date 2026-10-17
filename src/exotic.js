@@ -64,10 +64,9 @@ float ksG(vec3 x, vec3 p, float a){ float f; vec3 l; ksFL(x, a, f, l); float s =
 void ksDeriv(vec3 x, vec3 p, float a, out vec3 dx, out vec3 dp){
   float f; vec3 l; ksFL(x, a, f, l);
   dx = p - f*(1. + dot(l, p))*l;
-  float e = 1e-3*max(1., length(x)*0.02);
-  dp = 0.5*vec3(ksG(x + vec3(e, 0., 0.), p, a) - ksG(x - vec3(e, 0., 0.), p, a),
-                ksG(x + vec3(0., e, 0.), p, a) - ksG(x - vec3(0., e, 0.), p, a),
-                ksG(x + vec3(0., 0., e), p, a) - ksG(x - vec3(0., 0., e), p, a))/(2.*e);
+  // (forward differences: four metric evaluations per derivative instead of seven)
+  float e = 6e-4*max(1., length(x)*0.02), s0 = 1. + dot(l, p), g0 = f*s0*s0;
+  dp = 0.5*vec3(ksG(x + vec3(e, 0., 0.), p, a) - g0, ksG(x + vec3(0., e, 0.), p, a) - g0, ksG(x + vec3(0., 0., e), p, a) - g0)/e;
 }
 void main(){
   vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
@@ -84,7 +83,7 @@ void main(){
   vec3 dn = uDiskRot[1];
   vec3 vOut = rd;
   // (spin only matters for rays that pass close: further out the Schwarzschild bending is the same to a fraction of a pixel)
-  if (abs(uSpin) > 0.02 && b < 12.*uRs) {
+  if (abs(uSpin) > 0.02 && b < 8.*uRs) {
     // rotating hole: local frame X = axis 2, Y = axis 0, Z = spin axis (right handed); positions in M (= Rs/2)
     float a = uSpin, rH = 1. + sqrt(max(1. - a*a, 0.));
     mat3 W = mat3(uDiskRot[2], uDiskRot[0], uDiskRot[1]), Wt = transpose(W);
@@ -95,11 +94,11 @@ void main(){
     float qa = 1. - f0*sl*sl, qb = -2.*f0*sl, qc = -(1. + f0);
     vec3 p = n*((-qb + sqrt(max(qb*qb - 4.*qa*qc, 0.)))/(2.*qa));
     vec3 dx = n;
-    for (int i = 0; i < 520; i++) {
+    for (int i = 0; i < 400; i++) {
       float r = ksR(x, a);
       if (r < rH*1.02) { captured = true; break; }
       if (r > 64. && dot(x, dx) > 0.) break;
-      float h = clamp((r - rH)*0.06, 0.012, 6.)*(r < 8. ? 0.5 : 1.);
+      float h = clamp((r - rH)*0.075, 0.012, 6.)*(r < 8. ? 0.55 : 1.);
       // midpoint (RK2) step of Hamilton's equations
       vec3 dx1, dp1; ksDeriv(x, p, a, dx1, dp1);
       vec3 xm = x + dx1*(0.5*h), pm = p + dp1*(0.5*h);
