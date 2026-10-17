@@ -12,6 +12,7 @@ import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
 import { drawSandbox, sandboxPoints, drawLines, drawDebris } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
+import { updateMeteors } from './meteors.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS, REAL_GALAXIES } from './universe.js';
@@ -537,6 +538,7 @@ export class Renderer {
       gl.disable(gl.DEPTH_TEST);
       // points: bodies and far stars
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
+      for (const m of updateMeteors(nav, dt)) points.push(m);
       if (sys.sandbox) { for (const p of sandboxPoints(sys, nav)) points.push(p); drawSandbox(sys, nav, { viewProj, fcoef, exposure, maxExposure: this.maxExposure || rcfg.maxExposure }); drawDebris(sys, nav, { viewProj, exposure, pxSA, pxPerRad }); gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); }
       drawPoints(points, viewProj, common);
       // star coronae / glare
