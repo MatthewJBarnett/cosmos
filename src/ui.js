@@ -709,14 +709,14 @@ export class UI {
       return;
     }
     if (v.comet) {
-      // side-on to the Sun-comet line, ~0.25 AU away, so the coma and both tails (dust curving, ions straight) show
+      // side-on to the Sun-comet line, ~0.8 AU away, so the coma and both tails (dust curving, ions straight) show
       const t = findByName(nav, v.comet); if (!t || t.type !== 'body') return;
       sol.update(nav.time);
       const b = t.body, sun = sol.find('Sun'), toSun = V.norm(V.sub(sun.wpos, b.wpos));
       let side = V.cross(toSun, [0, 1, 0]); if (V.len(side) < 1e-3) side = [1, 0, 0]; side = V.norm(side);
       nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; nav.selected = t;
-      nav.S = V.add(b.wpos, V.add(V.mul(side, 0.25 * C.AU), V.mul(toSun, -0.08 * C.AU)));
-      nav.q = Q.look(V.sub(V.add(b.wpos, V.mul(toSun, -0.08 * C.AU)), nav.S), [0, 1, 0]); nav.fov = 60 * Math.PI / 180;
+      nav.S = V.add(b.wpos, V.add(V.mul(side, 0.8 * C.AU), V.mul(toSun, -0.15 * C.AU)));
+      nav.q = Q.look(V.sub(V.add(b.wpos, V.mul(toSun, -0.15 * C.AU)), nav.S), [0, 1, 0]); nav.fov = 60 * Math.PI / 180;
       return;
     }
     if (v.body) {
