@@ -389,12 +389,16 @@ export class StarSystem {
       // Comet Shoemaker-Levy 9's fragments (G, K, L, H, Q1, R hit hardest) struck Jupiter at 44 S on 16-22 July 1994;
       // their dark scars, larger than Earth, spread and faded over months (System II longitudes; fresh scar w -> 0)
       if (this.longComets) for (let k = 0; k < this.longComets.length; k++) {
-        const cm = this.longComets[k], n = Math.floor((tyr + k * 1.5) / 6);
-        if (cm._epoch === n) continue;
+        // (a comet shower: Gliese 710 crosses the Oort cloud in 1.3 Myr and the comets it nudges fall in over the next
+        // few Myr, several times today's rate; the slots then refill faster)
+        const Lq = Math.round(6 / (1 + 6 * Math.exp(-(((tyr - 3.0e6) / 1.3e6) ** 2))) * 4) / 4;
+        const cm = this.longComets[k], n = Math.floor((tyr + k * 1.5) / Lq);
+        if (cm._epoch === n && cm._L === Lq) continue;
+        cm._L = Lq;
         cm._epoch = n;
         let sd = (n * 7919 + k * 104729) >>> 0; const rnd = () => { sd = (Math.imul(sd, 1103515245) + 12345) >>> 0; return sd / 4294967296; };
         const q = (0.3 + 1.2 * rnd()) * C.AU, e = 0.9995, a = q / (1 - e), P = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * C.Msun));
-        let tp = (n * 6 - k * 1.5 + 6 * rnd()) * C.YEAR;     // perihelion time (s from J2000)
+        let tp = (n * Lq - k * 1.5 + Lq * rnd()) * C.YEAR;     // perihelion time (s from J2000)
         // (no invented comets within a century of the present: the real sky has its own)
         if (Math.abs(tp / C.YEAR - 26.8) < 100) tp = 1e9 * C.YEAR;
         Object.assign(cm.orbit, { a, e, inc: Math.acos(1 - 2 * rnd()), node: rnd() * 2 * Math.PI, argp: rnd() * 2 * Math.PI, M0: -2 * Math.PI * ((tp / P) % 1), period: P });
