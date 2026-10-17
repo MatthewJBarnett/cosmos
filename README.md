@@ -111,7 +111,12 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   and Ib/c light curves averaged over each frame (a one-year flash still registers at a million years per
   second), and remnants that expand (free expansion, then Sedov-Taylor) and fade. Betelgeuse (estimated
   100,000 years) and Antares (estimated 600,000 years) explode on schedule: from Earth Betelgeuse peaks at
-  magnitude −11. Real nebulae age: the Crab and Veil expand and fade, H II regions disperse in a few Myr.
+  magnitude −11, lights the night like a quarter Moon, and if you fly there during the explosion the star swells
+  into a fireball tens of AU across before leaving a neutron star. Real nebulae age: the Crab and Veil expand and fade, H II regions disperse in a few Myr.
+- **Seen from Earth:** meteor showers on their real dates (Quadrantids, Lyrids, Eta Aquariids, Perseids, Orionids,
+  Leonids, Geminids, plus sporadics, more after midnight) streak away from their radiants at ~100 km; zodiacal light
+  and the gegenschein glow along the ecliptic at dark sites; city lights and light pollution belong to the era of
+  electric lighting.
 - **Variable stars:** Algol's eclipses, Mira, Beta Lyrae, Epsilon Aurigae's two-year eclipse every 27 years,
   Zeta Geminorum (a Cepheid) and Betelgeuse's semi-regular pulsation.
 - **The Sun's life:** a solar evolutionary track (Sackmann et al. 1993; Schröder & Smith 2008): brightening on
