@@ -336,6 +336,18 @@ export class UI {
     let i = RATES.findIndex(r => r >= a * 0.999); if (i < 0) i = RATES.length - 1;
     i = clamp(i + d, 0, RATES.length - 1); nav.rate = RATES[i] * sg; nav.paused = false;
   }
+  // what visibly changes at the current time rate, given where you are
+  watchHint(nav) {
+    const r = Math.abs(nav.rate) / YEAR, lvl = nav.level, sys = nav.system, an = nav.anchor;
+    const atEarth = an && an.name === 'Earth', sol = sys && sys.desc && sys.desc.sol, sandbox = sys && sys.sandbox;
+    if (sandbox || r < 1e-4) return '';
+    if (lvl === 'universe') return r < 1e5 ? '' : r < 1e8 ? 'galaxies slowly turn; supernovae flare in some' : r < 3e9 ? 'galaxies turn, redden and recede; Andromeda and the Milky Way merge (2.6-6 Gyr ahead)' : 'galaxies recede beyond the horizon and fade as their stars die';
+    if (lvl === 'galaxy') return r < 1e4 ? 'stars barely move' : r < 1e6 ? 'nearby stars drift; massive stars explode; nebulae change' : r < 3e8 ? 'stars stream around the Galaxy; the spiral pattern turns; the Sun orbits the centre (218 Myr)' : 'the Galaxy turns many times; Andromeda arrives; stars fade';
+    if (atEarth && nav.altitude < 1e5) return r < 0.003 ? 'the sky turns; the Moon moves through its phases' : r < 1 ? 'seasons: snow and sea ice come and go' : r < 300 ? 'the stars stay put; the Sun\'s 11-year cycle shows in the aurora' : r < 3e4 ? 'precession: the pole star changes; constellations distort' : r < 3e6 ? 'ice ages advance and retreat; nearby stars pass; Betelgeuse explodes' : r < 3e8 ? 'continents drift; the day lengthens' : 'the Sun brightens: oceans boil, then the red giant';
+    if (atEarth || (sol && an)) return r < 0.01 ? 'clouds and weather move; the Moon orbits' : r < 3 ? 'seasons: snow and sea ice; planets orbit' : r < 1e4 ? 'planets orbit; orbits slowly precess' : r < 3e6 ? 'ice ages and sea level; orbits change shape (Milankovitch cycles)' : r < 3e8 ? 'continents drift; Phobos becomes a ring; Saturn\'s rings fade' : 'the Sun brightens and swells; planets are swallowed';
+    if (sys && !sol) return r < 10 ? 'planets orbit' : r < 1e6 ? 'orbits; flares and pulsations' : 'the star ages: it brightens, swells into a giant and dies';
+    return '';
+  }
   search(text) {
     const q = String(text || '').trim().toLowerCase(); if (!q) return;
     // a moment in time ("Snowball Earth", "dinosaurs", "Big Bang") or an amount of time ("2 Gyr", "year 3000")
@@ -450,7 +462,8 @@ export class UI {
       deep += `<div class="dim">Universe ${ageS} old · background ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T < 1e4 ? cosmo.T.toFixed(cosmo.T < 100 ? 3 : 0) : cosmo.T.toExponential(2)} K${era ? '</div><div><b>Era</b> ' + era : ''}</div>`;
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
     }
-    this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
+    const watch = nav.paused ? '' : this.watchHint(nav);
+    this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}${watch ? '<div class="dim"><b>At this rate</b> ' + watch + '</div>' : ''}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
     document.getElementById('tPause').textContent = nav.paused ? '▶' : '⏸';
     this.updateInfo(); this.updateLabels(); this.updateSys();
