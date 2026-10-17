@@ -113,7 +113,7 @@ uniform vec3 uFaceA;
 uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
 uniform vec2 uDetailO; uniform float uChunkA;
-uniform int uKind;
+uniform int uKind; uniform vec2 uCaps;
 ${ICE_GLSL}
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
@@ -160,6 +160,12 @@ void main(){
         vec3 shelf = mix(vec3(0.045, 0.07, 0.03), vec3(0.17, 0.15, 0.1), smoothstep(0.35, 0.75, latS));   // forest to steppe-tundra
         alb.rgb = mix(alb.rgb, shelf*(0.85 + 0.3*texture(uNoise3, dir*3.1).r), ex); water *= 1. - ex; depth *= 1. - ex;
       }
+    }
+    if (uCaps.x < 90.) {
+      // seasonal frost caps (Mars): bright CO2 frost poleward of the current edge, ragged at the margin
+      float latC = degrees(asin(clamp(dir.y, -1., 1.))), nzc = (texture(uNoise3, dir*2.3).r - 0.5)*6.;
+      float cc = max(smoothstep(-1.5, 1.5, latC + nzc - uCaps.x), smoothstep(-1.5, 1.5, uCaps.y - latC - nzc));
+      alb.rgb = mix(alb.rgb, vec3(0.62, 0.62, 0.64)*(0.9 + 0.2*texture(uNoise3, dir*17.).g), cc*0.9);
     }
     if (uIceAge.x > 0.) {
       // ice sheets at their Last Glacial Maximum extent (Laurentide, Cordilleran, Fennoscandian, Barents-Kara,
@@ -757,7 +763,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
-    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
+    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uCaps: body.caps || [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));

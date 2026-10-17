@@ -307,6 +307,13 @@ export class StarSystem {
       // early Mars: an ocean filled the northern lowlands to about the Deuteronilus shoreline (-3,800 m) around 3.8 Gyr
       // ago, then shrank into the deepest basins and was gone by ~3 Gyr ago (an active research question)
       const mars = all.find(b => b.name === 'Mars');
+      // Mars' seasonal polar caps: carbon dioxide frost spreads to ~55 degrees latitude in each winter and sublimates
+      // back to the small residual cap by midsummer (the season from the Sun's direction relative to the axis)
+      if (mars && mars.axisQ && this.root) {
+        const sd = V.norm(V.sub(this.root.pos, mars.pos)), sz = V.dot(sd, Q.rot(mars.axisQ, [0, 1, 0])) / Math.sin((mars.tilt || 25.19) * D2R);
+        const ns = clamp(sz, -1, 1);       // +1 northern summer solstice
+        mars.caps = [72 + 12 * ns, -(72 - 14 * ns)];
+      }
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
       const sat = all.find(b => b.name === 'Saturn');
       if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
