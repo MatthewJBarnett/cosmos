@@ -394,7 +394,7 @@ export class Renderer {
       sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
       if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
       // a supernova brighter than about magnitude -7 lights planets and skies like a second moon
-      if (sys && nav.level === 'system' && !window.__noSNLight) for (const p of sne.points.slice(0, 2)) {
+      if (sys && nav.level === 'system') for (const p of sne.points.slice(0, 2)) {
         if (p.m > -7) continue;
         const dir = V.norm(p.dir), far = 1e4 * C.AU;
         const fake = { wpos: V.add(nav.S, V.mul(dir, far)), radius: 1e3, name: 'Supernova', kind: 'star', pseudo: true };
