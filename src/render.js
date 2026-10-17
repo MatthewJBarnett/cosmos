@@ -487,8 +487,8 @@ export class Renderer {
         const ou = new Float32Array(24); const no = Math.min(occ.length, 6);
         // negative radius marks occluders with a substantial atmosphere (their umbra is lit by refracted red light)
         for (let i = 0; i < no; i++) { const o = occ[i].o; ou.set(V.sub(o.wpos, nav.S), i * 4); ou[i * 4 + 3] = o.atmo && o.atmo.P > 1e4 ? -o.radius : o.radius; }
-        const u = { uNumLights: L.length, uLightPos: lp, uLightCol: lc, uLightRad: lr, uNumOcc: no, uOcc: ou, uPlanetRel: b.rel, uHasRings: 0, uRingN: [0, 1, 0], uRingIn: 0, uRingOut: 1, uRingTex: this.noiseDummy() };
-        if (b.rings) { const rt = drawRings.texture(b); Object.assign(u, { uHasRings: 1, uRingN: Q.rot(b.wrot, [0, 1, 0]), uRingIn: b.rings.inner, uRingOut: b.rings.outer, uRingTex: rt }); }
+        const u = { uNumLights: L.length, uLightPos: lp, uLightCol: lc, uLightRad: lr, uNumOcc: no, uOcc: ou, uPlanetRel: b.rel, uHasRings: 0, uRingN: [0, 1, 0], uRingIn: 0, uRingOut: 1, uRingFade: 1, uRingTex: this.noiseDummy() };
+        if (b.rings) { const rt = drawRings.texture(b); Object.assign(u, { uHasRings: 1, uRingN: Q.rot(b.wrot, [0, 1, 0]), uRingIn: b.rings.inner, uRingOut: b.rings.outer, uRingTex: rt, uRingFade: b.rings.fade === undefined ? 1 : b.rings.fade }); }
         return u;
       };
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);

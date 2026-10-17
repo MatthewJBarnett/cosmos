@@ -436,7 +436,9 @@ void main(){
   gl_PointSize = I/(6.2832*sig*sig) < 1e-4 ? 0. : ceil(sig*5.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
-const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz; o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig)), 1.); }`;
+const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz;
+  // (a soft round window, so a sprite clipped at its maximum size never shows a square edge)
+  float w = smoothstep(1., 0.6, length(gl_PointCoord - 0.5)*2.); o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig))*w, 1.); }`;
 let pDeb, debVAO, debBuf;
 // fraction of a blackbody's output that falls between 400 and 700 nm
 const visCache = new Map();
@@ -444,6 +446,13 @@ function visFrac(T) {
   const k = Math.round(T / 50) * 50; let f = visCache.get(k);
   if (f === undefined) { let v = 0; for (let l = 400e-9; l < 700e-9; l += 10e-9) v += 3.7418e-16 / (l ** 5 * (Math.exp(0.014388 / (l * k)) - 1)) * 10e-9; f = v / (C.sigma * k ** 4); visCache.set(k, f); }
   return f;
+}
+// expanding ejecta (Type Ia supernovae, kilonovae): [centre (sandbox frame), radius] for each
+export function ejecta(sb) {
+  const out = [];
+  for (const bl of sb.sim.blasts || []) { const age = sb.sim.t - bl.t; if (age >= 0) out.push([bl.x.map((c, k) => c + bl.v[k] * age), 1e7 * age + 1e7]); }
+  for (const b of sb.bodies) if (b.knR) out.push([b.pos, b.knR]);
+  return out;
 }
 export function drawDebris(sb, nav, o) {
   const P = sb.sim.particles;

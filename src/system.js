@@ -245,6 +245,10 @@ export class StarSystem {
           p._debrisRing.opacity = 0.45 * (1 - age / life); if (!p.rings || p.rings === p._debrisRing) p.rings = p._debrisRing;
         } else if (p.rings && p.rings === p._debrisRing) p.rings = null;
       }
+      // Saturn's rings rain onto the planet (water ice pulled in along magnetic field lines and by drag): at the
+      // measured rate they are gone in ~300 Myr (O'Donoghue et al. 2018, 2019)
+      const sat = all.find(b => b.name === 'Saturn');
+      if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
       // surfaces heated by the giant Sun glow
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }

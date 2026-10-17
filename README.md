@@ -157,7 +157,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   two galaxies are a 65,536 particle restricted N-body simulation on the GPU (leapfrog, time reversible); the
   Sun is a tracer particle, so you can watch the sky from the Solar System as Andromeda arrives.
 - **Moons and rings:** Phobos spirals in and breaks into a ring around Mars in ~40 Myr; Triton is torn apart into a
-  ring around Neptune in ~3.6 Gyr.
+  ring around Neptune in ~3.6 Gyr; Saturn's rings rain onto the planet and are gone in ~300 Myr.
 - **The end of the stellar era:** once star formation stops, the brightest stars burn out first; after tens of
   billions of years only red dwarfs and white dwarfs remain, and by 100 trillion years the last stars fade.
 - **Relativistic flight (M):** flying below light speed, the sky aberrates towards the direction of travel,

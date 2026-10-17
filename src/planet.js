@@ -64,7 +64,7 @@ void main(){
 export const LIGHT_UNIFORMS = `
 uniform int uNumLights; uniform vec3 uLightPos[3]; uniform vec3 uLightCol[3]; uniform float uLightRad[3];
 uniform int uNumOcc; uniform vec4 uOcc[6];
-uniform float uHasRings, uRingIn, uRingOut; uniform vec3 uRingN, uPlanetRel; uniform sampler2D uRingTex;
+uniform float uHasRings, uRingIn, uRingOut, uRingFade; uniform vec3 uRingN, uPlanetRel; uniform sampler2D uRingTex;
 // fraction of light i visible from world point p (camera relative), accounting for eclipses by other bodies
 // set by eclipse(): fraction of the light hidden by bodies with an atmosphere (refracted, reddened light fills their umbra)
 float gEclAtm = 0., gEclEdge = 0.;
@@ -89,7 +89,7 @@ float ringShadow(vec3 p, vec3 L){
   float t = -dot(p - uPlanetRel, uRingN)/dn; if (t <= 0.) return 1.;
   float r = length(p + L*t - uPlanetRel);
   if (r < uRingIn || r > uRingOut) return 1.;
-  float op = texture(uRingTex, vec2((r - uRingIn)/(uRingOut - uRingIn), 0.5)).a;
+  float op = 1. - pow(1. - min(texture(uRingTex, vec2((r - uRingIn)/(uRingOut - uRingIn), 0.5)).a, 0.999), uRingFade);
   return 1. - op*clamp(0.6/max(abs(dn), 0.25), 0., 1.);
 }
 `;

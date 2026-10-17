@@ -1,6 +1,6 @@
 // Sandbox panel: scenarios, placing bodies, live numbers, a gravitational wave scope and an audible chirp.
 import { V, Q, C, clamp } from './math.js';
-import { Sandbox, PRESETS } from './sandbox.js';
+import { Sandbox, PRESETS, ejecta } from './sandbox.js';
 import { MSUN } from './nbody.js';
 import { fmtDist, fmtSpeed } from './ui.js';
 import { YEAR } from './galdyn.js';
@@ -113,6 +113,11 @@ export class SandboxUI {
     const inside = nav.system === sb;
     // a selected body that merged away: select what it became (the most massive body)
     const sel = nav.selected && nav.selected.type === 'body' ? nav.selected.body : null;
+    // expanding supernova or kilonova ejecta push the camera back so the explosion stays in view
+    if (inside && !nav.paused && !nav.goto) for (const [x, R] of ejecta(sb)) {
+      const xw = Q.rot(sb.worldQ, x), rel = V.sub(nav.S, xw), d = V.len(rel);
+      if (d < 3 * R && d > 0) { const nd = Math.min(3 * R, d * 1.08); nav.S = V.add(xw, V.mul(rel, nd / d)); }
+    }
     const phys = sb.bodies.filter(b => b.phys);
     if (inside && sel && sel.sandbox && !sb.bodies.includes(sel) && phys.length) nav.selected = { type: 'body', body: phys.reduce((a, b) => (b.mass > a.mass ? b : a)) };
     if (this.audio && this.q('sbAudio').checked) {

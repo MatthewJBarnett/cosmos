@@ -15,7 +15,7 @@ ${LOGDEPTH_VS}
 void main(){ float r = mix(uIn, uOut, aPos.z); vec3 l = vec3(aPos.x*r, 0., aPos.y*r); vLocal = l.xz; vWorld = uRot*l + uRel; vT = aPos.z; gl_Position = uViewProj*vec4(vWorld, 1.); logDepth(); }`;
 const RING_FS = `
 in vec3 vWorld; in float vT; in vec2 vLocal;
-uniform sampler2D uTex; uniform sampler3D uNoise3; uniform float uExposure, uPlanetR, uOblate; uniform vec3 uN;
+uniform sampler2D uTex; uniform sampler3D uNoise3; uniform float uExposure, uPlanetR, uOblate, uFade; uniform vec3 uN;
 ${LIGHT_UNIFORMS}
 ${LOGDEPTH_FS}
 out vec4 o;
@@ -30,7 +30,7 @@ void main(){
   float grain = clamp(uPlanetR*0.004/dist, 0., 1.);
   if (grain > 0.) { float g = texture(uNoise3, vec3(vLocal/uPlanetR*900., 0.5)).r; a *= mix(1., smoothstep(0.25, 0.75, g)*1.6, grain); }
   a = clamp(a, 0., 0.995);
-  float tau = -log(1. - a);
+  float tau = -log(1. - a)*uFade;          // (optical depth falls as the rings rain onto the planet)
   vec3 Vv = normalize(-vWorld);
   float muV = max(abs(dot(Vv, uN)), 0.03);
   float aView = 1. - exp(-tau/muV);
@@ -104,7 +104,7 @@ export function drawRings(b, o) {
     ringVAO = makeVAO([{ data: v, size: 3, loc: 0 }]); ringCount = (S + 1) * 2;
   }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
-  pRing.use().set(o.light).set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: Q.mat3(o.rotQ), uRel: o.rel, uIn: b.rings.inner, uOut: b.rings.outer, uTex: ringTexture(b), uNoise3: o.noise3, uExposure: o.exposure, uPlanetR: b.radius, uOblate: b.oblate || 0, uN: Q.rot(o.rotQ, [0, 1, 0]) });
+  pRing.use().set(o.light).set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: Q.mat3(o.rotQ), uRel: o.rel, uIn: b.rings.inner, uOut: b.rings.outer, uTex: ringTexture(b), uNoise3: o.noise3, uExposure: o.exposure, uPlanetR: b.radius, uOblate: b.oblate || 0, uN: Q.rot(o.rotQ, [0, 1, 0]), uFade: b.rings.fade === undefined ? 1 : b.rings.fade });
   gl.bindVertexArray(ringVAO.vao); gl.drawArrays(gl.TRIANGLE_STRIP, 0, ringCount);
 }
 drawRings.texture = ringTexture;
