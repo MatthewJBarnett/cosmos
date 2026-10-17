@@ -92,7 +92,7 @@ export class UI {
       if (!localStorage.getItem('cosmos.seen.physics') && !new URLSearchParams(location.search).has('test')) {
         localStorage.setItem('cosmos.seen.physics', '1');
         setTimeout(() => {
-          const n = root.appendChild(el('div', 'panel whatsnew', `<b>New: physics across all of time</b><div>V opens the sandbox: merge black holes and hear the gravitational waves.</div><div>U opens the timeline: Betelgeuse's supernova, Andromeda's collision, the Sun's red giant phase.</div><div>The Rate menu runs the clock up to 10 billion years per second. M flies at relativistic speed.</div><button>OK</button>`));
+          const n = root.appendChild(el('div', 'panel whatsnew', `<b>New: physics across all of time</b><div>V opens the sandbox: merge black holes and hear the gravitational waves, or watch the Moon form.</div><div>U opens the timeline: Betelgeuse's supernova, Andromeda's collision, the Sun's red giant phase.</div><div>The Rate menu runs the clock up to 10 billion years per second: watch ice ages come and go and the continents drift. M flies at relativistic speed.</div><button>OK</button>`));
           n.querySelector('button').onclick = () => n.remove(); setTimeout(() => n.remove(), 25000);
         }, 2500);
       }
