@@ -238,7 +238,7 @@ export class UI {
     $('tLine').onclick = () => this.toggle(this.linePanel);
     $('bTour').onclick = () => { if (this.tour.active) this.tour.stop(); else this.tour.start(); };
     $('search').addEventListener('change', e => { this.search(e.target.value); });
-    const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
+    const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet", 'Comet Hale-Bopp', 'Comet NEOWISE'],
       'Exoplanets': ['Proxima Centauri', 'TRAPPIST-1', 'Helvetios', 'Ran', 'Tau Ceti', "Barnard's Star", 'Sirius'],
       'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'],
       'Supernova remnants': ['Crab Nebula', 'Cassiopeia A', "Tycho's supernova remnant", "Kepler's supernova remnant", 'SN 1006 remnant', 'RCW 86 (SN 185)'],

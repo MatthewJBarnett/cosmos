@@ -654,6 +654,14 @@ function buildSol(sys) {
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });
   halley.orbit = { a: 17.834 * C.AU, e: 0.96714, inc: 162.26 * D2R, node: 58.42 * D2R, argp: 111.33 * D2R, M0: 66.43 * D2R, period: 75.32 * C.YEAR };
   halley.surface = surfacePreset('asteroid', rng, halley); addChild(sun, halley);
+  // great comets of recent decades on their real orbits (J2000 ecliptic elements; perihelion dates as decimal years)
+  for (const [name, q, e, inc, node, argp, tp, R] of [['Comet Hyakutake', 0.2302, 0.9999, 124.92, 188.06, 130.18, 1996.329, 2000],
+    ['Comet Hale-Bopp', 0.9141, 0.99508, 89.43, 282.47, 130.59, 1997.248, 30000], ['Comet NEOWISE', 0.2946, 0.99918, 128.94, 61.01, 37.28, 2020.504, 2500]]) {
+    const cm = body({ name, kind: 'comet', cls: 'Long-period comet', mass: 1e3 * 4.19 * R ** 3 * 0.5, radius: R, albedo: 0.04, temp: 150, rotPeriod: 11 * 3600, real: true });
+    const a = q / (1 - e) * C.AU, period = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * C.Msun));
+    cm.orbit = { a, e, inc: inc * D2R, node: node * D2R, argp: argp * D2R, period, M0: -2 * Math.PI * (((tp - 2000) * C.YEAR / period) % 1) };
+    cm.surface = surfacePreset('asteroid', rng, cm); addChild(sun, cm);
+  }
   // long-period comets from the Oort cloud: a bright one passes the Sun every few years. Four slots, each holding a
   // different comet in every six-year window (near-parabolic orbit, random orientation, perihelion 0.3-1.5 AU)
   sys.longComets = [];

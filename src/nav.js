@@ -339,8 +339,9 @@ export class Nav {
     // relativistic flight: the outside clock runs fast by the Lorentz factor of the camera
     const b2 = this.beta ? this.beta[0] ** 2 + this.beta[1] ** 2 + this.beta[2] ** 2 : 0;
     this.gamma = 1 / Math.sqrt(1 - Math.min(b2, 0.999999));
-    // (flying down to land at a chosen local time: hold a fast clock until touchdown, or the hour would be random)
-    const landing = (this.goto && this.goto.land) || this.pendingLand;
+    // (flying down to land at a chosen local time, or to a planet's sunlit side: hold a fast clock until arrival, or
+    // the hour, or the side of the planet facing the Sun, would be random)
+    const landing = (this.goto && (this.goto.land || (this.goto.target && this.goto.target.type === 'body'))) || this.pendingLand;
     const dAdv = this.paused || (landing && Math.abs(this.rate) > 600) ? 0 : dt * this.rate * this.gamma;
     this.time += dAdv;
     const an0 = this.anchor;
