@@ -448,7 +448,7 @@ export class Renderer {
       }
     }
     // the Sun's orbit around the Galaxy (seen from outside the Solar System): one orbit back, half an orbit ahead
-    if (gal === MILKY_WAY && nav.level === 'galaxy' && rcfg.orbits && !LG.active) {
+    if (gal === MILKY_WAY && nav.level === 'galaxy' && rcfg.orbits && !LG.active && world.tyr > -4.57e9) {   // (no Sun before it formed)
       const P = SUN_ORBIT.periodYr, cg = nav.camG(), q0 = galQuat0(gal), data = [], N = 360;
       let prev = null;
       for (let k = -N; k <= N / 2; k++) {

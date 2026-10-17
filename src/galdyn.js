@@ -104,7 +104,7 @@ export function updateWorld(time, dtyr = 0) {
   world.rotP = [c, 0, -s, 0, 1, 0, s, 0, c];
   MILKY_WAY.quat = Q.mul(MW_Q0, Q.axis([0, 1, 0], -a));
   // (its young blue population, H II regions and dust lanes follow the star formation history)
-  MILKY_WAY.young = Math.round(Math.min(sfrRel(tyr), 3) * 20) / 20;
+  MILKY_WAY.young = Math.round(Math.min(sfrRel(tyr), 2.2) * 20) / 20;
   updateCosmo(tyr);
 }
 

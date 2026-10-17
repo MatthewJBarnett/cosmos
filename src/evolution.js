@@ -230,6 +230,9 @@ export function earthLife(tyr, clim) {
   const myr = -tyr / 1e6;
   if (clim.magma > 0 || myr > 3800) return 'none yet';
   if (tyr > 0) return clim.life > 0.9 ? 'organic, multicellular' : clim.life > 0.05 ? 'struggling: plants are starving of CO2 and the heat is rising' : clim.dry < 0.95 ? 'only microbes, deep underground and in the last seas' : 'none (the surface is sterile)';
+  // the "Big Five" mass extinctions: the first million years after each
+  for (const [m, what] of [[445.2, 'end-Ordovician'], [372.2, 'late Devonian'], [251.9, 'end-Permian (the Great Dying)'], [201.4, 'end-Triassic'], [66.04, 'end-Cretaceous']])
+    if (myr <= m && myr > m - 1) return 'recovering from the ' + what + ' mass extinction';
   if (myr > 2100) return 'single-celled microbes only (bacteria and archaea)';
   if (myr > 600) return 'single-celled, plus the first complex (eukaryotic) cells and simple algae';
   if (myr > 470) return 'multicellular, in the oceans only';
