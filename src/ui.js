@@ -89,7 +89,7 @@ export class UI {
       </ul>
       <p class="dim">Near a planet, fast time-lapses advance in whole days and orbits so the view holds still. M toggles relativistic flight.</p>
       <h3 style="margin-top:12px">Data and credits</h3>
-      <p class="dim credits">Earth: NASA Blue Marble NG, Black Marble 2016, Blue Marble clouds (NASA Earth Observatory); ETOPO 2022 (NOAA); Natural Earth.
+      <p class="dim credits">Earth: NASA Blue Marble NG, Black Marble 2016, Blue Marble clouds (NASA Earth Observatory); ETOPO 2022 (NOAA); Natural Earth. Past continents: PALEOMAP PaleoDEMs, Scotese &amp; Wright (2018), CC BY 4.0.
       Moon: LRO LROC WAC and LOLA (NASA SVS CGI Moon Kit). Mars: Viking MDIM 2.1 and MOLA (USGS Astrogeology). Mercury, moons, Pluto, Ceres: USGS Astrogeology mosaics from MESSENGER, Galileo, Voyager, Cassini, New Horizons and Dawn.
       Gas giants, Venus clouds and Saturn's rings: Solar System Scope textures (CC BY 4.0).
       Stars: HYG database v4.4, David Nash / astronexus.com (CC BY-SA 4.0). Constellation figures: Stellarium (GPL).
@@ -454,7 +454,7 @@ export class UI {
       // (computed from the models directly: the Solar System is not updated while you are elsewhere)
       const ss = sunState(tyr), sunAge = ss.age;
       if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), eGone = engulfed('Earth', tyr), mGone = engulfed('Moon', tyr);
-        if (e && !eGone) deep += `<div><b>Earth</b> day ${(earthDay(tyr) / 3600 * 1.0027).toFixed(2)} h${!mGone ? ' · Moon ' + Math.round(384400 * moonScale(tyr)).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
+        if (e && !eGone) deep += `<div><b>Earth</b> day ${(earthDay(tyr) / 3600 * 1.0027).toFixed(2)} h${!mGone ? ' · Moon ' + Math.round(384400 * moonScale(tyr)).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.paleoMyr > 0 ? ' · continents as ' + Math.min(Math.round(e.paleoMyr), 540) + ' Myr ago' + (e.paleoMyr > 541 ? ' (oldest map: 540 Myr)' : '') + ' (PALEOMAP)' : e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
       if (sunAge < 0) deep += `<div><b>Sun</b> not yet formed: its gas is still part of a molecular cloud</div>`;
       else if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
       const ageY = cosmo.tau * 1e9, ageS = ageY < 1 ? (ageY * 365.25 * 24).toFixed(1) + ' hours' : ageY < 1e4 ? Math.round(ageY).toLocaleString('en') + ' years' : ageY < 1e7 ? (ageY / 1e3).toFixed(ageY < 1e5 ? 1 : 0) + ' thousand years' : ageY < 1e9 ? (ageY / 1e6).toFixed(ageY < 1e8 ? 1 : 0) + ' million years' : cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0) + ' Gyr';

@@ -116,6 +116,9 @@ USGS maps come from `https://planetarymaps.usgs.gov/cgi-bin/mapserv` GetMap requ
 - Star data: HYG database v4.4, astronexus.com, CC BY-SA 4.0 (derived files `stars.bin`/`stars.json`
   carry the same licence). Constellation figures: Stellarium modern sky culture.
 - Jupiter, Saturn, Saturn rings, Uranus, Neptune, Venus clouds: Solar System Scope, CC BY 4.0.
+- Paleogeography (`paleo/`): PALEOMAP Paleo-Digital Elevation Models, Scotese, C.R. and Wright, N. (2018), CC BY 4.0,
+  from earthbyte.org (1 degree grids, 0-540 Ma every ~5 Myr), converted by `tools/paleodem.py` to 16-bit heights in the
+  red and green channels (-8000 to +8000 m).
 - Everything else: NASA, NOAA, USGS Astrogeology, Natural Earth (public domain). Credits per file are in
   `manifest.json` (`attribution`).
 

@@ -230,6 +230,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   Tau Ceti; Sirius B; asteroids and dwarf planets (Vesta, Pallas, Hygiea, Juno, Eros, Bennu, Makemake, Haumea, Sedna).
 - **Tectonic plates:** plate outlines from Bird (2003), PB2002 (GeoJSON from github.com/fraxen/tectonicplates), rasterised
   to `data/planets/earth_plates.png` with the microplates merged; Euler poles from NNR-NUVEL-1A.
+- **Paleogeography:** before 3 Myr ago Earth's continents and sea floor come from the PALEOMAP PaleoDEMs (Scotese &
+  Wright 2018, CC BY 4.0), one elevation grid every ~5 Myr back to 540 Myr, blended between epochs; land cover is
+  derived from a simple climate (temperature by latitude and the epoch's global mean, Hadley-cell rainfall, upwind ocean).
 - **Milky Way from near the Sun:** the ESO all-sky panorama with point stars removed, blended into the procedural
   galaxy model a few hundred parsecs out.
 

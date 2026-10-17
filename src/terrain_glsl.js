@@ -66,6 +66,21 @@ vec3 plateSrc(vec3 P){
   if (bestS < 0.) gFreshCrust = 1.;
   return best;
 }
+// ---- paleogeography (Earth before ~3 Myr ago): PALEOMAP elevation grids (Scotese & Wright 2018), 1 degree, every
+// 5 Myr back to 540 Myr; two neighbouring epochs are blended. 361 x 181 nodes, 16-bit heights in R and G (-8 .. +8 km).
+uniform float uPaleo, uPaleoK; uniform sampler2D uPalA, uPalB;
+float palTexel(sampler2D s, ivec2 i){ i.x = (i.x % 360 + 360) % 360; i.y = clamp(i.y, 0, 180); vec3 c = texelFetch(s, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.*16000. - 8000.; }
+float palCubic(sampler2D s, vec2 uv){
+  vec2 p = uv*vec2(360., 180.); vec2 i = floor(p), f = p - i;
+  vec2 w0 = (1. - f)*(1. - f)*(1. - f)/6., w1 = (3.*f*f*f - 6.*f*f + 4.)/6., w2 = (-3.*f*f*f + 3.*f*f + 3.*f + 1.)/6., w3 = f*f*f/6.;
+  float r = 0.; ivec2 b = ivec2(i) - 1;
+  for (int y = 0; y < 4; y++) {
+    float wy = y == 0 ? w0.y : y == 1 ? w1.y : y == 2 ? w2.y : w3.y;
+    r += wy*(w0.x*palTexel(s, b + ivec2(0, y)) + w1.x*palTexel(s, b + ivec2(1, y)) + w2.x*palTexel(s, b + ivec2(2, y)) + w3.x*palTexel(s, b + ivec2(3, y)));
+  }
+  return r;
+}
+float paleoHeight(vec3 P){ vec2 uv = mapUV(P); return mix(palCubic(uPalA, uv), palCubic(uPalB, uv), uPaleoK); }
 float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
 // smooth (cubic B-spline) height lookup so map pixels never show as facets
 float heightMap(vec2 uv){
@@ -134,11 +149,21 @@ float craters(vec3 d){
 }
 
 float terrainMapped(vec3 d, vec3 P){
-  vec2 uv = mapUV(plateSrc(P));
+  vec2 uv = mapUV(uPaleo > 0.5 ? P : plateSrc(P));
   // (new sea floor: young, hot crust sits high, ~2.6 km deep at the ridge)
-  float hm = gFreshCrust > 0.5 ? -2700. + fbm(2, 7, 77u, d, 0.6)*300. : heightMap(uv);
+  float hm = uPaleo > 0.5 ? paleoHeight(P) : gFreshCrust > 0.5 ? -2700. + fbm(2, 7, 77u, d, 0.6)*300. : heightMap(uv);
   float land = 1.;
-  if (uHasM > 0.5) {
+  if (uPaleo > 0.5) {
+    // the 1 degree grid is smooth: add relief between ~100 km and the detail octaves (ridged in mountain belts),
+    // and roughen the coastlines
+    int p0 = max(int(uMapOct) - 5, 1), p1 = min(uOMax, int(uMapOct) - 2);
+    float mt = smoothstep(300., 2000., hm), a = 1., n = 0.;
+    for (int o = p0; o <= p1; o++) { vec4 g = gn(o, 5u, d); float rn = 1. - abs(g.x); n += a*mix(g.x, rn*rn*1.8 - 0.7, mt); a *= 0.5; }
+    hm += n*mix(260., 1500., mt)*(hm < -400. ? 0.4 : 1.);
+    float water = smoothstep(-12., 12., -hm);
+    land = 1. - water;
+    hm = mix(max(hm, 1. + 6.*land), min(hm, -2. - 30.*water), water);
+  } else if (uHasM > 0.5) {
     // coastline from the land/water mask, roughened below map resolution
     float wm = gFreshCrust > 0.5 ? 1. : texture(uMMap, uv).r;
     float cn = uOMax >= int(uMapOct) ? fbm(int(uMapOct), min(uOMax, int(uMapOct) + 6), 41u, d, 0.55)*0.35 : 0.;
@@ -164,12 +189,12 @@ float terrainMapped(vec3 d, vec3 P){
   }
   // real mountain ranges are far rougher than the ~10 km map can show: carve them up hard
   float rough = 0.12 + 3.6*gMtn + 0.35*smoothstep(0., 800., hm);
-  float coast = uHasM > 0.5 ? smoothstep(0., 150., hm) : 1.;
+  float coast = uHasM > 0.5 || uPaleo > 0.5 ? smoothstep(0., 150., hm) : 1.;
   gFine = det;
   float h = hm + det*uMapDetail*rough*coast;
   if (uCrater > 0.) h += craters(d);
   // sand seas: where the real map shows bright sand, add dune relief (~1.5 km dune ridges, ~350 m secondary dunes)
-  if (uMapCurve > 0.5 && uHasC > 0.5) {
+  if (uMapCurve > 0.5 && uHasC > 0.5 && uPaleo < 0.5) {
     int od = int(round(log2(uRadius/(uFreq*1500.))));
     if (uOMax >= od && od < NOCT - 2) {
       vec3 mc = textureLod(uCMap, uv, 2.).rgb;
@@ -313,9 +338,32 @@ vec3 albedoFromMap(vec3 lin){
   vec3 v = pow(max(lin, 0.), vec3(1./2.2));
   return 0.45*v + 0.5*pow(v, vec3(8.));
 }
+// Ground cover on the paleo-continents, from a simple climate: sea-level temperature by latitude (warmer worlds
+// warm the poles most), lapse rate with height; rain from the Hadley / Ferrel cells (wet tropics and mid-latitudes, dry
+// subtropics and poles) reduced in continental interiors (fraction of ocean within ~800 km).
+uniform vec2 uPaleoClim;   // x: global mean temperature minus today's (C)
+vec3 paleoAlbedo(vec3 P, float h, vec3 d){
+  float sl = P.y*P.y, latD = degrees(asin(clamp(abs(P.y), 0., 1.))), an = uPaleoClim.x;
+  float T = 28. - 45.*sl + an*(1. + 1.5*sl) - max(h, 0.)*0.0065;
+  // moisture from the sea: upwind is east in the trade-wind belt, west under the westerlies
+  vec2 uv = mapUV(P); ivec2 c = ivec2(uv*vec2(360., 180.) + 0.5); float sea = 0.;
+  for (int k = 0; k < 8; k++) {
+    float a = float(k)*0.7854; ivec2 o = ivec2(round(vec2(cos(a), sin(a))*7.));
+    float z = mix(palTexel(uPalA, c + o), palTexel(uPalB, c + o), uPaleoK), w = latD < 33. ? 1. + 0.8*cos(a) : 1. - 0.8*cos(a);
+    sea += z < 0. ? w*0.125 : 0.;
+  }
+  float wet = 0.95*exp(-pow(latD/14., 2.)) + 0.75*exp(-pow((latD - 50.)/(17. + max(an, 0.)), 2.)) + 0.2 + 0.012*an - 0.25*exp(-pow((latD - 25.)/8., 2.));
+  wet = wet*(0.5 + 0.75*sea) + fbm(3, min(uOMax, 8), 9u, d, 0.6)*0.12;
+  vec3 desert = mix(vec3(0.42, 0.3, 0.19), vec3(0.36, 0.22, 0.13), smoothstep(20., 35., latD));
+  vec3 col = mix(desert, vec3(0.1, 0.11, 0.05), smoothstep(0.22, 0.38, wet));
+  col = mix(col, T > 20. ? vec3(0.025, 0.05, 0.02) : vec3(0.035, 0.06, 0.025), smoothstep(0.42, 0.65, wet));
+  col = mix(col, wet > 0.3 ? vec3(0.03, 0.045, 0.03) : vec3(0.13, 0.12, 0.09), smoothstep(6., 1., T));   // taiga or steppe
+  col = mix(col, vec3(0.13, 0.12, 0.09), smoothstep(-2., -5., T));                                      // tundra
+  return mix(col, vec3(0.8, 0.84, 0.9), smoothstep(-7., -10., T));                                      // ice sheets
+}
 vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
-  vec2 uv = mapUV(plateSrc(P));
-  vec3 m = albedoFromMap(gFreshCrust > 0.5 ? vec3(0.04, 0.07, 0.19) : texture(uCMap, uv).rgb)*uMapTint;
+  vec2 uv = mapUV(uPaleo > 0.5 ? P : plateSrc(P));
+  vec3 m = uPaleo > 0.5 ? (gLand > 0.5 ? paleoAlbedo(P, h, d) : albedoFromMap(vec3(0.04, 0.07, 0.19))) : albedoFromMap(gFreshCrust > 0.5 ? vec3(0.04, 0.07, 0.19) : texture(uCMap, uv).rgb)*uMapTint;
   emis = 0.;
   int o0 = int(uMapOct);
   // how far below the map's resolution this tile is (0 = map scale, 1 = much finer)
@@ -350,14 +398,16 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     c = mix(m, det, fine);
   }
   // seasonal snow (the base map is a July image): snow line follows the date, lower at altitude
-  if (uSeason > -1.5 && gLand > 0.5) {
+  // (in warmer epochs the winter snow retreats poleward, ~2.5 degrees of latitude per degree of global warming)
+  if (uSeason > -1.5 && gLand > 0.5 && uPaleoClim.x < 8.) {
     float latD = degrees(asin(clamp(P.y, -1., 1.)));
     // snow cover lags the solstice and mostly builds December to March: nonlinear in the season
     float wN = smoothstep(0.25, 0.95, -uSeason), wS = smoothstep(0.25, 0.95, uSeason);
     float nz = fbm(max(o0 - 3, 1), min(uOMax, o0 + 3), 64u, d, 0.6)*6.;
     // continentality: fraction of water within ~600 km pushes the winter snow line poleward (maritime climates)
-    float wf = uHasM > 0.5 ? textureLod(uMMap, uv, 6.).r : 0.3;
+    float wf = uHasM > 0.5 && uPaleo < 0.5 ? textureLod(uMMap, uv, 6.).r : 0.3;
     float above = latD > 0. ? latD - mix(72., 43. + 20.*wf, wN) : -latD - mix(62., 50. + 12.*wf, wS);
+    above -= uPaleo > 0.5 ? 2.5*uPaleoClim.x : 0.;
     above += max(h, 0.)/130. + nz;
     float sn = smoothstep(-1.5, 2.5, above)*(1. - smoothstep(0.55, 0.85, slope));
     float green = clamp((m.g - max(m.r, m.b))*6. + 0.3, 0., 1.);
@@ -368,7 +418,7 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   c = mix(c, c*vec3(0.85, 0.82, 0.8), rock2*0.4*(1. - fine));
   float nf = uOMax >= o0 ? fbm(o0, uOMax, 15u, d, 0.6)*0.5 : 0.;
   c *= 1. + nf*0.25*(1. - fine) + gFine*0.05;
-  if (uHasL > 0.5) {
+  if (uHasL > 0.5 && uPaleo < 0.5) {
     float l = texture(uLMap, uv).r; emis = l*l*0.85*gLand;
     // below the map's ~10 km pixels, light comes from towns and streets, not an even glow
     if (uOMax >= o0 + 3) {
@@ -384,7 +434,7 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
       emis *= mix(1., k, fine);
     }
   }
-  if (uHasM > 0.5 && gLand < 0.5) c = m*0.8;
+  if ((uHasM > 0.5 || uPaleo > 0.5) && gLand < 0.5) c = m*0.8;
   // a brighter Sun: the biosphere dies back, ice melts, and the boiling oceans expose the salt-crusted sea floor
   if (uClimate.x > 0.001 || uClimate.y < 0.999 || uClimate.z < 0.999) {
     float lum2 = dot(c, vec3(0.3, 0.55, 0.15));

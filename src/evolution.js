@@ -235,3 +235,5 @@ export function earthLife(tyr, clim) {
   if (myr > 470) return 'multicellular, in the oceans only';
   return 'organic, multicellular (land and sea)';
 }
+// the Chicxulub impact: 66.043 Myr ago (Renne et al. 2013); the hour is unknown, so it is set to early afternoon on Yucatan
+export const KPG_YR = -66.043e6 - 0.00128262;

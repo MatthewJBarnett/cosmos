@@ -8,8 +8,9 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR } from './evolution.js';
 import { driftMyr } from './tectonics.js';
+import { PALEO_START } from './paleo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
@@ -448,13 +449,14 @@ export class StarSystem {
         // (no weather clouds over a magma ocean or once the oceans have boiled away)
         b.noClouds = b.climate.magma > 0 || b.climate.dry > 0.9;
         b.cyclones = tropicalCyclones(t, b.solarLon || 0, b.climate);
-        // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W
-        { const ageH = (t / YEAR + 66.043e6) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 21.4 * D2R, lo = -89.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
+        // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W today; in the PALEOMAP frame the
+        // globe shows then, Yucatan sat at about 24.4 N 66.5 W
+        { const ageH = (t / YEAR - KPG_YR) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 24.4 * D2R, lo = -66.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
         b.meanT = earthMeanT(tyr, b.climate, b.climate.snowball ? 0 : iceAge(tyr) * b.climate.ice); b.air = earthAir(tyr); b.lifeNow = earthLife(tyr, b.climate);
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
-        b.drift = driftMyr(tyr);
+        b.drift = driftMyr(tyr); b.paleoMyr = tyr < -PALEO_START * 1e6 ? -tyr / 1e6 : 0;
       }
       // sea ice follows the seasons (lagging the solstices): the Arctic peaks in March and is smallest in September,
       // the Antarctic the other way round; the Sun's longitude from the equinox of date sets the phase
