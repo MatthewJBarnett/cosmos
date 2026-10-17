@@ -416,7 +416,7 @@ export class UI {
     if (Math.abs(tyr) > 1e5) {
       const ss = solSystem().sunState;
       if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), mo = sol.find('Moon');
-        if (e && !e.gone) deep += `<div><b>Earth</b> day ${(e.rotPeriod / 3600 * 1.0027).toFixed(2)} h${mo && !mo.gone ? ' · Moon ' + Math.round(V.dist(mo.pos, e.pos) / 1e3).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}</div>`; }
+        if (e && !e.gone) deep += `<div><b>Earth</b> day ${(e.rotPeriod / 3600 * 1.0027).toFixed(2)} h${mo && !mo.gone ? ' · Moon ' + Math.round(V.dist(mo.pos, e.pos) / 1e3).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
       if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
       deep += `<div class="dim">Universe ${cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0)} Gyr old · CMB ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T.toFixed(3)} K</div>`;
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
