@@ -284,7 +284,7 @@ export class Renderer {
     // ---- pre-pass work that needs its own framebuffers ----
     // the Local Group: Andromeda's approach, and the collision as an N-body simulation
     const lgw = lgWeights(world.tyr);
-    if (updateLocalGroupPositions(world.tyr) || Math.abs(world.patAng - (this._realAng || 0)) > 0.01) { invalidateRealGalaxies(); this._realAng = world.patAng; }
+    if (updateLocalGroupPositions(world.tyr) || Math.abs(world.patAng - (this._realAng || 0)) > 0.01 || MILKY_WAY.young !== this._mwYoung) { invalidateRealGalaxies(); this._realAng = world.patAng; this._mwYoung = MILKY_WAY.young; }
     let lgCam = null;
     if (lgw.tMyr > LG_START - 1) {
       LG.advance(lgw.tMyr, this.sync ? 5000 : 24);

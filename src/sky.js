@@ -446,6 +446,9 @@ export class GalaxySky {
   // camN: camera position in galaxy local frame, normalised by galaxy radius
   update(gal, camN, noise3, sync) {
     if (this.gal !== gal) { this.gal = gal; this.valid = false; this.face = -1; this.pos = null; }
+    // (rebuilt when the galaxy's young population changes with time)
+    if (this.face < 0 && this.young !== undefined && this.young !== gal.young) this.pos = null;
+    this.young = gal.young;
     if (this.face < 0) {
       const moved = this.pos ? V.dist(camN, this.pos) : 1e9;
       const scale = Math.max(0.0012, 0.02 * Math.min(1, Math.abs(camN[1]) * 8 + 0.03));

@@ -103,6 +103,8 @@ export function updateWorld(time, dtyr = 0) {
   // inertial-local -> pattern-local, column major mat3 (rotY by +a)
   world.rotP = [c, 0, -s, 0, 1, 0, s, 0, c];
   MILKY_WAY.quat = Q.mul(MW_Q0, Q.axis([0, 1, 0], -a));
+  // (its young blue population, H II regions and dust lanes follow the star formation history)
+  MILKY_WAY.young = Math.round(Math.min(sfrRel(tyr), 3) * 20) / 20;
   updateCosmo(tyr);
 }
 
@@ -113,6 +115,9 @@ export function popLmax(tyr) { const t = tyr / 1e9; return t < 15 ? Infinity : M
 // galaxies assemble in the first billion years: the Milky Way's halo and thick disk formed 12-13 billion years ago
 // (the oldest stars are ~13.2 Gyr old); before that there is nothing here to see
 export function mwFormation(tyr) { const t = (tyr / 1e9 + 13.79 - 0.35) / 1.1; return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); }
+// the Milky Way's star formation rate relative to today: none before the Galaxy formed, ~3x at "cosmic noon" ~10 Gyr
+// ago (Madau & Dickinson 2014), declining as the gas runs out over the next ~10 Gyr
+export function sfrRel(t) { const tau = 13.79 + t / 1e9; return mwFormation(t) * (1 + 2 * Math.exp(-(((tau - 3.5) / 2.5) ** 2))) * (t > 0 ? Math.exp(-t / 4e9) : 1); }
 export function popFade(tyr) {
   const L = popLmax(tyr); if (L === Infinity) return 1;
   // beyond ~10 trillion years even the smallest red dwarfs are gone: only cooling white dwarfs remain

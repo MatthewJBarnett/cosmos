@@ -7,7 +7,7 @@ import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
 import { GLSL_BB, bbColor, vSurface } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
-import { world, mwFormation } from './galdyn.js';
+import { world, mwFormation, sfrRel } from './galdyn.js';
 import { globularNebulae } from './globulars.js';
 import { iscoRadius } from './nbody.js';
 
@@ -370,8 +370,7 @@ export function nebulaeNear(galaxy, cam, dens) {
 // rate (Madau & Dickinson 2014) and dies away as the gas runs out over the next ~10 Gyr. Planetary nebulae come from
 // old Sun-like stars, so they keep appearing until ~1 solar mass stars stop dying, tens of billions of years after.
 export function nebulaRates(t) {
-  const f = mwFormation(t), tau = 13.79 + t / 1e9;
-  const sfr = f * (1 + 2 * Math.exp(-(((tau - 3.5) / 2.5) ** 2))) * (t > 0 ? Math.exp(-t / 4e9) : 1);
+  const f = mwFormation(t), sfr = sfrRel(t);
   const pn = f * (t > 1.5e10 ? Math.exp(-(t - 1.5e10) / 1e10) : 1);
   return [sfr, pn, 0.75 * sfr + 0.25 * pn];
 }
