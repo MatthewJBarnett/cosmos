@@ -46,6 +46,10 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Typhoon](docs/typhoon.jpg) A typhoon over the Philippine Sea in August: eye, central dense overcast and rain bands | |
 | ![Shoemaker-Levy 9](docs/sl9.jpg) Jupiter on 25 July 1994, scarred by the fragments of Comet Shoemaker-Levy 9 | ![Chicxulub](docs/chicxulub.jpg) 66 million years ago: the fireball of the Chicxulub impact on Earth's night side |
 | ![Deep past](docs/deep_past.jpg) Snowball Earth (690 Myr ago), bare continents (520 Myr ago), the magma ocean (4.5 Gyr ago) and the ancient ocean of Mars | ![Young Sun](docs/young_sun.jpg) The newborn Sun in its protoplanetary disk, gaps cleared by forming planets |
+| ![Pangaea](docs/pangaea.jpg) 252 million years ago: Pangaea, from the PALEOMAP reconstruction, with arid interior and green coasts | ![Mars dust storm](docs/mars_dust_storm.jpg) Mars in July 2018 (global dust storm, only the Tharsis volcanoes show) and a year later |
+| ![Sun's birth cloud](docs/sun_birth_cloud.jpg) 4.575 billion years ago: the molecular cloud where the Sun is about to form | ![Young stars](docs/young_stars.jpg) Sirius's birth cloud 178 Myr ago; Vega at 3 Myr old inside its protoplanetary disk |
+| ![Milky Way through time](docs/mw_epochs.jpg) The Milky Way 10 billion years ago (star forming, blue) and Milkomeda 8 billion years from now | ![Nebula life](docs/nebula_life.jpg) A procedural H II region at 2.8 and 4.8 Myr old (dispersing), and a young planetary nebula |
+| ![Hale-Bopp](docs/halebopp.jpg) Comet Hale-Bopp, March 1997, on its real orbit: dust tail and blue ion tail | |
 
 ## Run
 
