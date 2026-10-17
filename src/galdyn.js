@@ -52,7 +52,15 @@ export function descPosP(desc, tyr = world.tyr) {
   if (m.type === 'sol') return toPattern(sunPos(tyr), tyr);
   if (m.type === 'cat') {
     const k = KMS_PCYR * tyr, sI = sunPos(tyr);
-    return toPattern([sI[0] + m.prel[0] + m.vel[0] * k, sI[1] + m.prel[1] + m.vel[1] * k, sI[2] + m.prel[2] + m.vel[2] * k], tyr);
+    const lin = [sI[0] + m.prel[0] + m.vel[0] * k, sI[1] + m.prel[1] + m.vel[1] * k, sI[2] + m.prel[2] + m.vel[2] * k];
+    // measured velocities hold for a few million years; over longer times every star follows its own orbit around the
+    // Galaxy (differential rotation spreads the Sun's neighbours along the solar circle), so blend into circular motion
+    const w = Math.min(1, Math.max(0, (Math.abs(tyr) - 5e6) / 4e7));
+    if (w <= 0) return toPattern(lin, tyr);
+    const s0 = sunPos(0), p0 = [s0[0] + m.prel[0], s0[1] + m.prel[1], s0[2] + m.prel[2]], R = Math.hypot(p0[0], p0[2]);
+    const circ = rotY(p0, -omega(R) * tyr);
+    circ[1] = p0[1] * Math.cos(2 * Math.PI * tyr / 8.5e7);      // (bobbing through the disk)
+    return toPattern(lin.map((x, i) => x * (1 - w) + circ[i] * w), tyr);
   }
   if (m.type === 'wrap') { const ph = wrapPhase(m.s, tyr); return [m.o[0] + wrapc(m.x[0] + m.k[0] * ph, m.s), m.o[1] + wrapc(m.x[1] + m.k[1] * ph, m.s), m.o[2] + wrapc(m.x[2] + m.k[2] * ph, m.s)]; }
   if (m.type === 'circ') { const R = Math.hypot(desc.pos[0], desc.pos[2]); return rotY(desc.pos, -(omega(R) - OMEGA_P) * tyr); }

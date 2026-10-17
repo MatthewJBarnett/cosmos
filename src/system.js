@@ -9,6 +9,7 @@ import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge } from './evolution.js';
 import { driftMyr } from './tectonics.js';
+import { initEvolution, stellarState } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -194,6 +195,38 @@ export class StarSystem {
     }
   }
   // t: seconds since J2000
+  // move this system's stars along their evolutionary tracks; returns how much the planets' orbits have widened
+  evolveStars(tyr) {
+    let scale = 1, changed = false;
+    for (const s of this.stars) {
+      const e = s.evo; if (!e) continue;
+      const st = stellarState(s, tyr); if (!st) continue;
+      s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase;
+      if (s.surface) s.surface.T = st.T;
+      const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
+      if (!!s.blackHole !== bh) { s.blackHole = bh; if (bh) { s.accretion = 0; s.spin = s.spin || 0.7; s.rotPeriod = 0; } else s.rotPeriod = e.rot0 || s.rotPeriod; }
+      if (!!s.neutron !== ns) { s.neutron = ns; s.pulsar = ns; if (ns) { e.rot0 = e.rot0 || s.rotPeriod; s.rotPeriod = 0.033; } else if (e.rot0) s.rotPeriod = e.rot0; }
+      s.cls = st.kind === e.kind0 && (st.kind !== KIND.MS || st.phase.startsWith('main')) ? e.cls0 : st.phase.charAt(0).toUpperCase() + st.phase.slice(1);
+      if (s === this.root) scale = e.m / Math.max(st.m, 0.05);
+    }
+    // planets inside a swollen star are swallowed; planets near a giant are heated until they glow
+    const all = this._all || this.bodies, root = this.root;
+    for (const b of root.children) {
+      if (!b.orbit || b.kind === 'star') continue;
+      const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
+      const g = !!(root.evo && a < root.radius * 1.1); if (!!b.gone !== g) changed = true; b.gone = g;
+      for (const c of b.children) { if (!!c.gone !== g) changed = true; c.gone = g; }
+      const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
+      b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
+      // living, watery worlds respond like Earth: a brightening star dries the oceans and ends the biosphere
+      if (b.surface && b.surface.gen === 'terra' && (b.surface.ocean > 0.5 || b.life) && root.evo) {
+        const S = (root.lum / Math.max(root.evo.L0, 1e-12)) / (scale * scale);
+        b.climate = S > 1 ? { S, dry: clamp((S - 1.09) / 0.12, 0, 1), life: 1 - clamp((S - 1.05) / 0.06, 0, 1), ice: 1 - clamp((S - 1.02) / 0.05, 0, 1) } : null;
+      }
+    }
+    if (changed || !this._all) { this._all = all; this.bodies = all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
+    return scale;
+  }
   update(t) {
     this.time = t;
     // the star's motion through the galaxy
@@ -208,14 +241,16 @@ export class StarSystem {
         const fb = dead ? fireball(tyr - sn.tEm) : null;
         if (st && fb) {
           st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
-          Object.assign(st, { radius: Math.max(fb.R, st._orig.radius), lum: fb.L, temp: fb.T, cls: 'Supernova (type II-P)', _remnant: false, neutron: false, pulsar: false });
+          Object.assign(st, { radius: Math.max(fb.R, st._orig.radius), lum: fb.L, temp: fb.T, cls: sn.ibc ? 'Supernova (type Ib/c)' : 'Supernova (type II-P)', _remnant: false, neutron: false, pulsar: false, blackHole: false });
           // no spots on an explosion: large clumps from Rayleigh-Taylor mixing instead
           if (st.surface) { st.surface._orig = st.surface._orig || { gran: st.surface.gran, spots: st.surface.spots }; st.surface.gran = 3; st.surface.spots = 0; }
         } else if (st && dead !== !!st._remnant) {
           if (dead) { st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
-            Object.assign(st, { radius: 12e3, lum: 4 * Math.PI * 12e3 ** 2 * C.sigma * 1e6 ** 4 / C.Lsun, temp: 1e6, cls: 'Neutron star (remnant of the supernova)', mass: 1.4 * C.Msun, neutron: true, pulsar: true, rotPeriod: 0.03, _remnant: true });
+            // stars above ~20 solar masses leave a black hole, lighter ones a neutron star
+            if (st._orig.mass > 20 * C.Msun || sn.ibc) { const mb = 0.35 * st._orig.mass; Object.assign(st, { radius: 2 * C.G * mb / (C.c * C.c), lum: 0, temp: 0, cls: 'Black hole (remnant of the supernova)', mass: mb, blackHole: true, accretion: 0, spin: 0.6, rotPeriod: 0, _remnant: true }); }
+            else Object.assign(st, { radius: 12e3, lum: 4 * Math.PI * 12e3 ** 2 * C.sigma * 1e6 ** 4 / C.Lsun, temp: 1e6, cls: 'Neutron star (remnant of the supernova)', mass: 1.4 * C.Msun, neutron: true, pulsar: true, rotPeriod: 0.03, _remnant: true });
             if (st.surface) { st.surface._orig = st.surface._orig || { gran: st.surface.gran, spots: st.surface.spots }; st.surface.gran = 0; st.surface.spots = 0; }
-          } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, _remnant: false }); if (st.surface && st.surface._orig) Object.assign(st.surface, st.surface._orig); }
+          } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, blackHole: false, _remnant: false }); if (st.surface && st.surface._orig) Object.assign(st.surface, st.surface._orig); }
         }
       }
     }
@@ -254,6 +289,12 @@ export class StarSystem {
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }
       else if (this._heated !== false) { for (const b of this.root.children) b.heatT = 0; }
       this._heated = ss.L > 1.5;
+    } else if (!this.sandbox && !this._snFixed) {
+      // every other star ages too: main sequence, giant, then white dwarf, neutron star or black hole
+      if (!this._evoInit) { this._evoInit = true; this.stars.forEach((s, i) => initEvolution(s, (this.seed || 1) + i * 977)); this._snFixed = this.desc.catIndex !== undefined && SCHEDULED.some(x => x.i === this.desc.catIndex); }
+      if (!this._snFixed && this._evoT !== tyr) { this._evoT = tyr; oScale = this.evolveStars(tyr); this._evoScale = oScale; }
+      else oScale = this._evoScale || 1;
+      this.oScale = oScale;
     }
     const rec = (b) => {
       if (b.ephem === 'planet' && b.parent) {
@@ -690,7 +731,8 @@ export function describeBody(b) {
     rows.push(['Radius', b.radius > 1e7 ? fmt(b.radius / C.Rsun) + ' R<sub>Sun</sub>' : fmt(b.radius / 1e3) + ' km']);
     if (b.temp) rows.push(['Temperature', Math.round(b.temp) + ' K']);
     rows.push(['Luminosity', fmt(b.lum) + ' L<sub>Sun</sub>']);
-    if (b.star) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
+    if (b.star && !b.evoPhase) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
+    if (b.evoPhase) rows.push(['Stage', b.evoPhase]);
     if (b.blackHole) {
       // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
       const m = b.mass / C.Msun;

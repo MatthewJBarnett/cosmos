@@ -273,7 +273,7 @@ export class Renderer {
     const common = { exposure, pxSA, pixScale, pxPerRad, noise3: this.noise3, sync: this.sync, betaWorld, betaLocal };
 
     const prof = rcfg.prof ? [] : null; let pt = performance.now();
-    this.onGround = false;
+    this.onGround = false; this.dimAdapt = false;
     const gt = rcfg.gpuTimes ? (this.gpuTimer || (this.gpuTimer = new GpuTimer())) : null;
     if (gt) { gt.poll(); gt.begin('bake'); }
     const T = (n) => { if (gt) gt.begin(NEXT[n] || n); if (prof) { const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING); gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, new Float32Array(4)); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); const t = performance.now(); prof.push(n + ':' + (t - pt).toFixed(0)); pt = t; } };
@@ -614,7 +614,10 @@ export class Renderer {
     // million years afterwards the cosmic background is still hot enough to see (dull red below ~800 K)
     if (cosmo.T > 420) {
       if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; void main(){ o = vec4(uCol, 0.); }`);
-      const T = Math.min(cosmo.T, 1e9), c = bbColor(Math.min(T, 40000)), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      const T = Math.min(cosmo.T, 1e9), c0 = bbColor(Math.min(T, 40000)), k = clamp((1600 - T) / 700, 0, 1);
+      // (below ~1000 K a glow is a dull deep red)
+      const c = c0.map((v, i) => v * (1 - k) + [1, 0.16, 0.03][i] * k), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      this.dimAdapt = true;
       const L = heatGlow(Math.min(T, 1e6)) * Math.max(1, T / 1e6) * exposure;
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
@@ -745,7 +748,7 @@ export class Renderer {
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
       // under an atmosphere at night the eye never adapts all the way: a moonlit or twilight sky should look dim, not
       // like a grey day (mesopic vision). Daylight is untouched; a moonless night is already at the exposure limit.
-      if (this.onGround) { const lev = clamp((Math.log10(hi) + 8) / 7.5, 0, 1); target = Math.min(target, 0.7 * (0.4 + 0.6 * lev) / hi); }
+      if (this.onGround || this.dimAdapt) { const lev = clamp((Math.log10(hi) + 8) / 7.5, 0, 1); target = Math.min(target, 0.7 * (0.25 + 0.75 * Math.pow(lev, 1.5)) / hi); }
       target = clamp(target, rcfg.minExposure, this.maxExposure || rcfg.maxExposure);
     }
     target *= Math.pow(2, rcfg.exposureBias);

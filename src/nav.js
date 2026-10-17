@@ -163,6 +163,10 @@ export class Nav {
       if (this.frame % 10 === 0 || this.goto) {
         const n = this.field.nearest(this.camLocal(), 0.2);
         if (n) { this.enterSystem(n); return; }
+        // the star we are flying to may no longer be drawn in the field (catalogue stars fade out after a few
+        // million years): enter its system anyway once we are there
+        const t = this.goto ? this.goto.target : this.arrived && this.frame - this.arrived.frame < 30 ? this.arrived.target : null;
+        if (t && t.type === 'star' && t.desc.galaxy === this.galaxy && V.dist(descPosP(t.desc), this.camLocal()) < 0.2) { this.enterSystem(t.desc); return; }
       }
       if (V.len(this.G) > 4 * this.galaxy.radius) { this.U = this.camU(); this.level = 'universe'; this.galaxy = null; this.field = null; }
     } else if (this.frame % 10 === 0 || this.goto) {
@@ -284,7 +288,7 @@ export class Nav {
       this.q = Q.slerp(this.q, Q.look(f, upv), g.dur < 0.1 ? 1 : 1 - Math.exp(-dt * 3));
     }
     if (x >= 1) {
-      this.goto = null;
+      this.goto = null; this.arrived = { target: g.target, frame: this.frame };
       this.speed = clamp(want * 0.4, 20, 1e25);
       if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(); }
     }

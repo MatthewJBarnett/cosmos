@@ -559,7 +559,7 @@ class PlanetState {
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
       uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uSeason: this.body.seasonal && mp ? (this.season = this.body.season || 0) : -2, uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
-      uClimate: this.body.climate ? [(this.climate = this.body.climate).dry, this.body.climate.life, this.body.climate.ice] : [0, 1, 1],
+      uClimate: (this.climate = this.body.climate || null) ? [this.climate.dry, this.climate.life, this.climate.ice] : [0, 1, 1],
       uCraterO0: mp && mp.height ? mapOct : 2 });
     // drifting continents (Earth): the plate map loads the first time it is needed
     const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
@@ -664,7 +664,7 @@ export function planetState(body) {
   let stale = false;
   const age = s ? performance.now() - (s.born || 0) : 0;
   if (s && body.seasonal && s.maps && Math.abs((body.season || 0) - (s.season || 0)) > 0.12 && age > 4000) stale = true;
-  if (s && body.climate && s.climate && age > 3000) { const a = body.climate, b = s.climate; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) stale = true; }
+  if (s && age > 3000 && (body.climate || s.climate)) { const a = body.climate || { dry: 0, life: 1, ice: 1 }, b = s.climate || { dry: 0, life: 1, ice: 1 }; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) stale = true; }
   if (s && body.kind === 'star' && s.bakeR && Math.abs(Math.log(body.radius / s.bakeR)) > 0.35 && age > 1500) stale = true;
   if (s && body.kind === 'star' && body.surface && Math.abs((body.surface.spots || 0) - (s.bakeSpots || 0)) > 0.2 && age > 5000) stale = true;
   if (s && body.drift !== undefined && s.maps && Math.abs(body.drift - (s.drift || 0)) > 0.2 && age > 1500) stale = true;

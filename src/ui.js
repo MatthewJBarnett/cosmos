@@ -422,7 +422,9 @@ export class UI {
       if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), mo = sol.find('Moon');
         if (e && !e.gone) deep += `<div><b>Earth</b> day ${(e.rotPeriod / 3600 * 1.0027).toFixed(2)} h${mo && !mo.gone ? ' · Moon ' + Math.round(V.dist(mo.pos, e.pos) / 1e3).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
       if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
-      deep += `<div class="dim">Universe ${cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0)} Gyr old · CMB ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T.toFixed(3)} K</div>`;
+      const ageY = cosmo.tau * 1e9, ageS = ageY < 1 ? (ageY * 365.25 * 24).toFixed(1) + ' hours' : ageY < 1e4 ? Math.round(ageY).toLocaleString('en') + ' years' : ageY < 1e7 ? (ageY / 1e3).toFixed(ageY < 1e5 ? 1 : 0) + ' thousand years' : ageY < 1e9 ? (ageY / 1e6).toFixed(ageY < 1e8 ? 1 : 0) + ' million years' : cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0) + ' Gyr';
+      const era = ageY < 1 / 30 ? 'Big Bang nucleosynthesis: helium and deuterium nuclei are forming' : ageY < 5e4 ? 'Radiation era: an opaque plasma of nuclei, electrons and light' : ageY < 3.7e5 ? 'An opaque glowing plasma: light cannot travel far' : ageY < 1.2e6 ? 'Recombination: atoms form and the universe turns transparent; this light is the cosmic microwave background' : ageY < 1.5e8 ? (cosmo.T > 500 ? 'Dark ages: no stars yet; the background still glows dull red' : 'Dark ages: no stars yet') : ageY < 1e9 ? 'Cosmic dawn: the first stars and galaxies light up and reionize the gas' : ageY < 3.5e9 ? 'Cosmic noon: galaxies are forming stars faster than at any other time' : '';
+      deep += `<div class="dim">Universe ${ageS} old · background ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T < 1e4 ? cosmo.T.toFixed(cosmo.T < 100 ? 3 : 0) : cosmo.T.toExponential(2)} K${era ? '</div><div><b>Era</b> ' + era : ''}</div>`;
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
     }
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
@@ -556,7 +558,7 @@ export class UI {
     }).join('');
     this.linePanel.innerHTML = `<h3>Timeline</h3>
       <div class="tlslider"><input type="range" id="tlSlide" min="-100" max="140" step="0.1" value="${this.sliderPos(tyr)}"><div class="tlticks">${[[-100, 'Big Bang'], [-60, '−1 Myr'], [0, 'now'], [60, '+1 Myr'], [90, '+1 Gyr'], [140, '+10¹⁴ yr']].map(([x, l]) => `<span style="left:${((x + 100) / 240 * 100).toFixed(1)}%">${l}</span>`).join('')}</div></div>
-      <div class="tljump">Jump to <input id="tlYears" placeholder="years from now, e.g. 5e9 or -65e6" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
+      <div class="tljump">Jump to <input id="tlYears" placeholder="e.g. 2 Gyr, -65 Myr, year 3000, age 380 kyr" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
       <div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label>
       <p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
     this.linePanel.querySelectorAll('button').forEach(b => { b.onclick = () => { tl.go(tl.events[+b.dataset.i]); this.lineKey = null; }; });
@@ -568,7 +570,7 @@ export class UI {
     yi.oninput = () => { this.tlYears = yi.value; };
     yi.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') this.linePanel.querySelector('#tlGo').click(); };
     this.linePanel.querySelector('#tlGo').onclick = () => {
-      const y = parseFloat(String(yi.value).replace(/,/g, '')); if (!isFinite(y)) { this.toast('Enter a number of years, e.g. 1e6'); return; }
+      const y = parseTimeSpec(yi.value); if (y === null) { this.toast('Try 5e9, 2 Gyr, -65 Myr, 65 million years ago, year 3000 or age 380 kyr'); return; }
       this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; this.timeline.lastTyr = this.nav.time / YEAR; this.lineKey = null;
       this.toast(fmtSimDate(this.nav.time));
     };
@@ -686,6 +688,12 @@ export class UI {
       return;
     }
     if (v.universe) { const t = findByName(nav, 'Milky Way'); if (t) { nav.selected = t; nav.goTo(t, { dist: 3e6 * C.PC }); } }
+    if (v.cosmos) {
+      // out among the galaxies (in the early universe there is nothing else to look at)
+      nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null; nav.selected = null;
+      nav.U = [3, 2, 4]; nav.q = Q.look([1, 0.1, -0.3], [0, 1, 0]); nav.fov = 70 * Math.PI / 180;
+    }
+    if (v.sandbox) { const u = this.sbui; const i = u.presets.findIndex(p => p.id === v.sandbox); if (i >= 0) { u.start(i); u.panel.classList.remove('hidden'); } }
   }
   updateSys() {
     if (this.sysPanel.classList.contains('hidden')) return;
@@ -705,4 +713,28 @@ export class UI {
       row.ondblclick = () => { nav.goTo({ type: 'body', body: b }); };
     });
   }
+}
+
+// "5e9", "2 Gyr", "-65 Myr", "65 million years ago", "in 3 billion years", "year 3000", "500 BC", "age 380 kyr",
+// "1 Gyr after the Big Bang" -> years from now (null if not understood)
+export function parseTimeSpec(str) {
+  let t = String(str).trim().toLowerCase().replace(/,/g, '').replace(/\u2212/g, '-'); if (!t) return null;
+  const nowY = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 / YEAR;
+  const unit = { yr: 1, y: 1, year: 1, years: 1, kyr: 1e3, thousand: 1e3, myr: 1e6, million: 1e6, gyr: 1e9, billion: 1e9, tyr: 1e12, trillion: 1e12, ka: 1e3, ma: 1e6, ga: 1e9 };
+  const amount = (s) => { const m = s.match(/^([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*([a-z]*)/); if (!m) return null; let v = parseFloat(m[1]); const u = m[2]; if (u && unit[u] === undefined) return null; return v * (u ? unit[u] : 1); };
+  let m;
+  if ((m = t.match(/^year\s+(-?\d+)\s*(bc|bce|ad|ce)?$/)) || (m = t.match(/^(-?\d+)\s*(bc|bce|ad|ce)$/))) {
+    let y = parseFloat(m[1]); if (m[2] === 'bc' || m[2] === 'bce') y = 1 - y;
+    return y - 2000 - nowY;
+  }
+  if ((m = t.match(/^(?:age|cosmic age)\s+(.*)$/)) || (m = t.match(/^(.*?)\s+after (?:the )?big bang$/))) {
+    const a = amount(m[1].replace(/\s*years?$/, '')); if (a === null) return null;
+    return -13.79e9 + a - nowY;
+  }
+  let sign = 1;
+  if ((m = t.match(/^(.*?)\s+ago$/))) { t = m[1]; sign = -1; }
+  if ((m = t.match(/^in\s+(.*)$/))) t = m[1];
+  t = t.replace(/\s*years?$/, '').replace(/^(\S+)\s+(thousand|million|billion|trillion)$/, '$1 $2');
+  const a = amount(t); if (a === null || !isFinite(a)) return null;
+  return sign * a;
 }

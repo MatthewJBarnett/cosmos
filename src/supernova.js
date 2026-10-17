@@ -61,9 +61,16 @@ export function fireball(ts) {
   return { L, T, R };
 }
 // real stars with predicted explosions. tObs: years after J2000 when the light reaches the Sun (estimates)
+// Massive stars near the end of their lives (dates are informed guesses: masses 11-50 M_sun, ages of 3-12 Myr)
 export const SCHEDULED = [
   { name: 'Betelgeuse', tObs: 1e5 },
   { name: 'Antares', tObs: 6e5 },
+  { name: 'Alnilam', tObs: 9e5, ibc: true },      // the middle star of Orion's belt, ~40 M_sun: stripped, type Ib/c
+  { name: 'Naos', tObs: 1.2e6, ibc: true },       // Zeta Puppis, ~56 M_sun O star
+  { name: 'Rigel', tObs: 1.6e6 },
+  { name: 'Deneb', tObs: 2.4e6 },
+  { name: 'Mimosa', tObs: 3.0e6 },
+  { name: 'Spica', tObs: 4.0e6 },
 ];
 
 const remnantCache = new Map();
@@ -110,7 +117,7 @@ export function updateSupernovae(field, camLocal, gq) {
   }
   // scheduled explosions of real stars
   const cc = field.cells.get('catalog'), dead = field.deadCat || (field.deadCat = new Set());
-  dead.clear(); field.deadList = [-1, -1, -1, -1];
+  dead.clear(); field.deadList = [-1, -1, -1, -1, -1, -1, -1, -1];
   if (cc && catalog.ready) {
     field.cellPhase(cc);
     SCHEDULED.forEach((sn, j) => {
@@ -131,9 +138,9 @@ export function updateSupernovae(field, camLocal, gq) {
       dead.add(sn.i); field.deadList[j] = sn.i;
       // (from inside the star's own system the exploding star itself is drawn as a fireball instead of a point)
       if (ts < 12 + win && dist > 0.05) {
-        const f = meanFlux(ts, Math.min(win, ts + 12), false) / Math.max(dist * dist, 1e-12) * 100;
+        const f = meanFlux(ts, Math.min(win, ts + 12), !!sn.ibc) / Math.max(dist * dist, 1e-12) * 100;
         const m = -2.5 * Math.log10(Math.max(f, 1e-30));
-        out.points.push({ dir: Q.rot(gq, [rx, ry, rz]), color: colorAt(ts * 365.25, false), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist, name: sn.name });
+        out.points.push({ dir: Q.rot(gq, [rx, ry, rz]), color: colorAt(ts * 365.25, !!sn.ibc), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist, name: sn.name });
       }
       if (ts < 2e5) { const nb = remnant('cat:' + sn.i, q.slice(), Math.max(ts, 0.01), 1.3 + j); nb.name = sn.name + ' supernova remnant'; out.remnants.push(nb); }
     });

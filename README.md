@@ -71,7 +71,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
-| U | Timeline of future events (Betelgeuse, Andromeda, the Sun's death...) with Go buttons |
+| U | Timeline from the Big Bang to the last stars (the universe turning transparent, the Milky Way forming, ice ages, Betelgeuse, Andromeda, the Sun's death...) with Go buttons and a Jump box that takes `2 Gyr`, `-65 Myr`, `65 million years ago`, `year 3000` or `age 380 kyr` |
 | V | Physics sandbox: black holes, neutron stars, stars and planets under full gravity |
 | M | Relativistic flight: speed below c, with aberration, Doppler shift, beaming and time dilation |
 | B | Save the current view (Saved menu) |
@@ -166,6 +166,16 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   billions of years only red dwarfs and white dwarfs remain, and by 100 trillion years the last stars fade.
 - **Relativistic flight (M):** flying below light speed, the sky aberrates towards the direction of travel,
   blueshifts and brightens ahead (Doppler beaming), reddens behind; the outside clock runs fast by γ.
+- **Every star ages:** any star system you visit follows a track set by its mass and present age: main sequence
+  brightening, subgiant, red giant (planets inside are swallowed, mass loss widens the other orbits, close planets
+  glow, living worlds lose their oceans), then a white dwarf cooling for trillions of years, or for massive stars a
+  supernova leaving a neutron star or black hole. Eight real massive stars explode on estimated dates (Betelgeuse,
+  Antares, Alnilam, Naos, Rigel, Deneb, Mimosa, Spica). Catalogue stars blend from their measured velocities into
+  orbits around the Galaxy after a few million years.
+- **The early universe:** rewinding toward the Big Bang the galaxies get smaller, bluer and brighter (young,
+  star-forming) as seen at their light's emission time, then vanish before ~300 Myr; the Milky Way fades out
+  before ~13 Gyr ago. The cosmic background (radiation era included) is hot enough to see for the first few million
+  years: dull red, then orange, then white before recombination at 380,000 years. The HUD names the era.
 - **Expanding universe:** flat ΛCDM (Planck 2018). Galaxies beyond the Local Group are seen with light travel
   time: they shrink, redden and dim with (1+z)⁴ as they recede, and freeze at our event horizon; after ~150 Gyr
   nothing beyond the Local Group is visible. The HUD shows the age of the universe and the CMB temperature.
