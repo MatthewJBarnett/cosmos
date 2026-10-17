@@ -102,6 +102,7 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
 {
   const near = (n) => { const e = EXTRA_STARS.find(x => x[0] === n), p = galDir(e[1], e[2]).map(x => x * e[3]), v = e[9], v2 = v[0] ** 2 + v[1] ** 2 + v[2] ** 2, t = -(p[0] * v[0] + p[1] * v[1] + p[2] * v[2]) / v2 / gd.KMS_PCYR; return { t, d: Math.hypot(...p.map((x, i) => x + v[i] * gd.KMS_PCYR * t)) }; };
   const b = near("Barnard's Star"); check("Barnard's Star closest approach (year CE)", 2000 + b.t, '~11800 CE', 300); check("Barnard's Star minimum distance (ly)", b.d * 3.2616, '3.75 ly', 0.15, ' ly');
+  { const sc = near("Scholz's Star"); check("Scholz's Star closest approach (kyr)", sc.t / 1e3, '-70 (+15/-10) kyr (Mamajek 2015)', (v) => v > -95 && v < -55); check("Scholz's Star minimum distance (AU)", sc.d * 206265, '~52,000 AU (0.25 pc)', (v) => Math.abs(v - 52000) < 15000, ' AU'); }
   const g = near('Gliese 710'); check('Gliese 710 closest approach (Myr)', g.t / 1e6, '1.29 Myr (Gaia DR3)', 0.08); check('Gliese 710 minimum distance (AU)', g.d * 206265, '~10700 AU', 1500, ' AU');
 }
 {

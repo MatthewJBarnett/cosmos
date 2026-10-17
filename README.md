@@ -194,6 +194,14 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   velocity with dynamical friction: first infall from beyond 300 kpc ~2 Gyr ago, merger in 2.3 Gyr.
 - **Far future galaxies:** after star formation ends galaxies yellow, then glow dull red as only red dwarfs remain;
   after the merger the remnant is labelled Milkomeda.
+- **History in the sky:** the supernovae of 185, 1006 (the brightest on record), 1054 (the Crab, seen by day), 1181,
+  1572 (Tycho) and 1604 (Kepler) light up on their dates at their recorded brightness, and their remnants (plus
+  Cassiopeia A) appear and expand from then on. Halley's comet returns on its real perihelion dates from 240 BC to
+  2134 (1066 on the Bayeux Tapestry). Scholz's Star passes 51,000 AU from the Sun 80,000 years ago.
+- **Mars weather:** global dust storms on their real dates (1971, 1977 twice, 1982, 2001, 2007, 2018) hide the surface
+  for months, leaving only the Tharsis volcanoes; outside the record about one Mars year in three, near perihelion.
+- **Stellar remnants age:** pulsars spin down by magnetic braking and fall silent after ~10 Myr, white dwarfs
+  crystallize below ~6,500 K, brown dwarfs cool through the L, T and Y types.
 - **Flares:** red dwarfs (Proxima Centauri included) flare several times a day, mostly small, rarely many-fold,
   lighting their planets for minutes.
 - **Variable stars everywhere:** besides the named ones, about one luminous cool giant in ten is a Mira (150-500 day
@@ -262,6 +270,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Paleogeography:** before 3 Myr ago Earth's continents and sea floor come from the PALEOMAP PaleoDEMs (Scotese &
   Wright 2018, CC BY 4.0), one elevation grid every ~5 Myr back to 540 Myr, blended between epochs; land cover is
   derived from a simple climate (temperature by latitude and the epoch's global mean, Hadley-cell rainfall, upwind ocean).
+  Before 540 Myr the oldest map is drowned progressively (less continental crust), leaving a few cratons in the Archean.
 - **Milky Way from near the Sun:** the ESO all-sky panorama with point stars removed, blended into the procedural
   galaxy model a few hundred parsecs out.
 

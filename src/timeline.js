@@ -70,6 +70,7 @@ export function buildEvents() {
   const now = nowYr(), ev = [];
   const add = (o) => ev.push(o);
   const bar = closest(extra("Barnard's Star")), g710 = closest(extra('Gliese 710'));
+  { const sch = closest(extra("Scholz's Star")); add({ id: 'scholz', maxRate: 300000.0, t: sch.t, title: "Scholz's Star grazes the Oort cloud", text: `A dim red dwarf and its brown dwarf companion pass ${Math.round(sch.d * 206265).toLocaleString('en')} AU from the Sun, through the outer Oort cloud: the closest known encounter with another star. At magnitude ~11 it was invisible to the eye, though its flares might have been seen.`, view: { star: "Scholz's Star", from: 'sun' }, rate: YEAR * 100 }); }
   add({ id: 'barnard', maxRate: 300000.0, t: bar.t, title: "Barnard's Star at its closest", text: `The fastest moving star in our sky passes ${(bar.d * 3.2616).toFixed(2)} light years from the Sun, then recedes.`, view: { star: "Barnard's Star", from: 'sun' }, rate: YEAR * 300 });
   add({ id: 'vega', maxRate: 300000.0, t: 11727, title: 'Vega is the pole star', text: 'Precession of Earth\'s axis (a 25,772 year cycle) brings the north celestial pole within 4° of Vega.', view: { pole: true }, rate: YEAR * 50 });
   add({ id: 'acen', maxRate: 300000.0, t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });

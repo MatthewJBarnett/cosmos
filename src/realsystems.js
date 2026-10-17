@@ -22,5 +22,8 @@ export const EXTRA_STARS = [
   ["Barnard's Star", 31.01, 14.06, 1.834, 13.21, 3134, 'M4V', 0.162, 0.187, [-141.43, 18.61, -5.13]],
   // Gaia DR3: will pass about 10,000 AU from the Sun in 1.3 million years, through the Oort cloud
   ['Gliese 710', 27.17737, 6.89768, 19.0, 8.2, 4100, 'K7V', 0.6, 0.62, [-12.4567, -1.6551, 6.3956]],
+  // Scholz's Star (an M9.5 dwarf with a brown dwarf companion), receding at 82.4 km/s: ~80,000 years ago it passed
+  // ~52,000 AU from the Sun, through the outer Oort cloud (Mamajek et al. 2015), the closest known flyby
+  ["Scholz's Star", 224.0094, 2.2886, 6.79, 19.1, 2400, 'M9.5V', 0.095, 0.1, [-61.32, 3.29, 55.02]],
 ];
 export function extraStarPos(e) { return V.addm(SUN_POS, galDir(e[1], e[2]), e[3]); }
