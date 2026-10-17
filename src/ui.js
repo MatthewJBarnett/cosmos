@@ -708,6 +708,17 @@ export class UI {
       nav.S = V.add(b.wpos, V.mul(d, b.radius * 3.4)); nav.q = Q.look(V.mul(d, -1), Q.rot(b.wrot, [0, 1, 0])); nav.selected = t; nav.anchor = b;
       return;
     }
+    if (v.comet) {
+      // side-on to the Sun-comet line, ~0.25 AU away, so the coma and both tails (dust curving, ions straight) show
+      const t = findByName(nav, v.comet); if (!t || t.type !== 'body') return;
+      sol.update(nav.time);
+      const b = t.body, sun = sol.find('Sun'), toSun = V.norm(V.sub(sun.wpos, b.wpos));
+      let side = V.cross(toSun, [0, 1, 0]); if (V.len(side) < 1e-3) side = [1, 0, 0]; side = V.norm(side);
+      nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; nav.selected = t;
+      nav.S = V.add(b.wpos, V.add(V.mul(side, 0.25 * C.AU), V.mul(toSun, -0.08 * C.AU)));
+      nav.q = Q.look(V.sub(V.add(b.wpos, V.mul(toSun, -0.08 * C.AU)), nav.S), [0, 1, 0]); nav.fov = 60 * Math.PI / 180;
+      return;
+    }
     if (v.body) {
       const t = findByName(nav, v.body); if (!t) return;
       nav.selected = t;
