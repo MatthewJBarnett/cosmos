@@ -13,6 +13,7 @@ import { GAL_I0, skyCfg } from './sky.js';
 
 export const LG_START = 2600;          // Myr from now: the N-body takes over (the galaxies are still ~400 kpc apart)
 export const MW_FADE = [3350, 3650];    // Myr: the Milky Way model hands over to particles as tides start to bite
+export const LG_END = 12000;            // Myr: the merger remnant has settled; later times reuse this state
 const NOW_TYR = 26.8;
 // particle textures: 512 x 256 (131,072 particles); 256 x 256 on low quality (set before start-up)
 export const lgCfg = { w: 512, h: 256 };
@@ -193,6 +194,7 @@ export class LocalGroup {
   advance(tMyr, maxSteps = 24) {
     if (tMyr < LG_START) { this.active = false; return true; }
     this.active = true;
+    tMyr = Math.min(tMyr, LG_END);
     if (!this.ready || (tMyr < this.t - 600 && this.t - LG_START > tMyr - LG_START + 600)) this.reset();
     let n = 0;
     while (Math.abs(tMyr - this.t) > DT * 0.5 && n < maxSteps) { this.stepGPU(tMyr > this.t ? DT : -DT); n++; }
@@ -261,7 +263,7 @@ export function updateLocalGroupPositions(tyr) {
 export const LG = new LocalGroup();
 // after the N-body takes over, the Sun's galactic position comes from its tracer particle
 sunHook.t0 = NOW_TYR + LG_START * 1e6;
-sunHook.fn = (ty) => LG.ready && LG.active && Math.abs(ty - (NOW_TYR + LG.t * 1e6)) < 5e6 ? LG.sunRel() : null;
+sunHook.fn = (ty) => LG.ready && LG.active && Math.abs(Math.min(ty, NOW_TYR + LG_END * 1e6) - (NOW_TYR + LG.t * 1e6)) < 5e6 ? LG.sunRel() : null;
 // weights: how much of each galaxy is drawn by the regular renderer (1) vs by particles (0)
 export function lgWeights(tyr) {
   const t = (tyr - NOW_TYR) / 1e6;
