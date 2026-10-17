@@ -19,7 +19,7 @@ export class SandboxUI {
       <div class="sbrow"><button id="sbStart">Start scenario</button><button id="sbRestart">Restart</button><button id="sbClear">Empty space</button></div>
       <div class="dim sbtext" id="sbText"></div>
       <div class="sbrow"><select id="sbKind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select>
-        <input id="sbMass" type="number" min="0.001" step="any" value="30"><span id="sbUnit">M☉</span><button id="sbPlace" title="Click in the view to place; drag to set its velocity">Place</button><label title="A plain click places the body at rest instead of on a circular orbit"><input type="checkbox" id="sbRest"> At rest</label></div>
+        <input id="sbMass" type="number" min="0.001" step="any" value="30"> <span id="sbUnit">M☉</span><label id="sbSpinL" title="Black hole spin, aligned with the orbit (-1 to 1)">χ <input id="sbSpin" type="number" min="-0.99" max="0.99" step="0.1" value="0" style="width:52px"></label><button id="sbPlace" title="Click in the view to place; drag to set its velocity">Place</button><label title="A plain click places the body at rest instead of on a circular orbit"><input type="checkbox" id="sbRest"> At rest</label></div>
       <div class="sbrow"><label><input type="checkbox" id="sbGrid" checked> Spacetime grid</label><label><input type="checkbox" id="sbTrails" checked> Trails</label><label><input type="checkbox" id="sbFollow" checked> Follow</label><label><input type="checkbox" id="sbAudio"> Sound</label></div>
       <div class="sbrow"><button id="sbSlow" title="Slow motion">½× speed</button><button id="sbFast" title="Faster">2× speed</button><span class="dim" id="sbClock"></span></div>
       <div id="sbBodies" class="sbbodies"></div>
@@ -32,7 +32,7 @@ export class SandboxUI {
     q('sbStart').onclick = () => this.start(+q('sbPreset').value);
     q('sbRestart').onclick = () => { if (this.sb && this.sb.preset) this.start(PRESETS.indexOf(this.sb.preset)); };
     q('sbClear').onclick = () => this.start(PRESETS.findIndex(x => x.id === 'empty'));
-    q('sbKind').onchange = () => { const k = KINDS[q('sbKind').value]; q('sbMass').value = k[1]; q('sbUnit').textContent = k[2]; };
+    q('sbKind').onchange = () => { const k = KINDS[q('sbKind').value]; q('sbMass').value = k[1]; q('sbUnit').textContent = k[2]; q('sbSpinL').style.display = q('sbKind').value === 'bh' ? '' : 'none'; };
     q('sbPlace').onclick = () => { if (!this.sb || this.nav.system !== this.sb) this.start(PRESETS.findIndex(x => x.id === 'empty')); this.placing = { kind: q('sbKind').value }; this.ui.toast('Click to place. Drag to give it a velocity.'); };
     q('sbGrid').onchange = (e) => { if (this.sb) this.sb.grid = e.target.checked; };
     q('sbTrails').onchange = (e) => { if (this.sb) this.sb.trailsOn = e.target.checked; };
@@ -86,7 +86,8 @@ export class SandboxUI {
         v = V.mul(V.norm(dv), vc * dl / rr);
       }
       const n = this.sb.sim.bodies.filter(b => b.kind === kind).length + 1;
-      this.sb.addBody(kind, m, at, v, k[0] + ' ' + n + ' (' + mv + ' ' + k[2] + ')');
+      const chi = kind === 'bh' ? Math.max(-0.99, Math.min(0.99, +this.q('sbSpin').value || 0)) : 0;
+      this.sb.addBody(kind, m, at, v, k[0] + ' ' + n + ' (' + mv + ' ' + k[2] + (chi ? ', χ ' + chi : '') + ')', chi);
       this.sb.gridR = null;
       this.placing = null; this.sb.ghost = null;
     }

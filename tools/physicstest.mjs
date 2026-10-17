@@ -33,6 +33,15 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('Inspiral time vs Peters (1964)', sim.events[0].t / 12, '1.0 (PN corrections make it somewhat longer)', (v) => v > 0.8 && v < 1.4);
 }
 {
+  // aligned spins (both 0.9): numerical relativity gives a remnant spin ~0.93-0.95 and ~9-10% of the mass radiated
+  const sim = new NBody(); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, separationForTime(36 * MSUN, 29 * MSUN, 12), { chi1: 0.9, chi2: 0.9 });
+  while (!sim.events.length && sim.t < 90) sim.advance(0.05, 1e6);
+  const e = sim.events[0];
+  check('Aligned spins 0.9: remnant spin', e.chi, '~0.94 (Rezzolla et al. 2008)', 0.03);
+  check('Aligned spins 0.9: energy radiated (fraction)', e.Erad / e.M, '~0.09-0.10 (NR)', (v) => v > 0.08 && v < 0.11);
+  check('Aligned spins merge later (orbital hang-up)', e.t / 15.15, '> 1 (vs non-spinning)', (v) => v > 1.1);
+}
+{
   const sim = new NBody(); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, separationForTime(40 * MSUN, 5 * MSUN, 5));
   while (!sim.events.length && sim.t < 60) sim.advance(0.05, 1e6);
   check('q = 1/8 merger recoil', sim.events[0].kick / 1e3, '~80 km/s (Gonzalez et al. 2007 fit)', 25, ' km/s');

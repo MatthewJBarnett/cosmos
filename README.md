@@ -96,7 +96,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   by the black holes' lensing. Neutron star mergers collapse to a black hole and make a kilonova; stars that pass
   inside a black hole's tidal radius are shredded into debris that falls back at the t^−5/3 rate and lights an
   accretion disk. Stars that touch merge. Time runs backwards too (snapshots, then re-integration).
-  Scenarios: GW150914-like merger, unequal masses (recoil), black holes released from rest (head-on), an
+  Black holes can spin (aligned with the orbit): 1.5PN spin-orbit coupling delays the merger ("orbital hang-up")
+  and the remnant spin, radiated energy and recoil follow numerical relativity fits.
+  Scenarios: GW150914-like merger, rapidly spinning black holes, unequal masses (recoil), black holes released from rest (head-on), an
   eccentric binary (GR rosette, wave bursts), neutron star merger with kilonova and gamma-ray burst jet,
   a supermassive pair (LISA band), a tidal disruption, a rogue black hole through the real Solar System,
   the figure-eight and Pythagorean three-body problems, a circumbinary planet, or empty space.
@@ -234,12 +236,12 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 39 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 42 checks of the physics against published values (no browser needed)
     node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
     node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
 
 The physics checks cover: a GW150914-like merger (final mass 61.9 M☉, spin 0.68, 3.1 M☉ radiated, ringdown
-275 Hz vs LIGO's 62 M☉, 0.67, 3.0 M☉), the recoil of a q = 1/8 merger, orbital decay against the Peters formula
+275 Hz vs LIGO's 62 M☉, 0.67, 3.0 M☉), aligned spins (remnant spin 0.94, 9% radiated, later merger), the recoil of a q = 1/8 merger, orbital decay against the Peters formula
 (within 3%), periastron precession against 6πGM/c²a(1−e²), energy conservation over 100 orbits, the
 figure-eight choreography, tidal disruption (half the debris bound, first fallback at the theoretical t_min of
 41 days), Barnard's Star and Gliese 710 encounters, the Sun's galactic orbit, the solar track (RGB tip 2,730 L☉,

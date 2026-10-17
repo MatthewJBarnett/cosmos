@@ -32,6 +32,8 @@ function msStar(m) {
 export const PRESETS = [
   { id: 'gw150914', name: 'Binary black hole merger (like GW150914)', text: 'Black holes of 36 and 29 solar masses, 2,400 km apart, spiral together as they radiate gravitational waves, merge and ring down. Real time: the last orbits take a fraction of a second.',
     setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉)', n2: 'Black hole B (29 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
+  { id: 'spinning', name: 'Rapidly spinning black holes (aligned spins)', text: 'The same 36 and 29 solar masses, both spinning at 90% of the maximum in the direction of the orbit. Spin-orbit coupling holds them apart longer ("orbital hang-up"): more orbits, almost twice the energy radiated, and a remnant spinning at 0.94.',
+    setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉, χ 0.9)', n2: 'Black hole B (29 M☉, χ 0.9)', chi1: 0.9, chi2: 0.9 }); return { rate: 0.3, scale: a, grid: true }; } },
   { id: 'unequal', name: 'Unequal black holes (8 : 1)', text: 'A 40 and a 5 solar mass black hole. Unequal masses radiate momentum asymmetrically: the remnant is kicked at tens of km/s.',
     setup(sim) { const a = separationForTime(40 * MSUN, 5 * MSUN, 10); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, a, { n1: 'Black hole (40 M☉)', n2: 'Black hole (5 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
   { id: 'headon', name: 'Two black holes released from rest', text: 'Two 30 solar mass black holes 20,000 km apart, at rest. They fall straight together and merge head-on: with no orbital angular momentum only ~0.06% of the mass is radiated and the remnant does not spin.',
@@ -215,7 +217,7 @@ export class Sandbox {
   }
   find(name) { name = name.toLowerCase(); return this.bodies.find(b => b.name.toLowerCase() === name); }
   // add a body at position x with velocity v (m, m/s, sandbox frame)
-  addBody(kind, m, x, v, name) { const pb = makeBody(kind, m, x, v, { name }); this.sim.add(pb); this.sync(); this.snapshot(); return pb; }
+  addBody(kind, m, x, v, name, chi = 0) { const pb = makeBody(kind, m, x, v, { name, chi }); this.sim.add(pb); this.sync(); this.snapshot(); return pb; }
   // velocity for a circular orbit at x around everything else
   circularVelocity(x, m) {
     let M = 0; const cm = [0, 0, 0], vc = [0, 0, 0];

@@ -24,6 +24,12 @@ export function radiusFor(kind, m) {
 }
 const compact = (b) => b.kind === 'bh' || b.kind === 'ns';
 const clampN = (x, a, b) => Math.max(a, Math.min(b, x));
+// innermost stable circular orbit of a Kerr black hole in units of GM/c^2 (Bardeen, Press & Teukolsky 1972); a > 0 prograde
+export function iscoRadius(a) {
+  a = Math.max(-0.999, Math.min(0.999, a));
+  const z1 = 1 + Math.cbrt(1 - a * a) * (Math.cbrt(1 + a) + Math.cbrt(1 - a)), z2 = Math.sqrt(3 * a * a + z1 * z1);
+  return 3 + z2 - Math.sign(a || 1) * Math.sqrt((3 - z1) * (3 + z1 + 2 * z2));
+}
 
 export class NBody {
   constructor() { this.bodies = []; this.t = 0; this.events = []; this.pn = true; this.steps = 0; this.particles = null; this.gw = new GWRecorder(); this.Erad = 0; }
@@ -55,7 +61,20 @@ export class NBody {
         Acoef += -(8 / 5) * eta * GMr * rd * (18 * v2 + (2 / 3) * GMr - 25 * rd * rd) / c5;
         Bcoef += (8 / 5) * eta * GMr * (6 * v2 - 2 * GMr - 15 * rd * rd) / c5;
         const k = -G * M / r2;
-        const ax = k * (Acoef * nx + Bcoef * vx), ay = k * (Acoef * ny + Bcoef * vy), az = k * (Acoef * nz + Bcoef * vz);
+        let ax = k * (Acoef * nx + Bcoef * vx), ay = k * (Acoef * ny + Bcoef * vy), az = k * (Acoef * nz + Bcoef * vz);
+        // 1.5PN spin-orbit coupling for spins aligned with the orbital angular momentum (Kidder 1995 eq. 2.2c)
+        if (bi.chi || bj.chi) {
+          let lx = ny * vz - nz * vy, ly = nz * vx - nx * vz, lz = nx * vy - ny * vx; const ll = Math.hypot(lx, ly, lz) || 1; lx /= ll; ly /= ll; lz /= ll;
+          const s1 = (bi.chi || 0) * G * bi.m * bi.m / c, s2 = (bj.chi || 0) * G * bj.m * bj.m / c;      // spin angular momenta (aligned)
+          const Sx = (s1 + s2), dm = (bi.m - bj.m) / M, Dl = M * (s2 / bj.m - s1 / bi.m);
+          const A2 = 2 * Sx + dm * Dl, B4 = 4 * Sx + 3 * dm * Dl;               // magnitudes along L
+          const nxv = (ny * vz - nz * vy) * lx + (nz * vx - nx * vz) * ly + (nx * vy - ny * vx) * lz;   // (n x v) . L
+          const vxl = [vy * lz - vz * ly, vz * lx - vx * lz, vx * ly - vy * lx], nxl = [ny * lz - nz * ly, nz * lx - nx * lz, nx * ly - ny * lx];
+          const ks = G / (c2 * r2 * r);
+          ax += ks * (6 * nx * nxv * A2 - vxl[0] * B4 + 3 * rd * nxl[0] * A2);
+          ay += ks * (6 * ny * nxv * A2 - vxl[1] * B4 + 3 * rd * nxl[1] * A2);
+          az += ks * (6 * nz * nxv * A2 - vxl[2] * B4 + 3 * rd * nxl[2] * A2);
+        }
         // relative acceleration shared by mass ratio
         const fi = bj.m / M, fj = bi.m / M;
         A[i][0] += ax * fi; A[i][1] += ay * fi; A[i][2] += az * fi;
@@ -135,8 +154,11 @@ export class NBody {
       let rc = a.R + b.R;
       // compact pairs: past the innermost stable orbit (~5 GM/c^2 in harmonic coordinates) they plunge within an
       // orbit and post-Newtonian dynamics no longer holds: hand over to the merger model
-      if (a.kind === 'bh' && b.kind === 'bh') rc = Math.max(rc, 5.5 * G * M / c2);
-      else if (compact(a) && compact(b)) rc = Math.max(rc + 8e3, 5.5 * G * M / c2);       // neutron stars touch (tidally stretched)
+      // (prograde spins move the innermost stable orbit inwards: Kerr ISCO for the effective spin)
+      // the post-Newtonian equations become unreliable inside ~7 GM/c^2 when spins are large and aligned: hand over there
+      const chiE = ((a.chi || 0) * a.m + (b.chi || 0) * b.m) / M, rh = 5.5 + 2 * Math.max(0, Math.abs(chiE) - 0.2);
+      if (a.kind === 'bh' && b.kind === 'bh') rc = Math.max(rc, rh * G * M / c2);
+      else if (compact(a) && compact(b)) rc = Math.max(rc + 8e3, rh * G * M / c2);       // neutron stars touch (tidally stretched)
       if (r < rc) { this.merge(a, b); return; }
     }
   }
@@ -155,9 +177,15 @@ export class NBody {
     if (bothCompact) {
       // numerical relativity fits for non-spinning quasi-circular binaries (Healy, Lousto & Zlochower; Gonzalez et al.
       // 2007), blended towards head-on values (Sperhake et al.: ~0.06% of the mass radiated, no spin) as L -> 0
-      const Ef = (0.0559745 * eta + 0.580951 * eta * eta - 0.960673 * eta ** 3 + 3.35241 * eta ** 4) * circ * circ + 0.0024 * eta * (1 - circ * circ);
-      chi = Math.min(0.998, (2 * Math.sqrt(3) * eta - 3.871 * eta * eta + 4.028 * eta ** 3) * circ);
-      kick = 1.2e4 * eta * eta * Math.sqrt(Math.max(0, 1 - 4 * eta)) * (1 - 0.93 * eta) * 1e3 * (0.3 + 0.7 * circ);   // m/s
+      // aligned spins: final spin from Rezzolla et al. 2008, more energy radiated for prograde spins, and the
+      // in-plane recoil from spin asymmetry (Lousto & Zlochower) added to the mass-asymmetry kick
+      const [b1, b2] = a.m >= b.m ? [a, b] : [b, a], q = b2.m / b1.m, c1 = b1.chi || 0, c2s = b2.chi || 0;
+      const ct = (c1 + c2s * q * q) / (1 + q * q), chiEff = (b1.m * c1 + b2.m * c2s) / M;
+      const chiAl = ct - 0.1229 * ct * ct * eta + 0.4537 * ct * eta * eta - 2.8904 * ct * eta + 2 * Math.sqrt(3) * eta - 3.5171 * eta * eta + 2.5763 * eta ** 3;
+      const Ef = (0.0559745 * eta + 0.580951 * eta * eta - 0.960673 * eta ** 3 + 3.35241 * eta ** 4) * (1 + 0.6 * chiEff + 0.45 * chiEff * chiEff) * circ * circ + 0.0024 * eta * (1 - circ * circ);
+      chi = Math.max(-0.998, Math.min(0.998, chiAl * circ + ct * (1 - circ)));
+      const km = 1.2e4 * eta * eta * Math.sqrt(Math.max(0, 1 - 4 * eta)) * (1 - 0.93 * eta), ks = 6.9e3 * eta * eta * Math.abs(c2s - q * c1) / (1 + q);
+      kick = Math.hypot(km, ks) * 1e3 * (0.3 + 0.7 * circ);   // m/s
       Erad = (a.kind === 'bh' && b.kind === 'bh' ? Ef : Ef * 0.6) * M;
       m = M - Erad;
       if (a.kind === 'ns' && b.kind === 'ns') {
@@ -368,16 +396,18 @@ export function separationForTime(m1, m2, T) { return Math.pow(T * 256 / 5 * G *
 // Initial conditions for a quasi-circular binary in harmonic coordinates: 1PN orbital frequency
 // w^2 = GM/r^3 [1 - (3 - eta) GM/(r c^2)] and the 2.5PN inspiral rate dr/dt = -(64/5) G^3 m1 m2 M / (c^5 r^3).
 // Returns relative speed (tangential) and radial velocity.
-export function circularBinary(m1, m2, r, pn = true) {
+export function circularBinary(m1, m2, r, pn = true, chi1 = 0, chi2 = 0) {
   const M = m1 + m2, eta = m1 * m2 / (M * M), x = G * M / (r * c2);
-  const w2 = G * M / (r * r * r) * (pn ? 1 - (3 - eta) * x : 1);
+  // 1PN and the 1.5PN spin-orbit correction for aligned spins (Kidder 1995 eq. 4.5)
+  const so = (chi1 * (2 * (m1 / M) ** 2 + 3 * eta) + chi2 * (2 * (m2 / M) ** 2 + 3 * eta)) * Math.pow(x, 1.5);
+  const w2 = G * M / (r * r * r) * (pn ? 1 - (3 - eta) * x - so : 1);
   return { vt: Math.sqrt(w2) * r, vr: pn ? -64 / 5 * G ** 3 * m1 * m2 * M / (c5 * r ** 3) : 0 };
 }
 // place a binary in the x-z plane (y up) about the origin; returns [body1, body2]
 export function binary(sim, k1, m1, k2, m2, r, opt = {}) {
-  const M = m1 + m2, { vt, vr } = circularBinary(m1, m2, r, sim.pn);
+  const M = m1 + m2, { vt, vr } = circularBinary(m1, m2, r, sim.pn, opt.chi1 || 0, opt.chi2 || 0);
   const e = opt.e || 0, vte = vt * Math.sqrt(1 + e);   // e > 0: start at pericentre
-  const b1 = makeBody(k1, m1, [r * m2 / M, 0, 0], [vr * m2 / M, 0, -vte * m2 / M], { name: opt.n1 || 'A' });
-  const b2 = makeBody(k2, m2, [-r * m1 / M, 0, 0], [-vr * m1 / M, 0, vte * m1 / M], { name: opt.n2 || 'B' });
+  const b1 = makeBody(k1, m1, [r * m2 / M, 0, 0], [vr * m2 / M, 0, -vte * m2 / M], { name: opt.n1 || 'A', chi: opt.chi1 || 0 });
+  const b2 = makeBody(k2, m2, [-r * m1 / M, 0, 0], [-vr * m1 / M, 0, vte * m1 / M], { name: opt.n2 || 'B', chi: opt.chi2 || 0 });
   sim.add(b1); sim.add(b2); return [b1, b2];
 }
