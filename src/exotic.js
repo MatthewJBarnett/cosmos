@@ -563,8 +563,9 @@ export function drawComets(sys, nav, o) {
   for (const cv of cometVolumes.splice(0)) {
     const { b, star, r } = cv;
     const away = V.norm(V.sub(b.wpos, star.wpos));
-    const act = Math.min(6, 1 / (r * r)) * star.lum;
-    const len = 0.22 * C.AU * Math.sqrt(act), coma = Math.min(1.5e8, 2e7 * Math.sqrt(act));
+    // (outgassing scales with the nucleus's surface: Hale-Bopp, ~60 km across, gave off ~15x Halley's gas)
+    const size = clamp((b.radius / 5500) ** 2, 0.05, 30), act0 = Math.min(6, 1 / (r * r)) * star.lum, act = act0 * size;
+    const grow = Math.min(1.7, Math.pow(size, 0.2)), len = 0.22 * C.AU * Math.sqrt(act0) * grow, coma = Math.min(2.5e8, 2e7 * Math.sqrt(act0) * grow);
     // orbital velocity direction from a tiny time step
     const sysT = b.system.time; b.system.update(sysT + 3600); const p2 = b.wpos.slice(); b.system.update(sysT);
     let vel = V.norm(V.sub(p2, b.wpos)); vel = V.norm(V.sub(vel, V.mul(away, V.dot(vel, away))));
