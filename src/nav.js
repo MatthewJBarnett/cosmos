@@ -43,7 +43,7 @@ function fieldFor(g) {
     });
     // Cygnus X-1: stellar black hole with a blue supergiant companion
     const d = galDir(71.33, 3.07);
-    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), motion: { type: 'circ' }, key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
+    addFixed(f, { galaxy: g, seed: 0xc791, pos: V.addm(SUN_POS, d, 2200), motion: { type: 'circ' }, key: g.id + '/cygx1', name: 'Cygnus X-1', star: { kind: 5, MV: 12, T: 0, mass: 21 * C.Msun, radius: 2 * C.G * 21 * C.Msun / (C.c * C.c), lum: 0, cls: 'Black hole', accretion: 1, spin: 0.98 }, companion: { MV: -6.5, u1: 0.2, u2: 0.4, sep: 0.2 } }, -6.5, 30000);
     // the Crab Pulsar, inside the Crab Nebula (2 kpc): a 33 ms neutron star
     { const dc = galDir(184.56, -5.78), R = 12e3, T = 1.6e6;
       addFixed(f, { galaxy: g, seed: 0xc4ab, pos: V.addm(SUN_POS, dc, 2000), motion: { type: 'circ' }, key: g.id + '/crabpsr', name: 'Crab Pulsar',
@@ -53,7 +53,7 @@ function fieldFor(g) {
   {
     const mass = (g === MILKY_WAY ? 4.3e6 : Math.max(1e5, g.mass * 2e-4 * (g.bulge || 1) / 5)) * C.Msun;
     const desc = { galaxy: g, seed: (g.seed ^ 0x5b1) >>> 0, pos: [0, 0, 0], key: g.id + '/smbh', name: g === MILKY_WAY ? 'Sagittarius A*' : galaxyName(g) + ' central black hole',
-      star: { kind: 5, MV: 9, T: 0, mass, radius: 2 * C.G * mass / (C.c * C.c), lum: 0, cls: 'Supermassive black hole', accretion: 0.8 } };
+      star: { kind: 5, MV: 9, T: 0, mass, radius: 2 * C.G * mass / (C.c * C.c), lum: 0, cls: 'Supermassive black hole', accretion: 0.8, spin: g === MILKY_WAY ? 0.9 : 0.5 + 0.45 * ((g.seed % 1000) / 1000) } };
     addFixed(f, desc, 9, 6000);
   }
   fields.set(g.id, f);

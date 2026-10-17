@@ -3,10 +3,11 @@ import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead, GpuTimer } from './g
 import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
-import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
+import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS, heatGlow } from './planet.js';
+import { cosmo } from './cosmology.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
 import { vSurface } from './stars.js';
-import { world, sunHook, SUN_ORBIT, sunPos, galQuat0 } from './galdyn.js';
+import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './galdyn.js';
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
@@ -351,10 +352,12 @@ export class Renderer {
       const rl = Q.mat3(Q.mul(Q.conj(gal.quat), nav.q));
       // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs
       let wReal = 0;
+      const form = mwFormation(world.tyr);
       if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal) * lgw.mw;
-      const wModel = gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1;
-      const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal, betaLocal);
+      const wModel = (gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1) * form;
+      const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal * form, betaLocal);
       this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel, betaLocal);
+      this.skyFallback = this.galSky.lookup(exposure, wModel); if (this.skyFallback) this.skyFallback.rot = Q.mat3(Q.conj(gal.quat));
     }
     // zodiacal light inside the Solar System (the dust disk ends a few AU out)
     if (sys && sys.desc && sys.desc.sol && exposure > 3e3 && rcfg.realSky) {
@@ -597,16 +600,27 @@ export class Renderer {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawBlackHoles(blackHoles, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY] });
+        drawBlackHoles(blackHoles, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], sky: this.skyFallback });
       }
       for (const b of together ? [] : blackHoles) {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawBlackHole(b, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot, strong: blackHoles.length > 1 ? 25 : 60 });
+        drawBlackHole(b, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot, strong: blackHoles.length > 1 ? 25 : 60, sky: this.skyFallback });
       }
     }
     gl.depthMask(true);
+    // the early universe glows: before recombination (~380,000 years) everything is an opaque plasma, and for a few
+    // million years afterwards the cosmic background is still hot enough to see (dull red below ~800 K)
+    if (cosmo.T > 420) {
+      if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; void main(){ o = vec4(uCol, 0.); }`);
+      const T = Math.min(cosmo.T, 1e9), c = bbColor(Math.min(T, 40000)), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      const L = heatGlow(Math.min(T, 1e6)) * Math.max(1, T / 1e6) * exposure;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
+      this.pGlow.use().set({ uCol: [Math.min(c[0] / y * L, 6e4), Math.min(c[1] / y * L, 6e4), Math.min(c[2] / y * L, 6e4)] }); drawFS();
+      gl.disable(gl.BLEND);
+    }
 
     T('orbits+bh');
     // ---- temporal anti-aliasing ----

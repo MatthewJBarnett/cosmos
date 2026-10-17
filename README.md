@@ -220,7 +220,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Orbit mode (Y):** Newtonian two-body flight with thrusters; a 400 km orbit around Earth takes 92.4 minutes.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.
-- **Exotic objects:** ray traced Schwarzschild black holes with Doppler-beamed accretion disks, volumetric nebulae,
+- **Exotic objects:** ray traced black holes (Kerr geodesics in Kerr-Schild coordinates for spinning holes: the
+  shadow of a spin-0.94 hole is D-shaped and shifted, matching Bardeen's critical curve to a pixel) with Doppler-beamed accretion disks that end at the spin-dependent innermost stable orbit, volumetric nebulae,
   coronae, ray marched comets (coma, curved dust tail, straight ion tail, sized by distance from the Sun), pulsar beams.
 - **Camera:** HDR pipeline with centre-weighted auto exposure (switches to the corona during totality, lets a sunlit
   limb blow out to show city lights), bloom, ACES tone mapping and temporal anti-aliasing with sub-pixel jitter.
@@ -324,8 +325,9 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
-- Black hole shadows are Schwarzschild (spin does not change their shape). A pair of holes is ray traced through the
-  sum of their Schwarzschild bendings (each hole static during a ray's flight), not a full binary spacetime.
+- A pair of black holes is ray traced through the sum of their Schwarzschild bendings (each hole static during a
+  ray's flight), not a full binary spacetime. Light bent out of the rendered frame picks up the model galaxy sky,
+  not the photographed Milky Way or individual stars.
 - The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).
 - Earth's clouds are today's: after millions of years of drift they no longer match the continents beneath.
 - Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not

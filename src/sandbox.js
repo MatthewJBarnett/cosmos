@@ -191,7 +191,7 @@ export class Sandbox {
       if (b.rotPeriod) b.rotAngle = 2 * Math.PI * ((this.sim.t / b.rotPeriod) % 1);
       b.rotQ = Q.mul(b.axisQ, Q.axis([0, 1, 0], b.rotAngle || 0)); b.wrot = Q.mul(this.worldQ, b.rotQ);
       if (pb.kind === 'bh') {
-        b.radius = pb.R;
+        b.radius = pb.R; b.spin = pb.chi || 0;
         // accretion from tidal debris lights a disk: rate relative to Eddington
         const P = this.sim.particles;
         const mdot = P && P.bhId === pb.id ? P.mdot(this.sim.t) : 0;

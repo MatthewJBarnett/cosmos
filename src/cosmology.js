@@ -62,11 +62,36 @@ export function aOfU(u) {
 export const U_NOW = uOfA(1);    // comoving distance to the event horizon today (~5 Gpc)
 
 // state for the current simulation time (years from J2000)
+// The background temperature needs the radiation era too (a ~ t^1/2 before ~50,000 years): tabulate t(a) for
+// radiation + matter + Lambda (Omega_r = 9.1e-5) and invert it.
+const OR = 9.1e-5, NR = 600, LR0 = Math.log(1e-10), LR1 = Math.log(2);
+const tOfLaR = new Float64Array(NR);
+{
+  let t = 0, a0 = Math.exp(LR0);
+  t = a0 * a0 / (2 * Math.sqrt(OR)) / HGYR;          // pure radiation below the table
+  tOfLaR[0] = t;
+  for (let i = 1; i < NR; i++) {
+    const la0 = LR0 + (LR1 - LR0) * (i - 1) / (NR - 1), la1 = LR0 + (LR1 - LR0) * i / (NR - 1);
+    const f = (la) => { const a = Math.exp(la); return 1 / (HGYR * Math.sqrt(OR / (a * a * a * a) + OM / (a * a * a) + OL)); };   // dt/dln a
+    t += (la1 - la0) * (f(la0) + 4 * f((la0 + la1) / 2) + f(la1)) / 6; tOfLaR[i] = t;
+  }
+}
+// scale factor (a = 1 today) at cosmic time tau in Gyr, radiation included
+export function aRad(tau) {
+  if (tau >= tOfLaR[NR - 1]) return aOfTau(tau) / aOfTau(T0_GYR);
+  if (tau <= tOfLaR[0]) return Math.exp(LR0) * Math.sqrt(Math.max(tau, 1e-30) / tOfLaR[0]);
+  let lo = 0, hi = NR - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tOfLaR[m] < tau) lo = m; else hi = m; }
+  const f = (Math.log(tau) - Math.log(tOfLaR[lo])) / (Math.log(tOfLaR[hi]) - Math.log(tOfLaR[lo]));
+  return Math.exp(LR0 + (LR1 - LR0) * (lo + f) / (NR - 1));
+}
 export const cosmo = { a: 1, u: U_NOW, z0: 0, T: CMB0, tau: T0_GYR };
 export function updateCosmo(tyr) {
-  const tau = Math.max(T0_GYR + tyr / 1e9, 0.4);
+  const tau = Math.max(T0_GYR + tyr / 1e9, 1e-12);
   const a = aOfTau(tau) / aOfTau(T0_GYR);
-  cosmo.tau = tau; cosmo.a = a; cosmo.u = uOfA(a); cosmo.T = CMB0 / a;
+  cosmo.tau = tau; cosmo.a = a; cosmo.u = uOfA(a);
+  // the cosmic background: after recombination (~380,000 years, 3000 K) it is the CMB cooling as 1/a; before, the
+  // universe is an opaque glowing plasma at the same temperature
+  cosmo.T = CMB0 / (tau < 30 ? aRad(tau) : a);
   return cosmo;
 }
 // for a galaxy at comoving distance chi (Mpc): position scale (angular diameter distance relative to today's view),
@@ -88,7 +113,9 @@ export function cosmoTexture() {
   return tex;
 }
 export const COSMO_GLSL = `
-uniform sampler2D uCosmo; uniform float uUnow, uUobs, uAobs;
+uniform sampler2D uCosmo; uniform float uUnow, uUobs, uAobs, uTauObs;
+// cosmic age (Gyr) at scale factor a (matter + Lambda; a = 1 today)
+float cosmoTau(float a){ float x = pow(max(a, 1e-6)*${(aOfTau(T0_GYR) / Math.cbrt(OM / OL)).toFixed(6)}, 1.5); return ${(2 / (3 * Math.sqrt(OL)) * 977.792 / H0).toFixed(5)}*log(x + sqrt(x*x + 1.)); }
 float cosmoLnA(float u){
   float x = (log(max(u, 1e-8)) - (${LU0.toFixed(6)}))/(${(LU1 - LU0).toFixed(6)})*${(NU - 1).toFixed(1)};
   x = clamp(x, 0., ${(NU - 1.001).toFixed(3)}); float i = floor(x);

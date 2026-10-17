@@ -8,20 +8,66 @@ import { GLSL_BB, bbColor, vSurface } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
 import { world } from './galdyn.js';
+import { iscoRadius } from './nbody.js';
 
 // ---------------- black hole ----------------
 const BH_FS = `
 in vec2 vUV; out vec4 o;
 uniform sampler2D uScene; uniform sampler3D uNoise3;
 uniform mat3 uCamRot, uCamRotInv, uDiskRot; uniform vec2 uTanFov; uniform vec3 uRel;
-uniform float uRs, uExposure, uTime, uDisk, uDiskT, uStrong;
+uniform float uRs, uExposure, uTime, uDisk, uDiskT, uStrong, uSpin, uIsco;
 ${GLSL_BB}
+uniform samplerCube uSkyCube; uniform mat3 uSkyRot; uniform float uSkyScale;
+// what lies in direction d: the rendered frame where it can see that way, else the all-sky galaxy background
 vec3 sampleSky(vec3 d){
+  vec3 back = uSkyScale > 0. ? texture(uSkyCube, uSkyRot*d).rgb*uSkyScale : vec3(0.);
   vec3 v = uCamRotInv*d;
-  if (v.z > -0.02) return vec3(0.);
+  if (v.z > -0.02) return back;
   vec2 uv = (v.xy/(-v.z*uTanFov))*0.5 + 0.5;
   vec2 e = smoothstep(vec2(-0.02), vec2(0.03), uv)*smoothstep(vec2(1.02), vec2(0.97), uv);
-  return texture(uScene, clamp(uv, 0., 1.)).rgb*e.x*e.y;
+  return mix(back, texture(uScene, clamp(uv, 0., 1.)).rgb, e.x*e.y);
+}
+// the accretion disk where a ray crosses its plane: q (units of Rs, world axes), v the ray direction there
+void diskHit(vec3 q, vec3 v, inout vec3 col, inout float alpha){
+  vec3 dn = uDiskRot[1];
+  float rr = length(q);
+  if (rr < uIsco || rr > 16.) return;
+  vec3 ql = vec3(dot(q, uDiskRot[0]), 0., dot(q, uDiskRot[2]));
+  float ang = atan(ql.z, ql.x);
+  float om = 0.35*pow(rr, -1.5);
+  float sw = ang + uTime*om*40.;
+  float n = texture(uNoise3, vec3(rr*0.21, sw*0.6366*0.5, 0.3)).r*0.6 + texture(uNoise3, vec3(rr*0.9, sw*0.6366*1.5 + 0.3, 0.7)).g*0.4;
+  float dens = smoothstep(uIsco, uIsco + 0.5, rr)*smoothstep(16., 8., rr)*(0.15 + 2.2*n*n*n);
+  // temperature profile (zero torque at the innermost stable orbit), Doppler beaming and gravitational redshift
+  float T = uDiskT*pow(rr/3., -0.75)*pow(max(1. - sqrt(uIsco/rr), 0.02), 0.25)*1.9;
+  float beta = min(sqrt(0.5/rr), 0.7);
+  vec3 vd = normalize(cross(dn, q))*beta;
+  float gam = 1./sqrt(1. - beta*beta);
+  float dop = 1./(gam*(1. - dot(vd, -normalize(v))));
+  float gshift = sqrt(max(1. - 1./rr, 0.01));
+  float shift = dop*gshift;
+  vec3 c = bbColor(T*shift); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float inten = pow(shift, 3.5)*pow(T/uDiskT, 2.2)*dens;
+  float a = clamp(dens*1.2, 0., 1.);
+  col += (1. - alpha)*c*inten*uDisk; alpha += (1. - alpha)*a*0.9;
+}
+// Kerr (rotating) hole in Kerr-Schild coordinates, units of M, spin a along +z.
+// g^uv = eta^uv - f l^u l^v with f = 2 r^3/(r^4 + a^2 z^2) and l = ((r x + a y)/(r^2 + a^2), (r y - a x)/(r^2 + a^2), z/r).
+// For a photon of unit energy H = (|p|^2 - 1 - f (1 + l.p)^2)/2 = 0.
+float ksR(vec3 x, float a){ float rho2 = dot(x, x) - a*a; return sqrt(0.5*(rho2 + sqrt(rho2*rho2 + 4.*a*a*x.z*x.z))); }
+void ksFL(vec3 x, float a, out float f, out vec3 l){
+  float r = max(ksR(x, a), 1e-4), r2 = r*r;
+  f = 2.*r2*r/(r2*r2 + a*a*x.z*x.z);
+  l = vec3((r*x.x + a*x.y)/(r2 + a*a), (r*x.y - a*x.x)/(r2 + a*a), x.z/r);
+}
+float ksG(vec3 x, vec3 p, float a){ float f; vec3 l; ksFL(x, a, f, l); float s = 1. + dot(l, p); return f*s*s; }
+void ksDeriv(vec3 x, vec3 p, float a, out vec3 dx, out vec3 dp){
+  float f; vec3 l; ksFL(x, a, f, l);
+  dx = p - f*(1. + dot(l, p))*l;
+  float e = 1e-3*max(1., length(x)*0.02);
+  dp = 0.5*vec3(ksG(x + vec3(e, 0., 0.), p, a) - ksG(x - vec3(e, 0., 0.), p, a),
+                ksG(x + vec3(0., e, 0.), p, a) - ksG(x - vec3(0., e, 0.), p, a),
+                ksG(x + vec3(0., 0., e), p, a) - ksG(x - vec3(0., 0., e), p, a))/(2.*e);
 }
 void main(){
   vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
@@ -34,61 +80,66 @@ void main(){
     if (tca > 0.) { float a = 2.*uRs/b; rd = normalize(rd - (pc/b)*a); }
     o = vec4(sampleSky(rd), 1.); return;
   }
-  // integrate the null geodesic (Schwarzschild), units of Rs
-  vec3 p = ro/uRs, v = rd;
-  float start = max(length(p) - 70., 0.);
-  p += v*start;
-  vec3 hv = cross(p, v); float h2 = dot(hv, hv);
   vec3 col = vec3(0.); float alpha = 0.; bool captured = false;
   vec3 dn = uDiskRot[1];
-  for (int i = 0; i < 260; i++) {
-    float r2 = dot(p, p), r = sqrt(r2);
-    if (r < 1.0) { captured = true; break; }
-    if (r > 75. && dot(p, v) > 0.) break;
-    float dt = clamp(r*0.09, 0.02, 4.) * (r < 4. ? 0.5 : 1.);
-    vec3 acc = -1.5*h2*p/(r2*r2*r);
-    vec3 pn = p + v*dt + 0.5*acc*dt*dt;
-    float rn2 = dot(pn, pn);
-    vec3 accn = -1.5*h2*pn/(rn2*rn2*sqrt(rn2));
-    vec3 vn = v + 0.5*(acc + accn)*dt;
-    // accretion disk crossing
-    if (uDisk > 0.) {
-      float y0 = dot(p, dn), y1 = dot(pn, dn);
-      if (y0*y1 < 0.) {
-        vec3 q = mix(p, pn, y0/(y0 - y1)); float rr = length(q);
-        if (rr > 3.0 && rr < 16.) {
-          vec3 ql = vec3(dot(q, uDiskRot[0]), 0., dot(q, uDiskRot[2]));
-          float ang = atan(ql.z, ql.x);
-          float om = 0.35*pow(rr, -1.5);
-          float sw = ang + uTime*om*40.;
-          float n = texture(uNoise3, vec3(rr*0.21, sw*0.6366*0.5, 0.3)).r*0.6 + texture(uNoise3, vec3(rr*0.9, sw*0.6366*1.5 + 0.3, 0.7)).g*0.4;
-          float dens = smoothstep(3.0, 3.5, rr)*smoothstep(16., 8., rr)*(0.15 + 2.2*n*n*n);
-          // temperature profile, Doppler beaming and gravitational redshift
-          float T = uDiskT*pow(rr/3., -0.75)*pow(max(1. - sqrt(3./rr), 0.02), 0.25)*1.9;
-          float beta = sqrt(0.5/rr);
-          vec3 vd = normalize(cross(dn, q))*beta;
-          float gam = 1./sqrt(1. - beta*beta);
-          float dop = 1./(gam*(1. - dot(vd, -normalize(v))));
-          float gshift = sqrt(max(1. - 1./rr, 0.01));
-          float shift = dop*gshift;
-          vec3 c = bbColor(T*shift); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
-          float inten = pow(shift, 3.5)*pow(T/uDiskT, 2.2)*dens;
-          float a = clamp(dens*1.2, 0., 1.);
-          col += (1. - alpha)*c*inten*uDisk; alpha += (1. - alpha)*a*0.9;
-        }
-      }
+  vec3 vOut = rd;
+  // (spin only matters for rays that pass close: further out the Schwarzschild bending is the same to a fraction of a pixel)
+  if (abs(uSpin) > 0.02 && b < 12.*uRs) {
+    // rotating hole: local frame X = axis 2, Y = axis 0, Z = spin axis (right handed); positions in M (= Rs/2)
+    float a = uSpin, rH = 1. + sqrt(max(1. - a*a, 0.));
+    mat3 W = mat3(uDiskRot[2], uDiskRot[0], uDiskRot[1]), Wt = transpose(W);
+    vec3 pw = ro/uRs; float start = max(length(pw) - 30., 0.); pw += rd*start;
+    vec3 x = Wt*pw*2., n = Wt*rd;
+    // initial momentum along the ray with H = 0 (the metric is nearly flat this far out)
+    float f0; vec3 l0; ksFL(x, a, f0, l0); float sl = dot(l0, n);
+    float qa = 1. - f0*sl*sl, qb = -2.*f0*sl, qc = -(1. + f0);
+    vec3 p = n*((-qb + sqrt(max(qb*qb - 4.*qa*qc, 0.)))/(2.*qa));
+    vec3 dx = n;
+    for (int i = 0; i < 520; i++) {
+      float r = ksR(x, a);
+      if (r < rH*1.02) { captured = true; break; }
+      if (r > 64. && dot(x, dx) > 0.) break;
+      float h = clamp((r - rH)*0.06, 0.012, 6.)*(r < 8. ? 0.5 : 1.);
+      // midpoint (RK2) step of Hamilton's equations
+      vec3 dx1, dp1; ksDeriv(x, p, a, dx1, dp1);
+      vec3 xm = x + dx1*(0.5*h), pm = p + dp1*(0.5*h);
+      vec3 dx2, dp2; ksDeriv(xm, pm, a, dx2, dp2);
+      vec3 xn = x + dx2*h; p += dp2*h; dx = dx2;
+      if (uDisk > 0. && x.z*xn.z < 0.) { vec3 qL = mix(x, xn, x.z/(x.z - xn.z)); diskHit(W*qL*0.5, W*normalize(dx2), col, alpha); }
+      x = xn;
     }
-    p = pn; v = vn;
+    vOut = normalize(W*dx);
+  } else {
+    // non-rotating hole: Schwarzschild null geodesic, units of Rs
+    vec3 p = ro/uRs, v = rd;
+    float start = max(length(p) - 70., 0.);
+    p += v*start;
+    vec3 hv = cross(p, v); float h2 = dot(hv, hv);
+    for (int i = 0; i < 260; i++) {
+      float r2 = dot(p, p), r = sqrt(r2);
+      if (r < 1.0) { captured = true; break; }
+      if (r > 75. && dot(p, v) > 0.) break;
+      float dt = clamp(r*0.09, 0.02, 4.) * (r < 4. ? 0.5 : 1.);
+      vec3 acc = -1.5*h2*p/(r2*r2*r);
+      vec3 pn = p + v*dt + 0.5*acc*dt*dt;
+      float rn2 = dot(pn, pn);
+      vec3 accn = -1.5*h2*pn/(rn2*rn2*sqrt(rn2));
+      vec3 vn = v + 0.5*(acc + accn)*dt;
+      if (uDisk > 0.) { float y0 = dot(p, dn), y1 = dot(pn, dn); if (y0*y1 < 0.) diskHit(mix(p, pn, y0/(y0 - y1)), v, col, alpha); }
+      p = pn; v = vn;
+    }
+    vOut = normalize(v);
   }
-  vec3 bg = captured ? vec3(0.) : sampleSky(normalize(v));
+  vec3 bg = captured ? vec3(0.) : sampleSky(vOut);
   o = vec4(bg*(1. - alpha) + col*uExposure, 1.);
 }`;
+const skyU = (sk) => sk ? { uSkyCube: sk.tex, uSkyRot: sk.rot, uSkyScale: sk.scale } : { uSkyScale: 0 };
 let pBH;
 export function drawBlackHole(b, o) {
   if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
   const rs = b.radius;
-  const disk = b.accretion || 0;
-  pBH.use().set({ uScene: o.scene, uNoise3: o.noise3, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uDiskRot: Q.mat3(b.axisW || o.rotQ), uTanFov: o.tanFov, uRel: o.rel, uRs: rs, uExposure: o.exposure, uTime: o.time % 1e5, uDisk: disk * 40, uDiskT: 9000, uStrong: o.strong || 60 });
+  const disk = b.accretion || 0, spin = clamp(b.spin || 0, -0.998, 0.998);
+  pBH.use().set({ uScene: o.scene, uNoise3: o.noise3, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uDiskRot: Q.mat3(b.axisW || o.rotQ), uTanFov: o.tanFov, uRel: o.rel, uRs: rs, uExposure: o.exposure, uTime: o.time % 1e5, uDisk: disk * 40, uDiskT: 9000, uStrong: o.strong || 60, uSpin: spin, uIsco: iscoRadius(spin) / 2, ...skyU(o.sky) });
   drawFS();
 }
 
@@ -99,12 +150,15 @@ const BHN_FS = `
 in vec2 vUV; out vec4 o;
 uniform sampler2D uScene; uniform mat3 uCamRot, uCamRotInv; uniform vec2 uTanFov;
 uniform vec4 uHoles[4]; uniform int uN; uniform float uStrong;
+uniform samplerCube uSkyCube; uniform mat3 uSkyRot; uniform float uSkyScale;
+// what lies in direction d: the rendered frame where it can see that way, else the all-sky galaxy background
 vec3 sampleSky(vec3 d){
+  vec3 back = uSkyScale > 0. ? texture(uSkyCube, uSkyRot*d).rgb*uSkyScale : vec3(0.);
   vec3 v = uCamRotInv*d;
-  if (v.z > -0.02) return vec3(0.);
+  if (v.z > -0.02) return back;
   vec2 uv = (v.xy/(-v.z*uTanFov))*0.5 + 0.5;
   vec2 e = smoothstep(vec2(-0.02), vec2(0.03), uv)*smoothstep(vec2(1.02), vec2(0.97), uv);
-  return texture(uScene, clamp(uv, 0., 1.)).rgb*e.x*e.y;
+  return mix(back, texture(uScene, clamp(uv, 0., 1.)).rgb, e.x*e.y);
 }
 void main(){
   vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
@@ -145,7 +199,7 @@ export function drawBlackHoles(list, o) {
   if (!pBHN) pBHN = new Program('blackholes', FS_VS, BHN_FS);
   const h = new Float32Array(16); const n = Math.min(list.length, 4);
   for (let i = 0; i < n; i++) h.set([list[i].rel[0], list[i].rel[1], list[i].rel[2], list[i].radius], i * 4);
-  pBHN.use().set({ uScene: o.scene, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uTanFov: o.tanFov, uHoles: h, uN: n, uStrong: 40 });
+  pBHN.use().set({ uScene: o.scene, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uTanFov: o.tanFov, uHoles: h, uN: n, uStrong: 40, ...skyU(o.sky) });
   drawFS();
 }
 

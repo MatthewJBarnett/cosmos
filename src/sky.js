@@ -7,7 +7,7 @@ import { GLSL_BB } from './stars.js';
 import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
-import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE, popLmax, popFade } from './galdyn.js';
+import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE, popLmax, popFade, mwFormation } from './galdyn.js';
 import { COSMO_GLSL, cosmoTexture, cosmo, U_NOW } from './cosmology.js';
 import { variableStars } from './variables.js';
 
@@ -141,7 +141,7 @@ const GAL_VS = `
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum;
 uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr; uniform vec3 uSkip;
-out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos;
+out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE;
 ${COSMO_GLSL}
 ${REL_GLSL}
 void main(){
@@ -150,7 +150,11 @@ void main(){
   vec3 c = wp*cv.x - uCamU; float d = length(c);
   float Dop; c = aberrate(c/max(d, 1e-12), Dop)*d;
   vCos = vec2(cv.y*Dop*Dop*Dop, cv.z/Dop);
-  float rad = aCen.w*1.08;
+  // the galaxy as it was when this light left it: none before ~300 Myr, then small, blue and star-bursting
+  float chi = length(wp);
+  vTauE = chi < 3. ? uTauObs : cosmoTau(exp(cosmoLnA(uUobs + chi)));
+  float young = 1. - smoothstep(1., 6., vTauE);
+  float rad = aCen.w*1.08*mix(1., 0.45, young);
   float px = rad/d*uPxPerRad;
   float expand = max(1., 2.6/px);   // unresolved galaxies still cover a few pixels: seeing and the PSF smear them
   vec3 f = c/d; vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
@@ -161,14 +165,17 @@ void main(){
   if (length(wp) > 1e-3 && uTmyr != 0.) { float ang = -uTmyr*0.45/(aCen.w*1000.); vec4 r = vec4(0., sin(ang*0.5), 0., cos(ang*0.5)); q = vec4(q.w*r.xyz + r.w*q.xyz + cross(q.xyz, r.xyz), q.w*r.w - dot(q.xyz, r.xyz)); }
   vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
   gl_Position = uViewProj*vec4(w, 1.); gl_Position.z = 0.;
-  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y;
+  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.25, 1.2, vTauE);
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
 const GAL_FS2 = `
-in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos;
-// cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first)
-vec3 zTint(){ float k = log2(max(vCos.y, 1.)); return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5)); }
+in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE;
+// cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
+// Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
+vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
+  vec3 evo = smoothstep(0.25, 1.2, vTauE)*(1. + 1.2*young)*mix(vec3(1.), vec3(0.72, 0.88, 1.3), young*0.7);
+  return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5))*evo; }
 uniform float uScale; uniform int uMaxSteps;
 out vec4 o;
 ${GLSL_GALAXY}
@@ -270,7 +277,7 @@ function init() {
   if (pStar) return;
   pStar = new Program('stars', STAR_VS, STAR_FS);
   pPt = new Program('points', PT_VS, STAR_FS);
-  pGal = new Program('galaxies', GAL_VS.replace('flat out float vPx;', 'flat out float vPx; flat out float vRad;').replace('vPx = px;', 'vPx = px; vRad = aCen.w;'), GAL_FS2);
+  pGal = new Program('galaxies', GAL_VS.replace('flat out float vPx;', 'flat out float vPx; flat out float vRad;').replace('vPx = px;', 'vPx = px; vRad = aCen.w*mix(1., 0.45, 1. - smoothstep(1., 6., vTauE));'), GAL_FS2);
   pCube = new Program('galcube', FS_VS, CUBE_FS);
   pCubeDraw = new Program('galcubedraw', FS_VS, CUBEDRAW_FS);
   quadBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
@@ -287,7 +294,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   init();
   const p = pStar.use();
   const tyr = world.tyr;
-  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
+  p.set({ uViewProj: viewProjLocal, uExposure: o.exposure * mwFormation(tyr), uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
     uBeta: o.betaLocal || [0, 0, 0], uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1]) });
   { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm }); }
@@ -348,7 +355,7 @@ export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
   // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
@@ -410,6 +417,8 @@ export class GalaxySky {
     gl.disable(gl.SCISSOR_TEST);
     if (this.face >= 6) { const t = this.front; this.front = this.back; this.back = t; this.face = -1; this.pos = this.newPos; this.valid = true; }
   }
+  // the background cube for shaders that need the sky in any direction (light bent by black holes)
+  lookup(exposure, weight = 1) { return this.valid && weight > 0 ? { tex: this.front.t, scale: GAL_I0 * skyCfg.galBoost * exposure * weight * popFade(world.tyr) } : null; }
   draw(rotLocalFromView, tanFov, exposure, weight = 1, betaLocal = null) {
     if (!this.valid || weight <= 0) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.SRC_ALPHA); gl.disable(gl.DEPTH_TEST);

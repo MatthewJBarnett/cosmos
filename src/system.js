@@ -475,7 +475,7 @@ export function starName(desc) {
 export function makeStarBody(star, name, rng) {
   const b = body({ name, kind: 'star', cls: star.cls, star, mass: star.mass, radius: star.radius, temp: star.T, lum: star.lum, tilt: rng.range(0, 30), poleLon: rng.range(0, 360) });
   b.rotPeriod = star.kind === KIND.NS ? rng.logRange(0.002, 4) : star.kind === KIND.WD ? rng.logRange(600, 86400) : rng.logRange(0.5, 40) * C.DAY * Math.sqrt(star.radius / C.Rsun);
-  if (star.kind === KIND.BH) { b.cls = star.cls || 'Black hole'; b.blackHole = true; b.accretion = star.accretion !== undefined ? star.accretion : (rng.chance(0.6) ? rng.range(0.3, 1) : 0); b.rotPeriod = 0; }
+  if (star.kind === KIND.BH) { b.cls = star.cls || 'Black hole'; b.blackHole = true; b.spin = star.spin !== undefined ? star.spin : 0.1 + 0.85 * (((Math.floor(star.mass / 1e28) * 2654435761) >>> 0) % 1000) / 1000; b.accretion = star.accretion !== undefined ? star.accretion : (rng.chance(0.6) ? rng.range(0.3, 1) : 0); b.rotPeriod = 0; }
   else if (star.kind === KIND.NS) { b.neutron = true; b.pulsar = star.period ? true : rng.chance(0.7); if (star.period) b.rotPeriod = star.period; }
   b.surface = { gen: 'star', seed: [rng.range(0, 1000), rng.range(0, 1000), rng.range(0, 1000)], freq: 1, T: star.T, spots: star.T < 6500 && star.kind <= 2 ? rng.range(0.1, 1) : 0, hmin: 0, hmax: 0, gran: (star.kind === KIND.GIANT || star.kind === KIND.SUPERGIANT) && star.T < 6500 ? 3 : 0 };
   return b;
@@ -694,7 +694,9 @@ export function describeBody(b) {
     if (b.blackHole) {
       // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
       const m = b.mass / C.Msun;
-      rows.push(['Horizon radius', fmt(2 * C.G * b.mass / (C.c * C.c) / 1e3) + ' km']);
+      const a = b.spin || 0;
+      rows.push(['Spin', a ? a.toFixed(2) + ' (Kerr)' : '0 (Schwarzschild)']);
+      rows.push(['Horizon radius', fmt(C.G * b.mass / (C.c * C.c) * (1 + Math.sqrt(1 - a * a)) / 1e3) + ' km']);
       rows.push(['Hawking temperature', fmt(6.17e-8 / m) + ' K']);
       rows.push(['Evaporates in', fmt(2.1e67 * m ** 3) + ' yr']);
     }

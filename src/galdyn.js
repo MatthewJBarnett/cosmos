@@ -102,6 +102,9 @@ export function updateWorld(time, dtyr = 0) {
 // Andromeda), no new stars replace the old ones. A star of luminosity L lives about 10 Gyr * L^-0.7, so the
 // brightest survivors fade: blue stars first, then Sun-like stars, leaving red dwarfs and white dwarfs.
 export function popLmax(tyr) { const t = tyr / 1e9; return t < 15 ? Infinity : Math.pow(10 / (t - 5), 1 / 0.7); }
+// galaxies assemble in the first billion years: the Milky Way's halo and thick disk formed 12-13 billion years ago
+// (the oldest stars are ~13.2 Gyr old); before that there is nothing here to see
+export function mwFormation(tyr) { const t = (tyr / 1e9 + 13.79 - 0.35) / 1.1; return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); }
 export function popFade(tyr) {
   const L = popLmax(tyr); if (L === Infinity) return 1;
   // beyond ~10 trillion years even the smallest red dwarfs are gone: only cooling white dwarfs remain
