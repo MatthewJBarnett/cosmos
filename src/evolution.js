@@ -219,7 +219,12 @@ export function earthAir(tyr) {
   else if (myr > 800) { o2 = 0.01; co2 = 0.01; }
   else if (myr > 420) { o2 = 0.02 + 0.15 * clamp((800 - myr) / 380, 0, 1); co2 = 0.004; }
   else if (myr > 0.0002) { o2 = myr > 290 && myr < 340 ? 0.3 : myr > 250 && myr < 290 ? 0.2 : 0.21; co2 = myr > 66 ? 0.0015 : myr > 34 ? 0.0008 : 0.00028; }
-  else { o2 = 0.2095; co2 = tyr < 26 ? 0.00042 : 0.00042; }
+  else {
+    // the industrial rise: 280 ppm before ~1800, an excess doubling every ~32.5 years (Hofmann et al. 2009: 316 ppm in
+    // 1958, 354 in 1990, 420 in 2023); after the present it is held, then drawn down by the oceans over ~50,000 years
+    const y = Math.min(2000 + tyr, 2026.8), ex = Math.pow(2, (y - 1790) / 32.5) * (tyr > 26.8 ? Math.exp(-(tyr - 26.8 - 1000) / 2e4 * (tyr > 1026.8 ? 1 : 0)) : 1);
+    o2 = 0.2095; co2 = (280 + (y > 1790 ? ex : 0)) * 1e-6;
+  }
   // far future: the brightening Sun speeds up rock weathering, drawing CO2 down until plants starve (~0.6-1 Gyr);
   // then the oceans boil off into a steam atmosphere
   if (tyr > 5e8) { co2 = Math.max(0.00001, co2 * Math.exp(-(tyr - 5e8) / 2e8)); o2 *= clamp(1 - (tyr - 7e8) / 5e8, 0, 1); }

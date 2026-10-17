@@ -565,8 +565,12 @@ export class UI {
     const groundUp = nav.anchor && nav.altitude < nav.anchor.radius * 0.05 ? V.norm(V.sub(nav.S, nav.anchor.wpos)) : null;
     if (this.showLabels) {
       if (nav.system && nav.level === 'system') {
+        // bodies big on screen hide the labels of things behind them
+        const occ = nav.system.bodies.filter(o => o.rel && (o.pxRadius || 0) > 6 && o.kind !== 'star' && o.dist);
+        const hidden = (b) => occ.some(o => o !== b && o.dist < b.dist && V.dot(o.rel, b.rel) / (o.dist * b.dist) > Math.cos(Math.atan(o.radius / o.dist)));
         for (const b of nav.system.bodies) {
           if (b.kind === 'barycenter' || !b.rel) continue;
+          if (occ.length && hidden(b)) continue;
           // standing on a body: no labels for things below the horizon
           if (groundUp && b !== nav.anchor && V.dot(b.rel, groundUp) / (b.dist || 1) < -0.01) continue;
           const px = b.pxRadius || 0;
