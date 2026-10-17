@@ -110,7 +110,7 @@ export const PRESETS = [
       const r = [D * 0.8, 0, D * 0.6], rh = r.map(x => x / D), th = [-rh[2], 0, rh[0]], u = rh.map((x, k) => x * vr + th[k] * vt);
       sim.add(makeBody('planet', m1, r.map(x => -x * m2 / M), u.map(x => -x * m2 / M), { name: 'Proto-Earth' }));
       sim.add(makeBody('planet', m2, r.map(x => x * m1 / M), u.map(x => x * m1 / M), { name: 'Theia' }));
-      return { rate: 20, scale: 4.5 * R1, grid: false, light: { dir: [-1, 0.25, 0.35] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
+      return { rate: 20, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
     } },
   { id: 'empty', name: 'Empty space (place your own)', text: 'Choose a body type and mass, then click to place it. Drag while placing to give it a velocity; a plain click puts it on a circular orbit.',
     setup(sim) { return { rate: 1, scale: 2e6, grid: true }; } },

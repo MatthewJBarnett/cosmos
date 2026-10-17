@@ -26,6 +26,9 @@ export const STOPS = [
       nav.onArrive = () => { nav.lookTarget = { type: 'body', body: s }; }; } },
   { title: 'Betelgeuse explodes', text: 'About 100,000 years from now (an estimate), Orion\'s red supergiant becomes a supernova 170 parsecs away: brighter than the half Moon, visible by day for months.',
     run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); const e = ui.timeline.events.find(x => x.id === 'betelgeuse'); ui.timeline.go(e); }, wait: 14 },
+  { title: 'The last ice age', text: '20,000 years ago ice sheets covered Canada and northern Europe and the sea was 120 m lower. The cycles of Earth\'s orbit and tilt, computed from the planets\' mutual pull, pace the ice ages. Watch the ice retreat.',
+    run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); nav.time = -20500 * 31557600; nav.paused = false; nav.rate = 31557600 * 600;
+      ui.eventView({ title: 'The last ice age', text: '', view: { globe: 'Earth', lat: 50, lon: -88 } }); ui.caption(null); }, wait: 14 },
   { title: 'Earthrise', text: 'From the lunar surface near the limb, Earth hangs low over the horizon. Earthshine lights the night side of the Moon.',
     run: (nav) => { nav.paused = false; nav.rate = 1; nav.time = iso('2024-05-15T12:00:00Z'); const m = body(nav, 'Moon'); nav.landAt(m, 5, 84, {});
       nav.onArrive = () => { nav.lookTarget = { type: 'body', body: body(nav, 'Earth') }; nav.fov = 0.3; }; } },

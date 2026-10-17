@@ -356,7 +356,7 @@ export class Nav {
     // from orbit), day and night would strobe every frame; hold the local solar time fixed instead (time advances
     // in whole days, like a photo taken each night)
     this.dayLocked = false;
-    const near = an0 && (this.altitude < an0.radius * 0.05 ? Math.abs(this.rate) > 7200 : Math.abs(this.rate) > Math.abs(an0.rotPeriod || 0) * 1.0 || this.yearLocked);
+    const near = an0 && (this.altitude < an0.radius * 0.05 ? Math.abs(this.rate) > 7200 : Math.abs(this.rate) > Math.abs(an0.rotPeriod || 0) * 2 || this.yearLocked);
     if (!this.paused && an0 && an0.rotPeriod && an0.kind !== 'star' && this.level === 'system' && near && Math.abs(this.rate) < 3e15 && !this.goto && !(an0.system && an0.system.sandbox)) {
       if (!this._lock || this._lock.body !== an0) {
         const ll = this.latLonOf(an0); const sun = an0.system.stars[0];

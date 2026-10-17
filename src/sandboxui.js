@@ -59,7 +59,7 @@ export class SandboxUI {
     const r = sb.load(p);
     sb.grid = r.grid; this.q('sbGrid').checked = r.grid; sb.trailsOn = this.q('sbTrails').checked; sb.follow = this.q('sbFollow').checked;
     // camera above the orbital plane, looking at the centre of mass
-    const D = r.scale * (p.id === 'empty' ? 30 : p.id === 'tde' ? 5 : 4.2), dir = V.norm([0.15, 0.62, 0.77]);
+    const D = r.scale * (r.cam || (p.id === 'empty' ? 30 : p.id === 'tde' ? 5 : 4.2)), dir = V.norm([0.15, 0.62, 0.77]);
     nav.enterCustomSystem(sb, V.mul(dir, D), Q.look(V.mul(dir, -1), [0, 1, 0]));
     nav.rate = r.rate; nav.paused = false; nav.speed = D * 0.3;
     this.lastEvent = null; this.ampMax = 0;
