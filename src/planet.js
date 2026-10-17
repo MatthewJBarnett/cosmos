@@ -597,6 +597,8 @@ class PlanetState {
   dispose() { for (const r of this.roots) this.free(r); }
 }
 
+// city lights belong to an era: electric lighting spread from the 1880s; today's map is not extrapolated centuries ahead
+export function cityEra(t) { const y = 2000 + t / 31557600; return Math.max(0, Math.min(1, (y - 1880) / 70)) * Math.max(0, Math.min(1, 1 - (y - 2200) / 300)); }
 // visible radiance of a blackbody surface at T, in units of the solar constant per steradian (luminance weighted)
 export function heatGlow(T) {
   // fraction of sigma T^4 in the visible band (approximate Planck integral over 400-700 nm) and photopic weight
@@ -681,7 +683,7 @@ export function drawPlanet(body, o) {
   p.set(Object.assign({
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
-    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1),
+    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
     uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));

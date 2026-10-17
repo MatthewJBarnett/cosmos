@@ -1,4 +1,5 @@
 // Atmosphere LUT management, volumetric clouds and the screen space compositing pass.
+import { cityEra } from './planet.js';
 import { gl, Program, tex2D, texCube, fbo, drawFS, FS_VS } from './gl.js';
 import { Q, V, clamp } from './math.js';
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, ATMO_TRANS_FS, ATMO_MULTI_FS, ATMO_IRR_FS } from './atmo_glsl.js';
@@ -351,7 +352,7 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       float prof = 0.25 + 0.75*pow(1. - el, 3.);
       float night = smoothstep(0.05, -0.12, sunEl)*smoothstep(40000., 2000., camAlt);
       // overcast skies reflect much more of it back down
-      L += vec3(1.0, 0.72, 0.45)*lc*lc*prof*night*3e-6*(1. + 2.*(1. - cloudT));
+      L += vec3(1.0, 0.72, 0.45)*lc*lc*prof*night*3e-6*(1. + 2.*(1. - cloudT))*uHasLights;
     }
   }
   inscatter = L + cloudL*Tc; trans = T*cloudT;
@@ -592,7 +593,7 @@ export function drawAtmosphere(body, o) {
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set(rf).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? 1 : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
+    uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds && !(body.climate && body.climate.dry > 0.98) ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density * (body.climate ? 1 - body.climate.dry : 1) : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
   });
