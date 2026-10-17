@@ -517,6 +517,7 @@ export class UI {
   updateTimeline() {
     if (this.linePanel.classList.contains('hidden')) return;
     if (document.activeElement && document.activeElement.id === 'tlYears') return;
+    if (this.sliding) return;
     const tyr = this.nav.time / YEAR, tl = this.timeline, nx = tl.next(tyr);
     const key = (nx ? nx.id : '') + ':' + Math.floor(Date.now() / 500);
     if (key === this.lineKey) return; this.lineKey = key;
@@ -526,9 +527,13 @@ export class UI {
     }).join('');
     this.linePanel.innerHTML = `<h3>Timeline</h3><div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label>
       <div class="tljump">Jump to <input id="tlYears" placeholder="years from now, e.g. 5e9 or -65e6" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
+      <div class="tlslider"><input type="range" id="tlSlide" min="-100" max="140" step="0.1" value="${this.sliderPos(tyr)}"><div class="tlticks">${[[-100, 'Big Bang'], [-60, '−1 Myr'], [0, 'now'], [60, '+1 Myr'], [90, '+1 Gyr'], [140, '+10¹⁴ yr']].map(([x, l]) => `<span style="left:${((x + 100) / 240 * 100).toFixed(1)}%">${l}</span>`).join('')}</div></div>
       <p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
     this.linePanel.querySelectorAll('button').forEach(b => { b.onclick = () => { tl.go(tl.events[+b.dataset.i]); this.lineKey = null; }; });
     this.linePanel.querySelector('#tlAuto').onchange = (e) => { tl.auto = e.target.checked; };
+    const sl = this.linePanel.querySelector('#tlSlide');
+    sl.oninput = () => { this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + this.sliderYears(+sl.value) * YEAR; this.timeline.lastTyr = this.nav.time / YEAR; this.sliding = true; };
+    sl.onchange = () => { this.sliding = false; this.lineKey = null; };
     const yi = this.linePanel.querySelector('#tlYears');
     yi.oninput = () => { this.tlYears = yi.value; };
     yi.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') this.linePanel.querySelector('#tlGo').click(); };
@@ -538,6 +543,9 @@ export class UI {
       this.toast(fmtSimDate(this.nav.time));
     };
   }
+  // logarithmic time slider: 0 = now; positive x -> 10^(x/10) years ahead (x = 140 is 10^14), negative -> back to the Big Bang
+  sliderYears(x) { if (Math.abs(x) < 0.5) return 0; const y = Math.pow(10, Math.abs(x) / 10); return x > 0 ? Math.min(y, 1e14) : -Math.min(y, 13.78e9); }
+  sliderPos(tyr) { const dy = tyr - (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 / YEAR; if (Math.abs(dy) < 1) return 0; return Math.sign(dy) * Math.min(140, 10 * Math.log10(Math.abs(dy))); }
   // set up the camera for an event from the timeline
   eventView(e) {
     const nav = this.nav, v = e.view || {}, sol = solSystem();

@@ -413,7 +413,7 @@ export class Renderer {
       let prev = null;
       for (let k = -N; k <= N / 2; k++) {
         const p = Q.rot(q0, sunPos(world.tyr + k / N * P)), rel = [p[0] - cg[0], p[1] - cg[1], p[2] - cg[2]];
-        const a = k <= 0 ? 0.35 * (1 + k / N) ** 1.5 : 0.18 * (1 - 2 * k / N);
+        const a = k <= 0 ? 0.7 * (1 + k / N) ** 1.5 : 0.3 * (1 - 2 * k / N);
         if (prev) data.push(...prev, ...rel, k <= 0 ? 1 : 0.6, 0.85, 0.45, a);
         prev = [...rel, k <= 0 ? 1 : 0.6, 0.85, 0.45, a];
       }

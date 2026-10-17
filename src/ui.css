@@ -103,3 +103,8 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
   .sandbox canvas { height: 70px; }
   .time select { max-width: 90px; }
 }
+.timeline .tlslider { margin: 8px 0 4px; }
+.timeline .tlslider input { width: 100%; }
+.timeline .tlticks { position: relative; height: 14px; font-size: 10.5px; color: #8b98a8; margin-top: 2px; }
+.timeline .tlticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.timeline .tlticks span:first-child { transform: none; } .timeline .tlticks span:last-child { transform: translateX(-100%); }
