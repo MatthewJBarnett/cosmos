@@ -282,6 +282,10 @@ export class StarSystem {
       }
       // Saturn's rings rain onto the planet (water ice pulled in along magnetic field lines and by drag): at the
       // measured rate they are gone in ~300 Myr (O'Donoghue et al. 2018, 2019)
+      // early Mars: an ocean filled the northern lowlands to about the Deuteronilus shoreline (-3,800 m) around 3.8 Gyr
+      // ago, then shrank into the deepest basins and was gone by ~3 Gyr ago (an active research question)
+      const mars = all.find(b => b.name === 'Mars');
+      if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
       const sat = all.find(b => b.name === 'Saturn');
       if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
