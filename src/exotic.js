@@ -272,6 +272,16 @@ void main(){
       d = (sh1*2.4 + sh2*0.5*fil) + smoothstep(0.42, 0., rr)*0.25;
       col = mix(uColA, uColB, smoothstep(0.35, 0.75, rr));
       d *= 2.;
+    } else if (uType == 3) {
+      // protoplanetary disk: flared (scale height ~ r^1.25), lit by the young star at its centre, with the dust
+      // gaps that forming planets carve (as ALMA sees around HL Tauri), opaque in the midplane
+      float rc = length(p.xz), hgt = 0.035*pow(max(rc, 0.02), 1.25) + 0.004;
+      float rho = exp(-p.y*p.y/(2.*hgt*hgt))*smoothstep(1., 0.75, rc)*smoothstep(0.004, 0.02, rc)/max(rc, 0.02);
+      float gaps = 1. - 0.75*pow(abs(sin(rc*52. + n*0.6)), 18.);
+      rho *= gaps*(0.75 + 0.5*n);
+      d = rho*0.25/(0.02 + r*r*4.);                      // scattered starlight, falling off away from the star
+      col = mix(uColA, uColB, smoothstep(0.1, 0.8, rc));
+      dust = rho*2.2;
     } else {
       // supernova remnant: filamentary shell; young ones with a pulsar also have a blue-white synchrotron interior
       vec3 pr = p*vec3(1., 1.35, 1.);

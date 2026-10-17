@@ -406,6 +406,12 @@ export class Renderer {
       }
       // the Sun's own planetary nebula, lit by the hot core once the envelope is gone
       const pn = gal === MILKY_WAY ? planetaryNebula(world.tyr) : null;
+      // the young Sun's protoplanetary disk: dust and gas out to ~100 AU for the first ~10 Myr, dispersing as the
+      // planets form (gone by the time the oldest meteorites' clocks stop, ~4.56 Gyr ago)
+      const ageMyr = (world.tyr + 4.57e9) / 1e6;
+      if (gal === MILKY_WAY && ageMyr > 0 && ageMyr < 12) {
+        sne.remnants.push(this._ppd = Object.assign(this._ppd || {}, { pos: world.sunP.slice(), radius: 120 * C.AU / C.PC, type: 3, seed: 3.3, colA: [1.0, 0.72, 0.45], colB: [0.8, 0.5, 0.35], lum: 14000 * Math.exp(-ageMyr / 4) * Math.min(1, ageMyr / 0.2), name: 'The Sun\'s protoplanetary disk' }));
+      }
       if (pn && pn.lit > 0.01) {
         const rpc = pn.r / C.PC;
         sne.remnants.push(this._pn = Object.assign(this._pn || {}, { pos: world.sunP.slice(), radius: Math.max(rpc, 1e-4), type: 1, seed: 7.7, colA: [0.25, 0.85, 0.75], colB: [1.0, 0.32, 0.25], lum: 900 * pn.lit * Math.min(1, Math.pow(0.15 / Math.max(rpc, 1e-3), 1.5)), name: 'The Sun\'s planetary nebula' }));

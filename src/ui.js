@@ -690,6 +690,12 @@ export class UI {
       return;
     }
     if (v.universe) { const t = findByName(nav, 'Milky Way'); if (t) { nav.selected = t; nav.goTo(t, { dist: 3e6 * C.PC }); } }
+    if (v.ppd) {
+      // a few hundred AU from the newborn Sun, looking down onto its disk
+      nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; sol.update(nav.time);
+      nav.S = [C.AU * 260, C.AU * 120, C.AU * 40]; nav.q = Q.look(V.mul(nav.S, -1), [0, 1, 0]); nav.fov = 60 * Math.PI / 180;
+      nav.selected = { type: 'star', desc: sol.desc };
+    }
     if (v.cosmos) {
       // out among the galaxies (in the early universe there is nothing else to look at)
       nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null; nav.selected = null;

@@ -152,7 +152,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
   years by human CO₂).
 - **Earth's deep past:** before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
-  (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; the young
+  (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; for its
+  first ~10 Myr the Sun sits in a flared protoplanetary disk with planet-carved gaps (like HL Tauri); the young
   Sun is fainter, the day shorter and the Moon closer. (Continents keep today's shapes beyond 50 Myr back.) Mars has
   an ocean in its northern lowlands ~4.1-3.0 Gyr ago, filled to the -3,800 m shoreline on the real MOLA terrain.
 - **Variable stars everywhere:** besides the named ones, about one luminous cool giant in ten is a Mira (150-500 day
