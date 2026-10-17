@@ -219,7 +219,7 @@ export class NBody {
     const dir = [(nrm[1] * rel[2] - nrm[2] * rel[1]) / (nl * rl), (nrm[2] * rel[0] - nrm[0] * rel[2]) / (nl * rl), (nrm[0] * rel[1] - nrm[1] * rel[0]) / (nl * rl)];
     const v = vcm.map((x, k) => x + dir[k] * kick);
     const big = a.m >= b.m ? a : b;
-    const nb = makeBody(kind, m, xcm, v, { name: kind === 'bh' && bothCompact ? 'Remnant black hole' : giantImpact && big.name === 'Proto-Earth' ? 'Earth' : big.name, chi, merged: true });
+    const nb = makeBody(kind, m, xcm, v, { name: kind === 'bh' && bothCompact ? 'Remnant black hole' : giantImpact && big.name === 'Proto-Earth' ? 'Young Earth' : big.name, chi, merged: true });
     if (kind === 'star') { nb.R = radiusFor('star', m); nb.flash = { t, L: 1e4 }; }
     this.remove(a); this.remove(b); this.add(nb);
     if (giantImpact) {
@@ -357,7 +357,7 @@ export class Debris {
         const ur = u[0] * rh[0] + u[1] * rh[1] + u[2] * rh[2], ut = u.map((c, j) => c - ur * rh[j]), utl = Math.hypot(...ut) || 1, vc = Math.sqrt(G * (host.m + m) / r);
         const mx = rh.map((c, j) => host.x[j] + c * r), mv = ut.map((c, j) => host.v[j] + c / utl * vc);
         host.m -= m;
-        const moon = makeBody('planet', m, mx, mv, { name: 'Moon', magma: { t: sim.t } });
+        const moon = makeBody('planet', m, mx, mv, { name: 'Newborn Moon', magma: { t: sim.t } });
         sim.add(moon);
         const ev = { t: sim.t, note: `The Moon has formed: ${(m / 7.35e22).toFixed(2)} lunar masses gathered just outside the Roche limit (${(r / host.R).toFixed(1)} planetary radii)`, body: moon };
         sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev);

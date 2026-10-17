@@ -1,6 +1,6 @@
 // Guided tour: a sequence of real places and events, each with a short caption.
 import { V, Q } from './math.js';
-import { findByName } from './nav.js';
+import { findByName, solSystem } from './nav.js';
 
 const iso = (s) => (Date.parse(s) - Date.UTC(2000, 0, 1, 12)) / 1000;
 const body = (nav, name) => { const t = findByName(nav, name); return t && t.type === 'body' ? t.body : null; };
@@ -75,6 +75,8 @@ export class Tour {
     // every stop starts at the present (stops that travel in time set their own date); close the sandbox panel
     this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; this.nav.rate = 1; this.nav.paused = false; this.nav.relativistic = false;
     if (this.ui.sbui) this.ui.sbui.panel.classList.add('hidden');
+    // (back in the real Solar System: sandbox bodies can share names with real ones)
+    if (this.nav.system && this.nav.system.sandbox) { const sol = solSystem(); this.nav.system = sol; this.nav.level = 'system'; this.nav.useGalaxy(sol.galaxy); this.nav.anchor = null; this.nav.selected = null; this.nav.S = [0, 3e11, 0]; }
     try { s.run(this.nav, this.ui); } catch (e) { console.warn('tour stop failed', s.title, e); }
     this.t = 0; this.wait = 0;
     this.ui.caption(s.title, s.text, this.i + 1, STOPS.length);

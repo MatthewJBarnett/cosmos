@@ -578,6 +578,8 @@ export class UI {
     // after a jump, bring the galaxy collision simulation (and with it the Sun's galactic position) up to date first
     { const tMyr = (nav.time / YEAR - 26.8) / 1e6; if (tMyr > LG_START) LG.advance(tMyr, 100000); updateWorld(nav.time); updateLocalGroupPositions(nav.time / YEAR); }
     nav.goto = null; nav.onArrive = null; nav.lookTarget = null; nav.orbit = null; nav.fov = 55 * Math.PI / 180;
+    // events happen in the real universe: leave the sandbox (whose bodies may share names with real ones)
+    if (nav.system && nav.system.sandbox) { nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; nav.selected = null; if (this.sbui) this.sbui.panel.classList.add('hidden'); }
     this.caption(e.title, e.text + (e.est ? ' <span class="dim">Date is an estimate.</span>' : ''), '', '');
     clearTimeout(this.capTimer); this.capTimer = setTimeout(() => { if (!this.tour.active) this.caption(null); }, 14000);
     if (v.star) {
