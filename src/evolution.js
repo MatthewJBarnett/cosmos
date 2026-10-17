@@ -17,13 +17,15 @@ const TRACK = [
   // asymptotic giant branch, thermal pulses and heavy mass loss
   [12.31, 90, 22, 0.664], [12.33, 260, 55, 0.66], [12.345, 900, 110, 0.64], [12.355, 2500, 165, 0.6], [12.36, 4000, 190, 0.56],
   [12.3602, 4100, 200, 0.545],
-  // post-AGB: contraction at constant luminosity to ~100,000 K in tens of thousands of years, then fading
-  [12.36023, 4000, 30, 0.542], [12.36026, 3900, 3, 0.541], [12.3603, 3600, 0.4, 0.54], [12.3604, 2800, 0.08, 0.54], [12.3606, 600, 0.03, 0.54],
-  [12.362, 80, 0.016, 0.54], [12.37, 8, 0.0135, 0.54], [12.4, 1.2, 0.0128, 0.54], [12.6, 0.1, 0.0126, 0.54], [13.5, 0.01, 0.0125, 0.54],
+  // post-AGB: the bare core contracts at nearly constant luminosity, heating to ~100,000 K in about ten thousand
+  // years and lighting the ejected shell as a planetary nebula, then fades onto the white dwarf cooling track
+  [12.360203, 4000, 15, 0.542], [12.360206, 3900, 1.5, 0.541], [12.36021, 3600, 0.4, 0.54], [12.36023, 2000, 0.08, 0.54],
+  [12.3603, 300, 0.03, 0.54], [12.3606, 60, 0.02, 0.54], [12.362, 10, 0.016, 0.54], [12.37, 2, 0.0135, 0.54], [12.4, 0.6, 0.0128, 0.54],
+  [12.6, 0.08, 0.0126, 0.54], [13.5, 0.01, 0.0125, 0.54],
   [16, 0.0015, 0.0125, 0.54], [25, 2.5e-4, 0.0125, 0.54], [60, 3e-5, 0.0125, 0.54], [200, 2e-6, 0.0125, 0.54], [1000, 5e-8, 0.0125, 0.54],
   [1e5, 1e-12, 0.0125, 0.54],
 ];
-export const PN_START = 12.3602, WD_START = 12.3606, RGB_TIP = 12.167;
+export const PN_START = 12.3602, WD_START = 12.3603, RGB_TIP = 12.167;
 const ageOf = (tyr) => SUN_AGE_NOW + tyr / 1e9;
 function interp(age) {
   if (age <= TRACK[0][0]) return TRACK[0];
@@ -59,7 +61,7 @@ export function planetaryNebula(tyr) {
   const t = (age - PN_START) * 1e9;     // years since ejection
   const r = 20e3 * t * 3.156e7;           // m
   const s = sunState(tyr);
-  const lit = clamp((s.T - 25000) / 20000, 0, 1) * clamp(1 - (t - 3e4) / 3e4, 0, 1);
+  const lit = clamp((s.T - 25000) / 20000, 0, 1) * clamp(1 - (t - 3.5e4) / 2.5e4, 0, 1);
   return { t, r, lit };
 }
 

@@ -2,6 +2,7 @@
 // Positions are in the galaxy's local frame (pc, x towards the centre from the Sun's epoch position, y to the NGP).
 import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Q } from './math.js';
+import { updateCosmo } from './cosmology.js';
 
 export const YEAR = 31557600;
 export const KMS_PCYR = 1.02271e-6;          // 1 km/s in pc per year
@@ -94,4 +95,5 @@ export function updateWorld(time, dtyr = 0) {
   // inertial-local -> pattern-local, column major mat3 (rotY by +a)
   world.rotP = [c, 0, -s, 0, 1, 0, s, 0, c];
   MILKY_WAY.quat = Q.mul(MW_Q0, Q.axis([0, 1, 0], -a));
+  updateCosmo(tyr);
 }

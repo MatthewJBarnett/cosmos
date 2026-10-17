@@ -13,6 +13,7 @@ import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR } from './galdyn.js';
+import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
@@ -52,7 +53,7 @@ export class UI {
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bSandbox" title="Physics sandbox: black holes, neutron stars, gravitational waves (V)">Sandbox</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
-    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline of future events (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
+    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><select id="tRate" title="Time rate"><option value="">Rate…</option><option value="0.01">Slow motion 1/100</option><option value="1">Real time</option><option value="3600">1 hour/s</option><option value="86400">1 day/s</option><option value="2629800">1 month/s</option><option value="31557600">1 year/s</option><option value="3155760000">100 years/s</option><option value="3.15576e11">10,000 years/s</option><option value="3.15576e13">1 million years/s</option><option value="3.15576e14">10 million years/s</option><option value="3.15576e15">100 million years/s</option><option value="3.15576e16">1 billion years/s</option><option value="3.15576e17">10 billion years/s</option></select><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline of future events (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
       <input id="tDateIn" type="datetime-local" step="60" class="hidden">`;
     this.labels = root.appendChild(el('div', 'labels'));
     this.perf = root.appendChild(el('div', 'panel perf hidden'));
@@ -215,6 +216,7 @@ export class UI {
     $('places').onchange = (e) => { if (e.target.value) this.search(e.target.value); e.target.value = ''; e.target.blur(); };
     $('tPause').onclick = () => { nav.paused = !nav.paused; };
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
+    $('tRate').onchange = (e) => { const v = +e.target.value; e.target.value = ''; e.target.blur(); if (v) { nav.rate = v * (nav.rate < 0 ? -1 : 1); nav.paused = false; } };
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
     $('tNow').onclick = () => { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; };
     $('tEcl').onclick = () => this.goNextEclipse();
@@ -380,7 +382,15 @@ export class UI {
       }
     }
     if (nav.orbit) { const o = nav.orbit; alt += `<div><b>Orbit</b> ${fmtDist(Math.max(o.peri, 0))} × ${isFinite(o.apo) ? fmtDist(o.apo) : 'escape'} · ${isFinite(o.period) ? (o.period < 7200 ? (o.period / 60).toFixed(1) + ' min' : (o.period / 3600).toFixed(2) + ' h') : ''}</div>`; }
-    this.status.innerHTML = `<div><b>${loc}</b></div>${alt}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
+    // deep time: the Sun's state and the universe
+    let deep = '';
+    const tyr = nav.time / YEAR;
+    if (Math.abs(tyr) > 1e5) {
+      const ss = solSystem().sunState;
+      if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
+      deep += `<div class="dim">Universe ${cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0)} Gyr old · CMB ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T.toFixed(3)} K</div>`;
+    }
+    this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
     document.getElementById('tPause').textContent = nav.paused ? '▶' : '⏸';
     this.updateInfo(); this.updateLabels(); this.updateSys();
@@ -452,7 +462,7 @@ export class UI {
       }
       if (nav.level !== 'system' || (nav.system && V.len(nav.S) > 3e13)) {
         const cu = nav.camU();
-        for (const g of REAL_GALAXIES) { const rel = V.sub(g.posU, cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name, 'galaxy', 10); }
+        for (const g of REAL_GALAXIES) { const gv = galaxyView(V.len(g.posU)); if (gv.f < 1e-3) continue; const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name + (gv.z > 0.05 && Math.abs(nav.time) > 3e16 ? ' (z = ' + gv.z.toFixed(gv.z < 1 ? 2 : 1) + ')' : ''), 'galaxy', 10); }
       }
       // star, constellation and nebula labels only when the sky is dark enough to show them
       const darkSky = r.exposure > 2000;
@@ -539,6 +549,18 @@ export class UI {
       return;
     }
     if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }
+    if (v.land) { const t = findByName(nav, v.land); if (t && t.type === 'body') { nav.landAt(t.body, 10, -60, { hour: v.hour || 12 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: sol.find('Sun') }; }; } return; }
+    if (v.pn) {
+      // from half a parsec away (the nebula grows to about that size), looking back at the Sun; later than the
+      // jump point so the shell is already lit
+      nav.time += 1.2e4 * YEAR;
+      const mw = findByName(nav, 'Milky Way').galaxy;
+      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
+      const sp = Q.rot(mw.quat, world.sunP), off = V.norm([0.3, 0.5, 0.8]);
+      nav.G = V.addm(sp, off, 0.9); nav.q = Q.look(V.mul(off, -1), [0, 1, 0]);
+      nav.selected = { type: 'star', desc: sol.desc };
+      return;
+    }
     if (v.galaxy) {
       const g = world && nav.galaxy ? nav.galaxy : null;
       const mw = findByName(nav, 'Milky Way').galaxy, sunT = { type: 'star', desc: sol.desc };

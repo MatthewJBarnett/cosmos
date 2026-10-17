@@ -276,17 +276,29 @@ function initGrid() {
 }
 const waveData = new Float32Array(NW * 2 * 4);
 
+function initTrail() {
+  if (pTrail) return;
+  pTrail = new Program('trails', TRAIL_VS, TRAIL_FS);
+  trailVAO = gl.createVertexArray(); gl.bindVertexArray(trailVAO); trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
+  gl.bindVertexArray(null);
+}
+// generic coloured line segments: data = [x y z r g b a] per vertex (camera relative), drawn as GL lines
+export function drawLines(data, viewProj, fcoef, depth = false) {
+  if (!data.length) return;
+  initTrail();
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); if (depth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+  gl.bindVertexArray(trailVAO); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+  pTrail.use().set({ uViewProj: viewProj, uFcoef: fcoef });
+  gl.drawArrays(gl.LINES, 0, data.length / 7);
+  gl.disable(gl.DEPTH_TEST);
+}
 export function drawSandbox(sb, nav, o) {
   const camS = nav.S;
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
   // trails
   if (sb.trailsOn) {
-    if (!pTrail) {
-      pTrail = new Program('trails', TRAIL_VS, TRAIL_FS);
-      trailVAO = gl.createVertexArray(); gl.bindVertexArray(trailVAO); trailBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf);
-      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
-      gl.bindVertexArray(null);
-    }
+    initTrail();
     const data = [];
     const addTrail = (pts, col, fade) => {
       for (let i = 1; i < pts.length; i++) {
@@ -306,6 +318,16 @@ export function drawSandbox(sb, nav, o) {
       pTrail.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef });
       gl.drawArrays(gl.LINES, 0, data.length / 7);
     }
+  }
+  // placing a body: marker and velocity arrow
+  if (sb.ghost && sb.ghost.at) {
+    const a = V.sub(sb.ghost.at, camS), b = V.sub(sb.ghost.drag, camS), s2 = V.len(a) * 0.01;
+    const d = [], col = [1, 0.85, 0.4, 0.9];
+    const seg = (p, q) => d.push(...p, ...col, ...q, ...col);
+    seg(V.add(a, [-s2, 0, 0]), V.add(a, [s2, 0, 0])); seg(V.add(a, [0, 0, -s2]), V.add(a, [0, 0, s2]));
+    if (V.dist(a, b) > s2) { seg(a, b); const dir = V.norm(V.sub(b, a)), side = V.cross(dir, [0, 1, 0]); seg(b, V.add(b, V.add(V.mul(dir, -s2 * 1.5), V.mul(side, s2)))); seg(b, V.add(b, V.add(V.mul(dir, -s2 * 1.5), V.mul(side, -s2)))); }
+    drawLines(d, o.viewProj, o.fcoef);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
   }
   // spacetime grid
   if (sb.grid && sb.bodies.length) {

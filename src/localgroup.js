@@ -9,7 +9,7 @@ import { GAL, G, KMS, centresAt, relAt, ORBIT } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
 import { sunPos, YEAR } from './galdyn.js';
 import { CUBE_FACES } from './atmosphere.js';
-import { GAL_I0 } from './sky.js';
+import { GAL_I0, skyCfg } from './sky.js';
 
 export const LG_START = 2600;          // Myr from now: the N-body takes over (the galaxies are still ~400 kpc apart)
 export const MW_FADE = [3350, 3650];    // Myr: the Milky Way model hands over to particles as tides start to bite
@@ -66,7 +66,7 @@ void main(){
   // luminosity per particle (L_sun) -> flux in solar constants: 1 kpc = 2.0626e8 AU
   float L = gal == 0 ? uLum.x : uLum.y; float w = gal == 0 ? uW.x : uW.y;
   float flux = L/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
-  float h = type < 0.5 ? 0.35 : 0.5;     // smoothing length (kpc)
+  float h = type < 0.5 ? 0.4 : 0.8;      // smoothing length (kpc), about the particle spacing
   float sig = clamp(h/d*uPxPerRad*0.5, 0.7, uMaxPx);
   float I = flux/uPxSA*uExposure;
   vSig = sig; vCol = (type < 0.5 ? vec3(1.0, 0.78, 0.55) : type < 1.5 ? vec3(1.0, 0.9, 0.8) : vec3(0.72, 0.84, 1.0))*min(I/(6.2832*sig*sig), 50.);
@@ -199,7 +199,7 @@ export class LocalGroup {
   drawPoints(camCOM, viewProj, o, wMW, wM31, nearKpc) {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-    this.pPart.use().set({ uPos: this.pos[this.cur], uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure, uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
+    this.pPart.use().set({ uPos: this.pos[this.cur], uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
       uLum: [GAL.mw.L / HALF, GAL.m31.L / HALF], uW: [wMW, wM31], uNear: nearKpc || 0.5 });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }
@@ -208,10 +208,14 @@ export class LocalGroup {
     if (!this.ready) return;
     if (Math.abs(this.t - this.cubeT) < 1.5 && this.cubeCam && V.dist(camCOM, this.cubeCam) < 0.3 && Math.abs(wMW - this.cubeW) < 0.05) return;
     this.cubeT = this.t; this.cubeCam = camCOM.slice(); this.cubeW = wMW;
+    // a guard band around each face lets sprites centred just outside it spill in (no seams between faces)
+    const GB = 32, k = (256 + 2 * GB) / 256;
     for (let f = 0; f < 6; f++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.cubeFB[f]); gl.viewport(0, 0, 256, 256);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f]), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 10 }, wMW, wM31, 0.6);
+      gl.viewport(-GB, -GB, 256 + 2 * GB, 256 + 2 * GB);
+      // the same visibility boosts as the regular renderer: the host galaxy's glow, other galaxies
+      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.extBoost, 1.5);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
@@ -222,11 +226,11 @@ export class LocalGroup {
   }
 }
 // view-projection for rendering a cube face: CUBE_FACES[f] maps face (u, v, 1) to a world direction (column major mat3)
-function cubeViewProj(m) {
+function cubeViewProj(m, k = 1) {
   // rows of the inverse (orthonormal: transpose) take world directions to face coordinates (x right, y up, z forward)
   const r = [m[0], m[1], m[2]], u = [m[3], m[4], m[5]], f = [m[6], m[7], m[8]];
   // clip: x = dot(r,p), y = dot(u,p), w = dot(f,p); z = 0 (depth unused)
-  return new Float32Array([r[0], u[0], 0, f[0], r[1], u[1], 0, f[1], r[2], u[2], 0, f[2], 0, 0, 0, 0]);
+  return new Float32Array([r[0] / k, u[0] / k, 0, f[0], r[1] / k, u[1] / k, 0, f[1], r[2] / k, u[2] / k, 0, f[2], 0, 0, 0, 0]);
 }
 
 // ---- time-dependent positions of Local Group galaxies (universe frame, Mpc, Milky Way centre at the origin) ----

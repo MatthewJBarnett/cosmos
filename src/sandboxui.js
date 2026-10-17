@@ -69,7 +69,7 @@ export class SandboxUI {
     const cm = this.sb.com(), t = (cm[1] - o[1]) / ray[1];
     if (!(t > 0)) return true;
     const pt = V.add(o, V.mul(ray, t));
-    if (type === 'down') { this.placing.at = pt; this.placing.drag = pt; }
+    if (type === 'down') { this.placing.at = pt; this.placing.drag = pt; this.sb.ghost = this.placing; }
     else if (type === 'move' && this.placing.at) this.placing.drag = pt;
     else if (type === 'up' && this.placing.at) {
       const kind = this.placing.kind, k = KINDS[kind], mv = +this.q('sbMass').value || k[1];
@@ -87,7 +87,7 @@ export class SandboxUI {
       const n = this.sb.sim.bodies.filter(b => b.kind === kind).length + 1;
       this.sb.addBody(kind, m, at, v, k[0] + ' ' + n + ' (' + mv + ' ' + k[2] + ')');
       this.sb.gridR = null;
-      this.placing = null;
+      this.placing = null; this.sb.ghost = null;
     }
     return true;
   }

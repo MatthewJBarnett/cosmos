@@ -1,7 +1,8 @@
 // Procedural stars of one galaxy: magnitude binned grids of cells generated on demand around the camera.
 import { gl, makeVAO } from './gl.js';
 import { RNG, hashCombine } from './rng.js';
-import { LF, LF_MIN, YOUNG, makeStar, starFromCatalog } from './stars.js';
+import { LF, LF_MIN, YOUNG, makeStar, starFromCatalog, bcOfT } from './stars.js';
+import { sunState } from './evolution.js';
 import { catalog } from './assets.js';
 import { makeDensityFn, SUN_POS } from './universe.js';
 import { VQ, streamVel, wrapPhase, world, snClass, descPosP } from './galdyn.js';
@@ -224,7 +225,17 @@ export class StarField {
   }
   // move the hand placed stars (Sun, nearby stars with planets, ...) to where they are now
   updateFixed() {
-    for (const f of this.fixed) { f.pos = descPosP(f.desc); if (f.cell) f.cell.origin = f.pos; }
+    for (const f of this.fixed) {
+      f.pos = descPosP(f.desc); if (f.cell) f.cell.origin = f.pos;
+      // the Sun as a star seen from afar changes as it evolves (red giant, white dwarf)
+      if (f.desc.sol && f.cell && f.cell.vao) {
+        const st = sunState(world.tyr), MV = 4.83 - 2.5 * Math.log10(st.L) - (bcOfT(st.T) - bcOfT(5772)), T = st.T;
+        if (Math.abs(MV - f.cell.data[3]) > 0.02 || Math.abs(T - f.cell.data[4]) > 20) {
+          f.cell.data[3] = MV; f.cell.data[4] = T; f.MV = MV;
+          gl.bindBuffer(gl.ARRAY_BUFFER, f.cell.vao.bufs[0]); gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.cell.data);
+        }
+      }
+    }
   }
 }
 

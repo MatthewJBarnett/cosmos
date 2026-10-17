@@ -11,6 +11,7 @@ import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
 import { descPosP, updateWorld, YEAR } from './galdyn.js';
+import { apparentPosU } from './cosmology.js';
 import { visibleGalaxyCells } from './sky.js';
 
 const PC = C.PC, MPC = C.PC * 1e6;
@@ -446,7 +447,7 @@ export class Nav {
     const cu = this.camU(); let best = null, bs = 1e9;
     const test = (g) => {
       if (g === this.galaxy && V.len(this.camG()) < g.radius * 1.2) return;
-      const rel = V.sub(g.posU, cu), d = V.len(rel); if (d <= 0) return;
+      const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d <= 0) return;
       const sep = Math.acos(clamp(V.dot(rel, dir) / d, -1, 1)), ar = g.radius * 1e-6 / d;
       if (ar < 1.2 * pxRad) return;
       const thr = Math.max(ar * 0.7, 8 * pxRad); if (sep > thr) return;

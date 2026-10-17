@@ -21,7 +21,7 @@ function msInterp(MV) {
   const a = MS[i], b = MS[i + 1], t = clamp((MV - a[0]) / (b[0] - a[0]), 0, 1);
   return { T: Math.exp(Math.log(a[1]) + (Math.log(b[1]) - Math.log(a[1])) * t), mass: Math.exp(Math.log(a[2]) + (Math.log(b[2]) - Math.log(a[2])) * t), bc: a[3] + (b[3] - a[3]) * t, sp: a[4] + (b[4] - a[4]) * t };
 }
-function bcOfT(T) {
+export function bcOfT(T) {
   // generic bolometric correction for giants etc.
   const lt = Math.log10(T);
   if (T > 7500) return -0.1 - 6.5 * Math.pow(lt - Math.log10(7500), 1.7);

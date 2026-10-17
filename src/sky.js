@@ -8,6 +8,8 @@ import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
 import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE } from './galdyn.js';
+import { COSMO_GLSL, cosmoTexture, cosmo, U_NOW } from './cosmology.js';
+import { variableStars } from './variables.js';
 
 export const skyCfg = { cubeSize: 1024, galBoost: 22, extBoost: 2.5, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
@@ -20,7 +22,7 @@ uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uP
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 // motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
 uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight; uniform mat3 uRotC;
-uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[4];
+uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[4]; uniform int uVarIdx[8]; uniform float uVarDm[8];
 ${REFRACT_VS}
 out vec3 vCol; out float vSig;
 ${GLSL_BB}
@@ -44,6 +46,7 @@ void main(){
   } else if (uMode == 1) {
     lp = uRotC*(aPos + aVel.xyz*uCatK);
     for (int i = 0; i < 4; i++) if (gl_VertexID == uCatDead[i]) w = 0.;
+    for (int i = 0; i < 8; i++) if (gl_VertexID == uVarIdx[i]) w *= exp(-0.9210340372*uVarDm[i]);
   }
   vec3 p = lp + uOffset; float d = length(p);
   if (uMode == 0) {
@@ -102,24 +105,33 @@ void main(){
 const GAL_VS = `
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum;
-uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uPxPerRad, uScale; uniform vec3 uSkip;
-out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx;
+uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr; uniform vec3 uSkip;
+out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos;
+${COSMO_GLSL}
 void main(){
-  vec3 c = aCen.xyz + uOffset; float d = length(c);
+  // expanding universe: seen with the light travel delay, smaller, dimmer and redder as time goes on
+  vec3 wp = aCen.xyz + uOrigin; vec3 cv = cosmoView(length(wp));
+  vec3 c = wp*cv.x - uCamU; float d = length(c);
+  vCos = cv.yz;
   float rad = aCen.w*1.08;
   float px = rad/d*uPxPerRad;
   float expand = max(1., 2.6/px);   // unresolved galaxies still cover a few pixels: seeing and the PSF smear them
   vec3 f = c/d; vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
   vec3 w = c + (r*aCorner.x + u*aCorner.y)*rad*expand;
   if (d < rad*0.92) w = c + f*0.0;   // camera inside: handled by the sky cubemap
-  vWorld = w; vCen = c; vQuat = aQuat; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
+  // disks turn: about 220 km/s at half the radius (a 200 Myr period for a Milky Way sized spiral)
+  vec4 q = aQuat;
+  if (length(wp) > 1e-3 && uTmyr != 0.) { float ang = -uTmyr*0.45/(aCen.w*1000.); vec4 r = vec4(0., sin(ang*0.5), 0., cos(ang*0.5)); q = vec4(q.w*r.xyz + r.w*q.xyz + cross(q.xyz, r.xyz), q.w*r.w - dot(q.xyz, r.xyz)); }
+  vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
   gl_Position = uViewProj*vec4(w, 1.); gl_Position.z = 0.;
-  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale;
+  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y;
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
 const GAL_FS2 = `
-in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad;
+in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos;
+// cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first)
+vec3 zTint(){ float k = log2(max(vCos.y, 1.)); return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5)); }
 uniform float uScale; uniform int uMaxSteps;
 out vec4 o;
 ${GLSL_GALAXY}
@@ -144,7 +156,7 @@ void main(){
     float t = sqrt(t2);
     float tot = (g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)/(vLum.y*vLum.y)*1.6;
     vec3 col = mix(vec3(1.0, 0.82, 0.6), vec3(0.8, 0.86, 1.0), clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.));
-    o = vec4(col*tot*gsn*g.lum*uScale, 1.); return;
+    o = vec4(col*tot*gsn*g.lum*uScale*zTint(), 1.); return;
   }
   vec4 qi = vec4(-vQuat.xyz, vQuat.w);
   vec3 ro = qrot(qi, -vCen)/vRad, rd = qrot(qi, rdW);
@@ -168,7 +180,7 @@ void main(){
     T *= st;
     if (T.g < 0.01) break;
   }
-  vec3 res = L*g.lum*uScale;
+  vec3 res = L*g.lum*uScale*zTint();
   if (any(isnan(res)) || any(isinf(res))) res = vec3(0.);
   o = vec4(min(res, vec3(60000.)), T.g);
 }`;
@@ -240,6 +252,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
     uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1]) });
+  { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm }); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;
   const hide = o.hide;
@@ -297,7 +310,7 @@ export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
   // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3 });
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6 });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
@@ -305,7 +318,7 @@ export function drawGalaxies(camU, viewProj, o) {
     if (!cell.list.length) return;
     const b = galCellVAO(cell); b.last = galFrame;
     visibleGalaxyCells.push(cell);
-    p.set({ uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
+    p.set({ uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
     gl.bindVertexArray(b.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, b.n);
   };
   let budget = 3;

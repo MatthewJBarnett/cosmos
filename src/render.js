@@ -5,18 +5,19 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
-import { world, sunHook } from './galdyn.js';
+import { world, sunHook, SUN_ORBIT, sunPos, galQuat0 } from './galdyn.js';
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
-import { drawSandbox, sandboxPoints } from './sandbox.js';
+import { drawSandbox, sandboxPoints, drawLines } from './sandbox.js';
+import { planetaryNebula } from './evolution.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS, REAL_GALAXIES } from './universe.js';
 import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
 import { drawBlackHole, drawNebulaeAndFx, drawComets } from './exotic.js';
 
-export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-8, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true, realSky: true };
+export const rcfg = { scale: 1, bloom: 0.04, exposureBias: 0, autoExposure: true, manualExposure: 1, clouds: true, orbits: true, maxExposure: 1.4e7, minExposure: 1e-11, fxaa: true, flare: false, volTAA: true, constellations: false, taa: true, realSky: true };
 const FAR = 1e15;
 
 const DOWN_FS = `in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform vec2 uTexel;
@@ -336,7 +337,7 @@ export class Renderer {
     // the colliding galaxies as particles
     if (lgCam && exposure > 2e3) {
       if (this.lgInside) LG.drawCube(Q.mat3(nav.q), [tanX, tanY], exposure);
-      else LG.drawPoints(lgCam, viewProj, Object.assign({}, common, { maxPx: 6 }), 1 - lgw.mw, 1 - lgw.m31, 0.5);
+      else LG.drawPoints(lgCam, viewProj, Object.assign({}, common, { maxPx: 6, boost: skyCfg.extBoost }), 1 - lgw.mw, 1 - lgw.m31, 0.5);
     }
     T('galaxies');
     // the Milky Way's glow is far below visibility at daylight exposures
@@ -380,6 +381,24 @@ export class Renderer {
     if (gal && nav.field && camLocal && nav.level !== 'universe') {
       sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
       if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
+      // the Sun's own planetary nebula, lit by the hot core once the envelope is gone
+      const pn = gal === MILKY_WAY ? planetaryNebula(world.tyr) : null;
+      if (pn && pn.lit > 0.01) {
+        const rpc = pn.r / C.PC;
+        sne.remnants.push(this._pn = Object.assign(this._pn || {}, { pos: world.sunP.slice(), radius: Math.max(rpc, 1e-4), type: 1, seed: 7.7, colA: [0.25, 0.85, 0.75], colB: [1.0, 0.32, 0.25], lum: 900 * pn.lit * Math.min(1, Math.pow(0.15 / Math.max(rpc, 1e-3), 1.5)), name: 'The Sun\'s planetary nebula' }));
+      }
+    }
+    // the Sun's orbit around the Galaxy (seen from outside the Solar System): one orbit back, half an orbit ahead
+    if (gal === MILKY_WAY && nav.level === 'galaxy' && rcfg.orbits) {
+      const P = SUN_ORBIT.periodYr, cg = nav.camG(), q0 = galQuat0(gal), data = [], N = 360;
+      let prev = null;
+      for (let k = -N; k <= N / 2; k++) {
+        const p = Q.rot(q0, sunPos(world.tyr + k / N * P)), rel = [p[0] - cg[0], p[1] - cg[1], p[2] - cg[2]];
+        const a = k <= 0 ? 0.35 * (1 + k / N) ** 1.5 : 0.18 * (1 - 2 * k / N);
+        if (prev) data.push(...prev, ...rel, k <= 0 ? 1 : 0.6, 0.85, 0.45, a);
+        prev = [...rel, k <= 0 ? 1 : 0.6, 0.85, 0.45, a];
+      }
+      drawLines(data, viewProj, 2 / Math.log2(FAR + 1));
     }
     T('stars');
     if (rcfg.constellations && gal === MILKY_WAY && camLocal) {

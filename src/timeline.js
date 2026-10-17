@@ -68,31 +68,31 @@ export function buildEvents() {
   const now = nowYr(), ev = [];
   const add = (o) => ev.push(o);
   const bar = closest(extra("Barnard's Star")), g710 = closest(extra('Gliese 710'));
-  add({ id: 'barnard', t: bar.t, title: "Barnard's Star at its closest", text: `The fastest moving star in our sky passes ${(bar.d * 3.2616).toFixed(2)} light years from the Sun, then recedes.`, view: { star: "Barnard's Star", from: 'sun' }, rate: YEAR * 300 });
-  add({ id: 'vega', t: 11727, title: 'Vega is the pole star', text: 'Precession of Earth\'s axis (a 25,772 year cycle) brings the north celestial pole within 4° of Vega.', view: { pole: true }, rate: YEAR * 50 });
-  add({ id: 'acen', t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });
-  add({ id: 'betelgeuse', t: 1e5, est: true, title: 'Betelgeuse explodes', text: 'The red supergiant in Orion ends as a core collapse supernova. From 168 parsecs it outshines the half Moon for months and stays visible in daylight.', view: { star: 'Betelgeuse', from: 'earth' }, rate: 86400 * 6 });
-  add({ id: 'antares', t: 6e5, est: true, title: 'Antares explodes', text: 'The heart of the Scorpion, a red supergiant 170 parsecs away, becomes a supernova.', view: { star: 'Antares', from: 'earth' }, rate: 86400 * 6 });
-  add({ id: 'g710', t: g710.t, title: 'Gliese 710 passes through the Oort cloud', text: `An orange dwarf passes ${Math.round(g710.d * 206265).toLocaleString('en')} AU from the Sun, shining at magnitude −2.7, and perturbs comets towards the planets.`, view: { star: 'Gliese 710', from: 'sun' }, rate: YEAR * 2000 });
-  add({ id: 'midplane', t: nextMidplane(), title: 'The Sun crosses the galactic plane', text: 'The Sun bobs through the disk every ~38 million years on its orbit around the Galaxy.', view: { galaxy: 'side' }, rate: YEAR * 1e5 });
-  add({ id: 'galyear', t: now + SUN_ORBIT.periodYr, title: 'One galactic year', text: `The Sun completes an orbit around the centre of the Milky Way (${(SUN_ORBIT.periodYr / 1e6).toFixed(0)} million years).`, view: { galaxy: 'top' }, rate: YEAR * 2e6 });
+  add({ id: 'barnard', maxRate: 300000.0, t: bar.t, title: "Barnard's Star at its closest", text: `The fastest moving star in our sky passes ${(bar.d * 3.2616).toFixed(2)} light years from the Sun, then recedes.`, view: { star: "Barnard's Star", from: 'sun' }, rate: YEAR * 300 });
+  add({ id: 'vega', maxRate: 300000.0, t: 11727, title: 'Vega is the pole star', text: 'Precession of Earth\'s axis (a 25,772 year cycle) brings the north celestial pole within 4° of Vega.', view: { pole: true }, rate: YEAR * 50 });
+  add({ id: 'acen', maxRate: 300000.0, t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });
+  add({ id: 'betelgeuse', hold: 25, maxRate: 300000.0, t: 1e5, est: true, title: 'Betelgeuse explodes', text: 'The red supergiant in Orion ends as a core collapse supernova. From 168 parsecs it outshines the half Moon for months and stays visible in daylight.', view: { star: 'Betelgeuse', from: 'earth' }, rate: 86400 * 6 });
+  add({ id: 'antares', hold: 25, maxRate: 3000000.0, t: 6e5, est: true, title: 'Antares explodes', text: 'The heart of the Scorpion, a red supergiant 170 parsecs away, becomes a supernova.', view: { star: 'Antares', from: 'earth' }, rate: 86400 * 6 });
+  add({ id: 'g710', hold: 8, maxRate: 3000000.0, t: g710.t, title: 'Gliese 710 passes through the Oort cloud', text: `An orange dwarf passes ${Math.round(g710.d * 206265).toLocaleString('en')} AU from the Sun, shining at magnitude −2.7, and perturbs comets towards the planets.`, view: { star: 'Gliese 710', from: 'sun' }, rate: YEAR * 2000 });
+  add({ id: 'midplane', maxRate: 300000000.0, t: nextMidplane(), title: 'The Sun crosses the galactic plane', text: 'The Sun bobs through the disk every ~38 million years on its orbit around the Galaxy.', view: { galaxy: 'side' }, rate: YEAR * 1e5 });
+  add({ id: 'galyear', maxRate: 3000000000.0, t: now + SUN_ORBIT.periodYr, title: 'One galactic year', text: `The Sun completes an orbit around the centre of the Milky Way (${(SUN_ORBIT.periodYr / 1e6).toFixed(0)} million years).`, view: { galaxy: 'top' }, rate: YEAR * 2e6 });
   add({ id: 'eclipses', t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
   add({ id: 'oceans', t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
   add({ id: 'lmc', t: now + 2.4e9, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction drags our largest satellite galaxy into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
   const lg = orbitEvents(), p1 = lg.pericentres[0], p2 = lg.pericentres[1];
   add({ id: 'm31near', t: now + 3.0e9, est: true, title: 'Andromeda fills the sky', text: 'Approaching at 250 km/s, the Andromeda Galaxy spans tens of degrees of the night sky, as bright as the Milky Way.', view: { lg: 'sun' }, rate: YEAR * 5e6 });
-  if (p1) add({ id: 'm31', t: now + p1.t * 1e6, est: true, title: 'Andromeda\'s first passage', text: `The galaxies' centres pass ${p1.d.toFixed(0)} kpc apart at ~450 km/s. Tides tear both disks into long tails. (N-body simulation, 65,536 particles.)`, view: { lg: 'outside' }, rate: YEAR * 3e6 });
-  if (p2) add({ id: 'm31b', t: now + p2.t * 1e6, est: true, title: 'Second passage', text: 'Dynamical friction has drained the orbit; the galaxies fall back together.', view: { lg: 'outside' }, rate: YEAR * 3e6 });
-  if (lg.merged > 0) add({ id: 'merge', t: now + lg.merged * 1e6, est: true, title: 'Milkomeda', text: 'The two centres coalesce. Over the next billion years the debris settles into one giant elliptical galaxy.', view: { lg: 'outside' }, rate: YEAR * 1e7 });
+  if (p1) add({ id: 'm31', hold: 12, t: now + p1.t * 1e6, est: true, title: 'Andromeda\'s first passage', text: `The galaxies' centres pass ${p1.d.toFixed(0)} kpc apart at ~450 km/s. Tides tear both disks into long tails. (N-body simulation, 65,536 particles.)`, view: { lg: 'outside' }, rate: YEAR * 1e7 });
+  if (p2) add({ id: 'm31b', hold: 8, t: now + p2.t * 1e6, est: true, title: 'Second passage', text: 'Dynamical friction has drained the orbit; the galaxies fall back together.', view: { lg: 'outside' }, rate: YEAR * 1e7 });
+  if (lg.merged > 0) add({ id: 'merge', hold: 10, t: now + lg.merged * 1e6, est: true, title: 'Milkomeda', text: 'The two centres coalesce. Over the next billion years the debris settles into one giant elliptical galaxy.', view: { lg: 'outside' }, rate: YEAR * 1e7 });
   const ageT = (age) => (age - SUN_AGE_NOW) * 1e9;
   const engulfT = (name) => { for (let a = 12.0; a < 12.2; a += 0.0002) if (engulfed(name, ageT(a))) return ageT(a); return null; };
   add({ id: 'subgiant', t: ageT(10.0), title: 'The Sun leaves the main sequence', text: 'Hydrogen in the core runs out after 10 billion years. The Sun swells and cools into a subgiant, twice as bright as today.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
   const tm = engulfT('Mercury'), tv = engulfT('Venus');
   if (tm) add({ id: 'mercury', t: tm, title: 'Mercury is swallowed', text: 'The red giant Sun grows past Mercury\'s orbit.', view: { body: 'Venus', far: true }, rate: YEAR * 2e5 });
   if (tv) add({ id: 'venus', t: tv, title: 'Venus is swallowed', text: 'The Sun\'s envelope engulfs Venus; drag in the thin outer layers spirals it in.', view: { body: 'Mars', far: true }, rate: YEAR * 1e5 });
-  add({ id: 'rgb', t: ageT(RGB_TIP), title: 'The Sun at the tip of the red giant branch', text: 'Radius 256 times today\'s (1.2 AU), 2,700 times as bright, 0.67 solar masses after losing a third of its mass. Mercury and Venus are gone; Earth is very likely dragged in too.', view: { body: 'Mars', far: true }, rate: YEAR * 1e5 });
-  add({ id: 'flash', t: ageT(RGB_TIP) + 3e5, title: 'The helium flash', text: 'Helium ignites in the degenerate core; within a million years the Sun shrinks to a 40 L☉ horizontal branch star.', view: { body: 'Sun' }, rate: YEAR * 1e4 });
-  add({ id: 'pn', t: ageT(PN_START), title: 'Planetary nebula', text: 'Thermal pulses on the asymptotic giant branch shed the Sun\'s envelope at ~20 km/s; the exposed hot core ionises it.', view: { body: 'Sun', far: true }, rate: YEAR * 1000 });
+  add({ id: 'rgb', hold: 8, t: ageT(RGB_TIP), title: 'The Sun at the tip of the red giant branch', text: 'Radius 256 times today\'s (1.2 AU), 2,700 times as bright, 0.67 solar masses after losing a third of its mass. Mercury and Venus are gone; Earth is very likely dragged in too.', view: { land: 'Mars', hour: 17 }, rate: YEAR * 1e5 });
+  add({ id: 'flash', hold: 6, t: ageT(RGB_TIP) + 3e5, title: 'The helium flash', text: 'Helium ignites in the degenerate core; within a million years the Sun shrinks to a 40 L☉ horizontal branch star.', view: { body: 'Sun' }, rate: YEAR * 1e4 });
+  add({ id: 'pn', hold: 15, t: ageT(PN_START), title: 'Planetary nebula', text: 'Thermal pulses on the asymptotic giant branch shed the Sun\'s envelope at ~20 km/s; within ten thousand years the exposed core is hotter than 50,000 K and lights the shell.', view: { pn: true }, rate: YEAR * 2000 });
   add({ id: 'wd', t: ageT(WD_START), title: 'The Sun is a white dwarf', text: 'An Earth-sized ember of carbon and oxygen, 0.54 solar masses, cooling for trillions of years.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
   add({ id: 'horizon', t: now + 1.5e11, est: true, title: 'The sky beyond the Local Group goes dark', text: 'Accelerating expansion carries every other galaxy beyond our event horizon; their light redshifts away.', view: { universe: true }, rate: YEAR * 1e9 });
   return ev.sort((a, b) => a.t - b.t);
@@ -105,6 +105,12 @@ export class Timeline {
   update(dt) {
     const nav = this.nav, tyr = nav.time / YEAR, prev = this.lastTyr; this.lastTyr = tyr;
     if (nav.paused || !nav.rate) return;
+    // after an event has played, go back to the rate the user had chosen (unless they changed it meanwhile)
+    const R = this.resume;
+    if (R) {
+      if (nav.rate !== R.set) this.resume = null;
+      else if ((nav.rate > 0 ? tyr >= R.e.t : tyr <= R.e.t)) { R.hold -= dt; if (R.hold <= 0) { nav.rate = R.rate; this.resume = null; this.ui.toast('Resuming ' + fmtRate(R.rate)); } }
+    }
     const fwd = nav.rate > 0;
     for (const e of this.events) {
       // announce events we just passed
@@ -112,16 +118,21 @@ export class Timeline {
       if (!this.auto) continue;
       const ahead = fwd ? e.t - tyr : tyr - e.t;
       const ryr = Math.abs(nav.rate) / YEAR, want = e.rate / YEAR;
+      // only events on the scale of the current rate: racing through billions of years skips a supernova
+      if (ryr > (e.maxRate || 3e10)) continue;
       if (ahead > 0 && ryr > want && ahead < ryr * 2.5) {
         // approach the event within ~2.5 s, never slower than its own rate
         const r = Math.max(want, ahead / 1.2);
-        if (r < ryr) nav.rate = Math.sign(nav.rate) * r * YEAR;
+        if (r < ryr) {
+          if (!this.resume || this.resume.e !== e) this.resume = { rate: (this.resume && this.resume.rate) || nav.rate, e, hold: e.hold || 5 };
+          nav.rate = Math.sign(nav.rate) * r * YEAR; this.resume.set = nav.rate;
+        }
       }
     }
   }
   // jump to just before an event and set up its view
   go(e) {
-    const nav = this.nav;
+    const nav = this.nav; this.resume = null;
     nav.time = (e.t - Math.min(e.rate / YEAR * 4, Math.max(1e-3, Math.abs(e.t) * 1e-9 + 0.02))) * YEAR;
     nav.rate = e.rate; nav.paused = false;
     this.fired.delete(e.id); this.lastTyr = nav.time / YEAR;

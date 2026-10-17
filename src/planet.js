@@ -614,7 +614,8 @@ export function planetState(body) {
   // the Sun's evolution changes Earth's surface (and the size of stars): rebake when it has moved on
   if (s && body.climate && s.climate && performance.now() - (s.born || 0) > 3000) { const a = body.climate, b = s.climate; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) { s.dispose(); states.delete(body.uid); s = null; } }
   if (s && body.kind === 'star' && s.bakeR && Math.abs(Math.log(body.radius / s.bakeR)) > 0.35 && performance.now() - (s.born || 0) > 1500) { s.dispose(); states.delete(body.uid); s = null; }
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; states.set(body.uid, s); }
+  if (s && body.kind === 'star' && body.surface && Math.abs((body.surface.spots || 0) - (s.bakeSpots || 0)) > 0.2 && performance.now() - (s.born || 0) > 5000) { s.dispose(); states.delete(body.uid); s = null; }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }

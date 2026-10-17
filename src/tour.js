@@ -42,11 +42,21 @@ export const STOPS = [
     run: (nav) => { nav.goTo(findByName(nav, 'Milky Way')); } },
   { title: 'Andromeda', text: 'The nearest large spiral, 765 kiloparsecs away, at its real position and inclination.',
     run: (nav) => { nav.goTo(findByName(nav, 'Andromeda')); } },
+  { title: 'Two black holes merge', text: 'Physics sandbox: 36 and 29 solar masses spiral together under general relativistic radiation reaction. The grid carries the real gravitational wave field; the scope shows the chirp. Slowed to a quarter of real time.',
+    run: (nav, ui) => { ui.sbui.start(0); ui.sbui.panel.classList.remove('hidden'); }, wait: 22 },
+  { title: 'Betelgeuse explodes', text: 'About 100,000 years from now (an estimate), Orion\'s red supergiant becomes a supernova 170 parsecs away: brighter than the half Moon, visible by day for months.',
+    run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); const e = ui.timeline.events.find(x => x.id === 'betelgeuse'); ui.timeline.go(e); }, wait: 14 },
+  { title: 'The Sun\'s orbit around the Galaxy', text: 'One galactic year is about 220 million years. The Sun bobs through the disk as it goes; the spiral pattern turns more slowly than the stars.',
+    run: (nav, ui) => { const e = ui.timeline.events.find(x => x.id === 'galyear'); ui.timeline.go(e); nav.time -= 2e8 * 31557600; nav.rate = 31557600 * 2e7; } , wait: 12 },
+  { title: 'Andromeda collides with the Milky Way', text: 'A 65,536 particle N-body simulation with dynamical friction: first passage in about 3.8 billion years, tidal tails, a second passage, and one elliptical galaxy by 6 billion years.',
+    run: (nav, ui) => { const e = ui.timeline.events.find(x => x.id === 'm31'); ui.timeline.go(e); nav.time -= 2e8 * 31557600; nav.rate = 31557600 * 6e7; }, wait: 16 },
+  { title: 'The Sun as a red giant', text: 'In 7.6 billion years the Sun is 256 times its present size and 2,700 times as bright. From the surface of Mars it fills a third of the sky, and the rocks glow.',
+    run: (nav, ui) => { const e = ui.timeline.events.find(x => x.id === 'rgb'); ui.timeline.go(e); nav.paused = true; }, wait: 12 },
 ];
 
 export class Tour {
   constructor(nav, ui) { this.nav = nav; this.ui = ui; this.i = -1; this.active = false; this.t = 0; this.wait = 0; }
-  start() { this.active = true; this.i = -1; this.defaultFov = this.nav.fov > 0.3 ? this.nav.fov : 55 * Math.PI / 180; this.next(); }
+  start() { this.active = true; this.i = -1; this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; this.defaultFov = this.nav.fov > 0.3 ? this.nav.fov : 55 * Math.PI / 180; this.next(); }
   stop() { this.active = false; this.ui.caption(null); }
   next() {
     this.i++;
@@ -54,7 +64,7 @@ export class Tour {
     const s = STOPS[this.i];
     // every stop starts from a normal view (eclipse stops zoom in)
     this.nav.fov = this.defaultFov || (this.defaultFov = 55 * Math.PI / 180); this.nav.lookTarget = null; this.nav.onArrive = null; this.nav.orbit = null;
-    try { s.run(this.nav); } catch (e) { console.warn('tour stop failed', s.title, e); }
+    try { s.run(this.nav, this.ui); } catch (e) { console.warn('tour stop failed', s.title, e); }
     this.t = 0; this.wait = 0;
     this.ui.caption(s.title, s.text, this.i + 1, STOPS.length);
   }
@@ -63,6 +73,6 @@ export class Tour {
     this.t += dt;
     // stay a while after arriving, then move on
     if (!this.nav.goto && !this.nav.pendingLand) this.wait += dt;
-    if (this.wait > 9) this.next();
+    if (this.wait > (STOPS[this.i] && STOPS[this.i].wait || 9)) this.next();
   }
 }

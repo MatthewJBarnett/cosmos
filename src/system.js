@@ -203,7 +203,11 @@ export class StarSystem {
       const ss = sunState(tyr), sun = this.root;
       this.sunState = ss;
       sun.radius = ss.R * C.Rsun; sun.lum = ss.L; sun.temp = ss.T; sun.mass = ss.M * C.Msun; sun.cls = ss.phase === 'Main sequence (G2V)' ? 'G2V' : ss.phase;
-      sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.5; sun.whiteDwarf = ss.R < 0.05;
+      // the 11 year activity cycle (minimum December 2019): sunspots and the aurora follow it
+      const act = Math.sin(Math.PI * (tyr - 19.95) / 11.0) ** 2;
+      this.activity = act;
+      sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.12 + 0.88 * act; sun.whiteDwarf = ss.R < 0.05;
+      const earthB = this.root.children.find(b => b.name === 'Earth'); if (earthB) earthB.aurora = 0.35 + 0.9 * act;
       oScale = orbitScale(tyr); mScale = moonScale(tyr);
       let changed = false;
       for (const b of this.root.children) if (b.kind !== 'barycenter') { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) c.gone = g; }

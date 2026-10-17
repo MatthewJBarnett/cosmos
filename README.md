@@ -59,6 +59,8 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
+| U | Timeline of future events (Betelgeuse, Andromeda, the Sun's death...) with Go buttons |
+| V | Physics sandbox: black holes, neutron stars, stars and planets under full gravity |
 | B | Save the current view (Saved menu) |
 | Tab | System browser |
 | O, N, K | Orbits, labels, constellation figures |
@@ -71,6 +73,52 @@ On touch screens: one finger looks around, pinch moves toward or away from the s
 
 The Places menu jumps to planets, exoplanet systems, nebulae, black holes and galaxies. Explore finds a random star,
 an Earth-like planet with life, a ringed planet, a giant star or another galaxy. The Saved menu keeps views you save with B.
+
+## Physics and deep time
+
+The clock runs from slow motion (1/1000) to 10 billion years per second (the Rate menu, or `,` and `.`), from the
+Big Bang to 100 trillion years from now. The Timeline (U) lists what happens on the way and slows the clock down
+for each event (untick "Slow down for events" to race through). Dates marked "estimate" are uncertain in reality.
+
+- **Physics sandbox (V):** pick a scenario or place bodies yourself (click to place on a circular orbit, drag to
+  give a velocity). Gravity is N-body with post-Newtonian corrections for every pair: 1PN (precession, the
+  innermost stable orbit) and 2.5PN radiation reaction, which shrinks orbits exactly as the Peters formula says.
+  Black hole mergers use numerical relativity fits for the radiated energy, final spin, recoil kick and the
+  ringdown frequency and damping (GW150914-like masses give 61.9 M☉, spin 0.68, 3.1 M☉ radiated, 275 Hz,
+  as measured). The scope shows the strain h₊ at 100 Mpc from the quadrupole formula; Sound plays the chirp.
+  The spacetime grid shows each mass's well plus the actual retarded wave field (read at t − r/c), and is bent
+  by the black holes' lensing. Neutron star mergers collapse to a black hole and make a kilonova; stars that pass
+  inside a black hole's tidal radius are shredded into debris that falls back at the t^−5/3 rate and lights an
+  accretion disk. Stars that touch merge. Time runs backwards too (snapshots, then re-integration).
+- **Moving stars:** catalogue stars follow their measured space velocities (Barnard's Star passes 3.75 ly from
+  the Sun in 11,700 years, Alpha Centauri 2.9 ly in 27,600 years, Gliese 710 crosses the Oort cloud in 1.3 Myr),
+  so constellations distort; procedural stars stream through the rotating spiral pattern with the Galaxy's
+  rotation curve and their own random motions. After a few million years the catalogue fades into the field.
+- **The Sun's galactic orbit:** an epicyclic orbit (period 218 Myr, ±290 pc in radius, ±92 pc vertically) drawn
+  at galaxy level; the spiral pattern turns at 25 km/s/kpc, the stars faster, the Solar System keeps its own
+  inertial orientation.
+- **Supernovae:** massive procedural stars live, explode and are replaced, with light-travel delay, Type II-P
+  and Ib/c light curves averaged over each frame (a one-year flash still registers at a million years per
+  second), and remnants that expand (free expansion, then Sedov-Taylor) and fade. Betelgeuse (estimated
+  100,000 years) and Antares (estimated 600,000 years) explode on schedule: from Earth Betelgeuse peaks at
+  magnitude −11. Real nebulae age: the Crab and Veil expand and fade, H II regions disperse in a few Myr.
+- **Variable stars:** Algol's eclipses, Mira, Beta Lyrae, Epsilon Aurigae's two-year eclipse every 27 years,
+  Zeta Geminorum (a Cepheid) and Betelgeuse's semi-regular pulsation.
+- **The Sun's life:** a solar evolutionary track (Sackmann et al. 1993; Schröder & Smith 2008): brightening on
+  the main sequence, subgiant, red giant tip at 256 R☉ and 2,700 L☉, the helium flash, horizontal branch,
+  AGB, a planetary nebula lit by the contracting core, and a cooling white dwarf. Mass loss widens the planets'
+  orbits; Mercury, Venus and Earth are engulfed. The 11-year activity cycle changes sunspots and aurorae.
+- **Earth and Moon over time:** precession of the axis (Vega is the pole star in 13,700 CE) and the 41,000 year
+  obliquity cycle; tidal recession of the Moon (total solar eclipses end in ~600 Myr) and the lengthening day;
+  a brightening Sun dries the oceans (exposing the real sea floor), kills the biosphere and, near the red
+  giant tip, heats rock until it glows (Mars too).
+- **Andromeda:** M31's orbit (765 kpc, −109 km/s, dynamical friction) gives a first passage at 3.7 Gyr
+  (35 kpc), a second at 5.2 Gyr and a merger at 5.9 Gyr, close to van der Marel et al. 2012. From 2.6 Gyr the
+  two galaxies are a 65,536 particle restricted N-body simulation on the GPU (leapfrog, time reversible); the
+  Sun is a tracer particle, so you can watch the sky from the Solar System as Andromeda arrives.
+- **Expanding universe:** flat ΛCDM (Planck 2018). Galaxies beyond the Local Group are seen with light travel
+  time: they shrink, redden and dim with (1+z)⁴ as they recede, and freeze at our event horizon; after ~150 Gyr
+  nothing beyond the Local Group is visible. The HUD shows the age of the universe and the CMB temperature.
 
 ## What is simulated
 
