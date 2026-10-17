@@ -100,7 +100,13 @@ export function earthClimate(tyr) {
   const dry = clamp((S - 1.09) / 0.12, 0, 1), life = 1 - clamp((S - 1.05) / 0.06, 0, 1);
   const Teq = 255 * Math.pow(S, 0.25) * (dry > 0.5 ? 1.25 : 1);     // with a thick steam / CO2 greenhouse
   const ice = 1 - clamp((S - 1.02) / 0.05, 0, 1);
-  return { S, dry, life, Teq, ice, glow: clamp((Teq - 900) / 900, 0, 1) };
+  // the deep past: land plants spread from ~470 Myr ago (forests ~385 Myr): before that the continents are bare rock
+  // and soil; the Cryogenian "Snowball Earth" glaciations (~717-660 and ~650-635 Myr ago) froze the planet to the
+  // equator; in its first ~100 Myr the surface was a magma ocean
+  const landLife = clamp((tyr + 4.7e8) / 8.5e7, 0, 1);
+  const snowball = tyr > -7.17e8 && tyr < -6.35e8 && !(tyr > -6.6e8 && tyr < -6.5e8) ? 1 : 0;
+  const magma = clamp((-4.47e9 - tyr) / 3e7, 0, 1);
+  return { S, dry, life: life * landLife, Teq, ice, glow: clamp((Teq - 900) / 900, 0, 1), snowball, magma };
 }
 export function planetTeq(name, tyr, albedo = 0.3, aAU) {
   const s = sunState(tyr), a = aAU * orbitScale(tyr);

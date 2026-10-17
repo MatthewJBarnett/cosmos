@@ -151,6 +151,11 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   real continental shelves (Beringia, Doggerland, Sundaland). It peaks 18,000 years ago and is clear by 9,000
   years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
   years by human CO₂).
+- **Earth's deep past:** before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
+  (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; the young
+  Sun is fainter, the day shorter and the Moon closer. (Continents keep today's shapes beyond 50 Myr back.)
+- **Variable stars everywhere:** besides the named ones, about one luminous cool giant in ten is a Mira (150-500 day
+  periods, several magnitudes) and a third of yellow supergiants are Cepheids (3-50 days).
 - **Drifting continents:** Earth's plates (Bird 2003 outlines) turn about their present Euler poles (NNR-NUVEL-1A):
   the Atlantic widens, Australia heads for Southeast Asia, the Pacific shrinks; gaps between diverging plates fill
   with new sea floor. Present motions are extrapolated to +100 Myr (and back to -50 Myr), then held.

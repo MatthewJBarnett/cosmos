@@ -171,6 +171,8 @@ void main(){
       // Patagonian ice cap along the southern Andes
       cov = max(cov, smoothstep(-0.8, 0.8, mix(-56., -39., min(uIceAge.x, 1.)) - latD + nz*0.5)*smoothstep(-77., -74., lonD)*smoothstep(-68., -71., lonD)*step(0.05, uIceAge.x));
       cov *= smoothstep(0., 0.05, uIceAge.x);
+      // Snowball Earth: sea ice and glaciers to the equator (a little open slush water in the tropics)
+      if (uIceAge.x > 2.5) cov = max(cov, smoothstep(2., 10., abs(latD) + nz*2.));
       vec3 iceC = vec3(0.72, 0.77, 0.84)*(0.92 + 0.16*texture(uNoise3, dir*23.).b);
       alb.rgb = mix(alb.rgb, iceC, cov); water *= 1. - cov; depth *= 1. - cov;
     }
