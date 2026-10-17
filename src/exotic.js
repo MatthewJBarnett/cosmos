@@ -329,6 +329,10 @@ export const REAL_NEBULAE = [ORION,
   (() => { const d = galDir(184.56, -5.78); return { pos: V.addm(SUN_POS, d, 2000), radius: 1.7, type: 2, seed: 2.2, name: 'Crab Nebula', colA: [1.0, 0.45, 0.25], colB: [0.35, 0.7, 1.0], lum: 250, life: 4e4, age: 970 }; })(),
   (() => { const d = galDir(74.0, -8.6); return { pos: V.addm(SUN_POS, d, 740), radius: 18, type: 2, seed: 6.4, name: 'Veil Nebula', colA: [1.0, 0.3, 0.3], colB: [0.3, 0.75, 1.0], lum: 30, life: 6e4, age: 15000 }; })(),
   (() => { const d = galDir(287.6, -0.6); return { pos: V.addm(SUN_POS, d, 2600), radius: 35, type: 0, seed: 8.8, name: 'Carina Nebula', colA: [1.0, 0.3, 0.33], colB: [0.9, 0.5, 0.4], lum: 45, life: 3e6 }; })(),
+  // remnants of the historical supernovae (age in years at J2000; they appear when they exploded)
+  ...[['Cassiopeia A', 111.73, -2.13, 3400, 2.5, 320, 200], ["Tycho's supernova remnant", 120.1, 1.4, 2500, 2.9, 428, 120], ["Kepler's supernova remnant", 4.5, 6.8, 5000, 2.5, 396, 120],
+    ['SN 1006 remnant', 327.6, 14.6, 2200, 9.6, 994, 40], ['RCW 86 (SN 185)', 315.4, -2.3, 2800, 16, 1815, 25]]
+    .map(([name, l, b, dist, radius, age, lum], k) => ({ pos: V.addm(SUN_POS, galDir(l, b), dist), radius, type: 2, seed: 11.3 + k * 3.1, name, colA: [1.0, 0.4, 0.35], colB: [0.35, 0.7, 1.0], lum, life: 6e4, age, far: true })),
 ];
 export function nebulaeNear(galaxy, cam, dens) {
   const out = galaxy === MILKY_WAY ? REAL_NEBULAE.concat(globularNebulae(world.tyr)) : [];

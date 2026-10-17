@@ -10,6 +10,7 @@ const lgo = await imp('lgorbit.js');
 const tl = await imp('timeline.js');
 const { galDir } = await imp('universe.js');
 const { EXTRA_STARS } = await imp('realsystems.js');
+const sysm = await imp('system.js');
 
 let pass = 0, fail = 0;
 function check(name, val, ref, tol, unit = '') {
@@ -115,6 +116,10 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
     check('Laschamp excursion field strength (41 kyr ago)', g(-41000).B, '~0.05-0.1 of today', (v) => v < 0.15);
     check('Solar cycle 19 (1958) vs cycle 24 (2014) strength', evo.solarActivity(-41.8) / evo.solarActivity(14.3), '~2.5 (SSN 285 vs 116)', (v) => v > 2 && v < 3);
     check('Maunder minimum activity (1680)', evo.solarActivity(-320), '~0', (v) => v < 0.05); }
+  { const C_AU = 1.495978707e11, YR = 3.15576e7, o = { a: 17.834 * C_AU, e: 0.96714, inc: 0, node: 0, argp: 0, M0: 0, period: 75.32 * YR };
+    const r = (y) => { sysm.halleyOrbit(o, y); const p = sysm.keplerPos(o, (y - 2000) * YR); return Math.hypot(...p) / C_AU; };
+    check("Halley at perihelion, 20 March 1066 / 20 April 1910 (AU)", Math.max(r(1066.23), r(1910.30)), '0.59 (q)', (v) => v < 0.62, ' AU');
+    check('Halley far from the Sun in 1948 (AU)', r(1948.1), '~35 (aphelion 1948)', (v) => v > 30, ' AU'); }
   check('LMC merges with the Milky Way (Gyr)', lgo.LMC_ORBIT.merged / 1e3, '2.4 +- 0.8 (Cautun et al. 2019)', (v) => v > 1.6 && v < 3.2);
   check('LMC distance 1.5 Gyr ago (kpc)', Math.hypot(...lgo.lmcAt(-1500)), '> 200 (first infall)', (v) => v > 200, ' kpc');
   check("Sun's vertical period (Myr)", gd.SUN_ORBIT.verticalYr / 1e6, '~70-90 Myr', (v) => v > 60 && v < 95);

@@ -12,11 +12,14 @@ let last = null;
 // textures for an epoch (Myr ago), or the last complete pair while new slices load
 export function paleoState(myr) {
   if (!index || !index.length) return last;
-  myr = Math.min(Math.max(myr, 0), PALEO_END);
+  const req = myr; myr = Math.min(Math.max(myr, 0), PALEO_END);
   let i = 0; while (i < index.length - 2 && index[i + 1][0] < myr) i++;
   const a = tex(i), b = tex(i + 1), k = Math.min(Math.max((myr - index[i][0]) / (index[i + 1][0] - index[i][0]), 0), 1);
   // look ahead: the next slices in either direction
   if (i > 0) tex(i - 1); if (i + 2 < index.length) tex(i + 2);
-  if (a.ready && b.ready) last = { a: a.tex, b: b.tex, k, myr };
+  if (a.ready && b.ready) last = { a: a.tex, b: b.tex, k, myr: req };
   return last;
 }
+// Before the oldest map: continents were smaller (continental crust grew through the Archean and Proterozoic), so the
+// oldest map is drowned progressively, leaving a few emergent cratons ~3.5 Gyr ago (metres of relative sea level)
+export function paleoSeaRise(myr) { return myr <= PALEO_END ? 0 : Math.min(1800, 0.45 * (myr - PALEO_END) * Math.min(1, (myr - PALEO_END) / 1500)); }

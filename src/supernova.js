@@ -5,6 +5,7 @@ import { V, Q, C } from './math.js';
 import { world, SN_CLASSES, SN_LIVE, YEAR, KMS_PCYR } from './galdyn.js';
 import { catalog } from './assets.js';
 import { bbColor } from './stars.js';
+import { galDir } from './universe.js';
 
 const LY_PER_PC = 3.2616;
 const DAY = 1 / 365.25;
@@ -72,6 +73,20 @@ export const SCHEDULED = [
   { name: 'Mimosa', tObs: 3.0e6 },
   { name: 'Spica', tObs: 4.0e6 },
 ];
+
+// Supernovae recorded in history: [name, galactic l, b (deg), distance (pc), date of maximum seen from Earth (year CE),
+// peak apparent magnitude as recorded (dust included), type Ia?]. SN 1006 was the brightest star ever recorded;
+// the Crab's was seen in daylight for 23 days; Tycho's (1572) and Kepler's (1604) were studied by their namesakes.
+export const HISTORICAL = [
+  ['SN 185', 315.4, -2.3, 2800, 185.95, -6, true], ['SN 1006', 327.6, 14.6, 2200, 1006.33, -7.5, true],
+  ['SN 1054 (the Crab)', 184.56, -5.78, 2000, 1054.51, -6, false], ['SN 1181', 130.73, 3.07, 3200, 1181.6, 0, false],
+  ["Tycho's supernova (SN 1572)", 120.1, 1.4, 2500, 1572.86, -4, true], ["Kepler's supernova (SN 1604)", 4.5, 6.8, 5000, 1604.78, -2.5, true],
+].map(([name, l, b, d, year, mPeak, ia]) => ({ name, dir: galDir(l, b), d, year, mPeak, ia }));
+// magnitudes relative to maximum, days after maximum: Type Ia (rise ~18 days, then the Phillips decline) or II-P
+function dmHist(day, ia) {
+  if (ia) { if (day < -18) return 99; if (day < 0) return 3 * (day / 18) ** 2; if (day < 15) return 1.1 * day / 15; if (day < 42) return 1.1 + 1.5 * (day - 15) / 27; return 2.6 + 0.015 * (day - 42); }
+  return magIIP(day + 12) + 17.1;
+}
 
 const remnantCache = new Map();
 function remnant(key, pos, age, seed) {
@@ -144,6 +159,15 @@ export function updateSupernovae(field, camLocal, gq) {
       }
       if (ts < 2e5) { const nb = remnant('cat:' + sn.i, q.slice(), Math.max(ts, 0.01), 1.3 + j); nb.name = sn.name + ' supernova remnant'; out.remnants.push(nb); }
     });
+  }
+  // historical supernovae, placed relative to the Sun (their light reaches it at the recorded dates)
+  if (win < 0.3 && Math.abs(tyr - 0) < 3000) for (const h of HISTORICAL) {
+    const p = [world.sunP[0] + h.dir[0] * h.d, world.sunP[1] + h.dir[1] * h.d, world.sunP[2] + h.dir[2] * h.d];
+    const rx = p[0] - camLocal[0], ry = p[1] - camLocal[1], rz = p[2] - camLocal[2], dist = Math.hypot(rx, ry, rz);
+    const day = (tyr - (h.year - 2000) + (h.d - dist) * LY_PER_PC) * 365.25;
+    if (day < -20 || day > 1500) continue;
+    const m = h.mPeak + dmHist(day, h.ia) + 5 * Math.log10(Math.max(dist, 1e-6) / h.d);
+    if (m < 9) out.points.push({ dir: Q.rot(gq, [rx, ry, rz]), color: colorAt(Math.max(day, 0) + (h.ia ? 20 : 12), false), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist, name: h.name });
   }
   out.points.sort((a, b) => a.m - b.m);
   if (out.points.length > 64) out.points.length = 64;

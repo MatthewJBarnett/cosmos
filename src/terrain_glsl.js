@@ -69,6 +69,7 @@ vec3 plateSrc(vec3 P){
 // ---- paleogeography (Earth before ~3 Myr ago): PALEOMAP elevation grids (Scotese & Wright 2018), 1 degree, every
 // 5 Myr back to 540 Myr; two neighbouring epochs are blended. 361 x 181 nodes, 16-bit heights in R and G (-8 .. +8 km).
 uniform float uPaleo, uPaleoK; uniform sampler2D uPalA, uPalB;
+uniform vec2 uPaleoClim;   // x: global mean temperature minus today's (C); y: sea level rise over the map (m)
 float palTexel(sampler2D s, ivec2 i){ i.x = (i.x % 360 + 360) % 360; i.y = clamp(i.y, 0, 180); vec3 c = texelFetch(s, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.*16000. - 8000.; }
 float palCubic(sampler2D s, vec2 uv){
   vec2 p = uv*vec2(360., 180.); vec2 i = floor(p), f = p - i;
@@ -151,7 +152,7 @@ float craters(vec3 d){
 float terrainMapped(vec3 d, vec3 P){
   vec2 uv = mapUV(uPaleo > 0.5 ? P : plateSrc(P));
   // (new sea floor: young, hot crust sits high, ~2.6 km deep at the ridge)
-  float hm = uPaleo > 0.5 ? paleoHeight(P) : gFreshCrust > 0.5 ? -2700. + fbm(2, 7, 77u, d, 0.6)*300. : heightMap(uv);
+  float hm = uPaleo > 0.5 ? paleoHeight(P) - uPaleoClim.y : gFreshCrust > 0.5 ? -2700. + fbm(2, 7, 77u, d, 0.6)*300. : heightMap(uv);
   float land = 1.;
   if (uPaleo > 0.5) {
     // the 1 degree grid is smooth: add relief between ~100 km and the detail octaves (ridged in mountain belts),
@@ -341,7 +342,6 @@ vec3 albedoFromMap(vec3 lin){
 // Ground cover on the paleo-continents, from a simple climate: sea-level temperature by latitude (warmer worlds
 // warm the poles most), lapse rate with height; rain from the Hadley / Ferrel cells (wet tropics and mid-latitudes, dry
 // subtropics and poles) reduced in continental interiors (fraction of ocean within ~800 km).
-uniform vec2 uPaleoClim;   // x: global mean temperature minus today's (C)
 vec3 paleoAlbedo(vec3 P, float h, vec3 d){
   float sl = P.y*P.y, latD = degrees(asin(clamp(abs(P.y), 0., 1.))), an = uPaleoClim.x;
   float T = 28. - 45.*sl + an*(1. + 1.5*sl) - max(h, 0.)*0.0065;
@@ -349,7 +349,7 @@ vec3 paleoAlbedo(vec3 P, float h, vec3 d){
   vec2 uv = mapUV(P); ivec2 c = ivec2(uv*vec2(360., 180.) + 0.5); float sea = 0.;
   for (int k = 0; k < 8; k++) {
     float a = float(k)*0.7854; ivec2 o = ivec2(round(vec2(cos(a), sin(a))*7.));
-    float z = mix(palTexel(uPalA, c + o), palTexel(uPalB, c + o), uPaleoK), w = latD < 33. ? 1. + 0.8*cos(a) : 1. - 0.8*cos(a);
+    float z = mix(palTexel(uPalA, c + o), palTexel(uPalB, c + o), uPaleoK) - uPaleoClim.y, w = latD < 33. ? 1. + 0.8*cos(a) : 1. - 0.8*cos(a);
     sea += z < 0. ? w*0.125 : 0.;
   }
   float wet = 0.95*exp(-pow(latD/14., 2.)) + 0.75*exp(-pow((latD - 50.)/(17. + max(an, 0.)), 2.)) + 0.2 + 0.012*an - 0.25*exp(-pow((latD - 25.)/8., 2.));

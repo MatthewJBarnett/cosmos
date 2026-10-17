@@ -361,6 +361,12 @@ export class StarSystem {
         const ns = clamp(sz, -1, 1);       // +1 northern summer solstice
         mars.caps = [72 + 12 * ns, -(72 - 14 * ns)];
       }
+      // global dust storms: dust lifted near perihelion (southern summer) can spread around the planet in two weeks and
+      // hide the surface for months (optical depth ~0.5 -> 5+). The observed ones: 1971 (Mariner 9 arrived in it), two
+      // in 1977, 1982, 2001, 2007 and 2018 (which ended the Opportunity rover); elsewhere about one Mars year in three.
+      if (mars) mars.dust = marsDust(2000 + tyr);
+      // Halley's comet returns on its real dates (planetary perturbations make the period 74-79 years)
+      { const h = all.find(b => b.name === "Halley's Comet"); if (h) halleyOrbit(h.orbit, 2000 + tyr); }
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
       // Comet Shoemaker-Levy 9's fragments (G, K, L, H, Q1, R hit hardest) struck Jupiter at 44 S on 16-22 July 1994;
       // their dark scars, larger than Earth, spread and faded over months (System II longitudes; fresh scar w -> 0)
@@ -901,6 +907,25 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
 
 // ---------- Info helpers ----------
 export function surfaceGravity(b) { return b.radius > 0 ? C.G * b.mass / (b.radius * b.radius) : 0; }
+// perihelion passages of Halley's comet (Yeomans & Kiang 1981; astronomical years, so 240 BC is -238.6): 1066 is
+// the one on the Bayeux Tapestry, 1301 the star of Giotto's Adoration, 1759 the return Halley predicted
+const HALLEY_TP = [-238.6, -162.14, -85.4, -10.23, 66.07, 141.22, 218.37, 295.3, 374.12, 451.49, 530.71, 607.21, 684.78, 760.39, 837.16,
+  912.53, 989.7, 1066.23, 1145.3, 1222.7, 1301.82, 1378.86, 1456.44, 1531.65, 1607.82, 1682.7, 1759.2, 1835.88, 1910.3, 1986.11, 2061.56, 2134.24];
+export function halleyOrbit(o, y) {
+  let i = HALLEY_TP.findIndex((tp, k) => k < HALLEY_TP.length - 1 && y >= tp && y < HALLEY_TP[k + 1]);
+  if (i < 0) i = y < HALLEY_TP[0] ? 0 : HALLEY_TP.length - 2;   // (outside the record: the nearest orbit, repeated)
+  if (o._hi === i) return; o._hi = i;
+  const P = HALLEY_TP[i + 1] - HALLEY_TP[i];
+  o.period = P * C.YEAR; o.a = 17.834 * C.AU * Math.pow(P / 75.32, 2 / 3);
+  o.M0 = -2 * Math.PI * ((((HALLEY_TP[i] - 2000) / P) % 1) );
+}
+const MARS_STORMS = [1971.72, 1977.13, 1977.40, 1982.80, 2001.47, 2007.47, 2018.41];
+export function marsDust(y) {
+  const level = (t0) => { const d = (y - t0) * 365.25; return d < 0 || d > 220 ? 0 : d < 15 ? d / 15 : Math.exp(-(d - 15) / 55); };
+  if (y > 1960 && y < 2030) { let L = 0; for (const t0 of MARS_STORMS) L = Math.max(L, level(t0)); return L; }
+  const n = Math.floor((y - 2020.59 + 0.3) / 1.8808), h = Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1;
+  return h < 0.33 ? level(2020.59 + n * 1.8808 - 0.12 + 0.25 * ((h * 7.3) % 1)) : 0;
+}
 export function describeBody(b) {
   const rows = [];
   const fmt = (x, d = 3) => x === 0 ? '0' : (Math.abs(x) >= 1e5 || Math.abs(x) < 1e-3 ? x.toExponential(d - 1) : (+x.toPrecision(d)).toString());
@@ -936,6 +961,7 @@ export function describeBody(b) {
       rows.push(['Atmosphere', 'N2 ' + f(Math.max(0, 0.99 - b.air.o2 - b.air.co2)) + ', O2 ' + (b.air.o2 > 0 ? f(b.air.o2) : 'none') + ', CO2 ' + (ppm < 10000 ? ppm.toLocaleString('en') + ' ppm' : f(b.air.co2))]);
     } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P / 101325) + ' atm']); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
+    if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }

@@ -528,13 +528,16 @@ function init() {
 export function atmoUniforms(body) {
   const a = body.atmo, s = body.surface;
   const R0 = body.radius, Rg = R0 + Math.min(0, (s.hmin || 0) * 0.5);
-  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh, aHR: a.hR, aMieS: a.mieS, aMieA: a.mieA, aHM: a.hM, aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
+  // (a dust storm multiplies the dust and lifts it higher)
+  const dq = Math.round((body.dust || 0) * 10) / 10, k = 1 + 8 * dq;
+  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh, aHR: a.hR, aMieS: a.mieS.map(x => x * k), aMieA: a.mieA.map(x => x * k), aHM: a.hM * (1 + 1.2 * dq), aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
 }
 
 const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y,-Y,+Z,-Z)
   [0, 0, -1, 0, -1, 0, 1, 0, 0], [0, 0, 1, 0, -1, 0, -1, 0, 0], [1, 0, 0, 0, 0, 1, 0, 1, 0], [1, 0, 0, 0, 0, -1, 0, -1, 0], [1, 0, 0, 0, -1, 0, 0, 0, 1], [-1, 0, 0, 0, -1, 0, 0, 0, -1]];
 export { CUBE_FACES };
 
+const paleoCloudKey = (body) => body.paleoMyr > 0 ? Math.floor(body.paleoMyr / 50) + 1 : 0;
 function buildCloudCube(body, l) {
   const c = body.atmo.clouds, S = atmoCfg.cloudRes;
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
@@ -546,6 +549,10 @@ function buildCloudCube(body, l) {
     if (e.ready) { ct = e.tex; const r = (body.uid * 0.6180339) % 1; lonOff = r; flip = body.uid % 2 ? -1 : 1; bias = (c.cover - 0.5) * 0.45; }
     else if (!l.waitClouds) { l.waitClouds = true; e.promise.then(() => { l.mapsVersion = -1; }); }
   }
+  // (Earth's own cloud map follows today's geography: in the deep past, shift it so the cloud bands don't trace the
+  // modern continents; a different shift every 50 Myr)
+  l.palCl = paleoCloudKey(body);
+  if (ms && ct && l.palCl) { lonOff = (l.palCl * 0.6180339) % 1; flip = l.palCl % 2 ? -1 : 1; }
   l.mapsVersion = l.mapsVersion === -1 && ct ? -2 : (body.mapsVersion || 0);
   if (!l.cloud) l.cloud = texCube(S, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
   gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
@@ -572,10 +579,13 @@ function getDummy2D() { if (!dummy2D) dummy2D = tex2D(1, 1, gl.RGBA8, gl.RGBA, g
 export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
-  if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)))) { buildCloudCube(body, l); }
+  // (dusty atmospheres are rebuilt when the dust load changes by a step)
+  const dq = Math.round((body.dust || 0) * 10);
+  if (l && (l.dq || 0) !== dq) { gl.deleteTexture(l.trans); gl.deleteTexture(l.multi); gl.deleteTexture(l.irr); if (l.cloud) gl.deleteTexture(l.cloud); luts.delete(body.uid); l = null; }
+  if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)) || (l.palCl || 0) !== paleoCloudKey(body))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
   const u = atmoUniforms(body);
-  l = { uniforms: u, last: performance.now() };
+  l = { uniforms: u, last: performance.now(), dq };
   l.trans = tex2D(256, 64, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
   l.multi = tex2D(32, 32, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
   l.irr = tex2D(64, 1, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);

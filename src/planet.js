@@ -9,7 +9,7 @@ import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 import { bodyMaps, loadTexture } from './assets.js';
 import { plateInverse } from './tectonics.js';
-import { paleoState } from './paleo.js';
+import { paleoState, paleoSeaRise } from './paleo.js';
 
 export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1, trees: true, treeRange: 1800, treeBudget: 60000 };
 const FACES = [
@@ -607,7 +607,7 @@ class PlanetState {
     this.paleoMyr = pal ? pal.myr : 0;
     this.drift = dOn && !pal ? drift : 0;
     prog.set({ uDrift: this.drift, uPlates: dOn && !pal ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift),
-      uPaleo: pal ? 1 : 0, uPaleoK: pal ? pal.k : 0, uPalA: pal ? pal.a : dummyTex(), uPalB: pal ? pal.b : dummyTex(), uPaleoClim: [pal && this.body.meanT ? this.body.meanT - 287.6 : 0, 0] });
+      uPaleo: pal ? 1 : 0, uPaleoK: pal ? pal.k : 0, uPalA: pal ? pal.a : dummyTex(), uPalB: pal ? pal.b : dummyTex(), uPaleoClim: [pal && this.body.meanT ? this.body.meanT - 287.6 : 0, pal ? paleoSeaRise(this.body.paleoMyr) : 0] });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
