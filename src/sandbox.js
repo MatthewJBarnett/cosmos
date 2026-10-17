@@ -108,7 +108,7 @@ export const PRESETS = [
       const vinf = 4e3, vimp = Math.sqrt(vinf * vinf + 2 * G * M / d), L = d * vimp * Math.SQRT1_2, D = 7 * R1;
       const vD = Math.sqrt(vinf * vinf + 2 * G * M / D), vt = L / D, vr = -Math.sqrt(vD * vD - vt * vt);
       const r = [D * 0.8, 0, D * 0.6], rh = r.map(x => x / D), th = [-rh[2], 0, rh[0]], u = rh.map((x, k) => x * vr + th[k] * vt);
-      sim.add(makeBody('planet', m1, r.map(x => -x * m2 / M), u.map(x => -x * m2 / M), { name: 'Proto-Earth' }));
+      sim.add(makeBody('planet', m1, r.map(x => -x * m2 / M), u.map(x => -x * m2 / M), { name: 'Proto-Earth', surf: 'lava' }));
       sim.add(makeBody('planet', m2, r.map(x => x * m1 / M), u.map(x => x * m1 / M), { name: 'Theia' }));
       return { rate: 20, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
     } },
@@ -239,7 +239,8 @@ export class Sandbox {
     else if (pb.kind === 'star') { const s = msStar(pb.m); s.radius = pb.R; b = makeStarBody(s, pb.name, rng); b.rotPeriod = 25 * DAY; }
     else {
       b = mkBody({ name: pb.name, kind: 'planet', cls: pb.m > 50 * C.Mearth ? 'Gas giant' : 'Rocky planet', mass: pb.m, radius: pb.R, albedo: 0.3, temp: 250, rotPeriod: pb.rotP || 20 * 3600, tilt: 10 });
-      b.surface = pb.m > 50 * C.Mearth ? { gen: 'gas', seed: [1, 2, 3], freq: 1, pal: [[0.62, 0.5, 0.36], [0.8, 0.74, 0.62], [0.45, 0.26, 0.14], [0.88, 0.84, 0.76]], bands: 8, bandStr: 1, turb: 1, storms: 0.5, hmin: 0, hmax: 0, lunar: 0, emis: 0 } : surfacePreset('selena', rng, b);
+      b.surface = pb.m > 50 * C.Mearth ? { gen: 'gas', seed: [1, 2, 3], freq: 1, pal: [[0.62, 0.5, 0.36], [0.8, 0.74, 0.62], [0.45, 0.26, 0.14], [0.88, 0.84, 0.76]], bands: 8, bandStr: 1, turb: 1, storms: 0.5, hmin: 0, hmax: 0, lunar: 0, emis: 0 } : surfacePreset(pb.surf || 'selena', rng, b);
+      if (pb.surf === 'lava') { b.surface.tempEq = 1400; b.albedo = 0.08; }
     }
     b.baseLum = b.lum; b.sandbox = true; b.children = []; b.parent = null; b.system = this; b.depth = 0;
     b.pole = [0, 1, 0]; b.axisQ = Q.ident(); b.rotAngle = 0; b.uid = b.uid || Math.floor(Math.random() * 1e9);
