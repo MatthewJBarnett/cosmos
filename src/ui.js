@@ -503,6 +503,9 @@ export class UI {
       if (tMyrN > LMC_MERGE - 250 && tMyrN < LMC_MERGE + 50) now.push('the Large Magellanic Cloud falling into the Milky Way');
       if (now.length) deep += `<div><b>Now</b> ${now.slice(0, 3).join(' · ')}</div>`;
     }
+    // the next event in the direction time is running
+    { const ty = nav.time / YEAR, back = nav.rate < 0 && !nav.paused, nx = back ? this.timeline.events.filter(e => e.t < ty).pop() : this.timeline.next(ty);
+      if (nx && !(nav.system && nav.system.sandbox)) deep += `<div class="dim"><b>Next</b> ${nx.title}, ${back ? fmtSpan(ty - nx.t) + ' back (PgUp)' : 'in ' + fmtSpan(nx.t - ty) + ' (PgDn)'}</div>`; }
     const watch = nav.paused ? '' : this.watchHint(nav);
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}${watch ? '<div class="dim"><b>At this rate</b> ' + watch + '</div>' : ''}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
