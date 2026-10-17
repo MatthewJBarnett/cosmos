@@ -457,4 +457,6 @@ peak and the age of the universe at z = 1 (5.86 Gyr).
   ages. Radial migration of the Sun is a steady drift, not a simulated churning.
 - Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not
   hydrodynamics, and the new Moon does not recede tidally in the sandbox.
+- Right after a large time jump near the Sun, the first few frames can show the photographed and model skies
+  re-blending (a faint seam in the Milky Way band, or a few galaxies that then fade); it settles within a second.
 - Exposure is metered on the brightest part of the frame, so a bright Moon or supernova in view darkens the stars.
