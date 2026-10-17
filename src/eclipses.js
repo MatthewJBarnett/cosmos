@@ -19,7 +19,9 @@ export function nextEclipse(sys, t0, kind = 'any', maxDays = 800) {
   let result = null;
   const step = 6 * 3600;
   let prev = geo(t0).c;
-  for (let t = t0 + step; t < t0 + maxDays * 86400 && !result; t += step) {
+  // (an integer step count: at far-future times t += step would stop advancing)
+  for (let i = 1, N = Math.ceil(maxDays * 86400 / step); i < N && !result; i++) {
+    const t = t0 + i * step;
     const cur = geo(t).c;
     // syzygy: local extremum of the Sun-Moon cosine (new or full moon) between t - 2 step and t
     const next = geo(t + step).c;

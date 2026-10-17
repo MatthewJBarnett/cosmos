@@ -32,7 +32,10 @@ function tropicalCyclones(t, solarLon, climate) {
     const [la0, lo0, vw, peak, rate] = BASINS[k];
     const season = Math.max(0, Math.cos((solarLon - peak) * D2R)) ** 2;
     // storms born in 3-day bins; check the bins whose storms could still be alive
-    for (let n = Math.floor(day / 3) - 3; n <= Math.floor(day / 3) && out.length < 4; n++) {
+    // (integer offsets from the current bin: a counter near 2^53 would never advance at far-future times)
+    const n0 = Math.floor(day / 3);
+    for (let dn = -3; dn <= 0 && out.length < 4; dn++) {
+      const n = n0 + dn;
       const h = Math.abs(Math.sin(n * 12.9898 + k * 78.233) * 43758.5453) % 1;
       if (h > rate * 3 / 365 * season * 1.6) continue;
       const age = day - (n + (h * 7.31) % 1) * 3; if (age < 0 || age > 9) continue;
@@ -250,7 +253,8 @@ export class StarSystem {
     if (Math.abs(dt) > 3 * 3600) return 1;            // faster than a few hours a frame: flares average out
     const seed = (s.uid || 1) * 0.6180339, bin = 3600 * 3, k = Math.floor(t / bin);
     let boost = 1;
-    for (let j = k - 1; j <= k; j++) {
+    for (let dj = -1; dj <= 0; dj++) {
+      const j = k + dj;
       const h = Math.abs(Math.sin((j + seed) * 12.9898) * 43758.5453) % 1;
       if (h > 0.55) continue;                         // ~45% of 3-hour bins hold a flare
       const t0 = (j + ((h * 977.3) % 1)) * bin, age = t - t0; if (age < 0) continue;

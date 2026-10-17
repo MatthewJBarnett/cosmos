@@ -102,7 +102,8 @@ function addNovae(out, tyr, win, gq, camLocal) {
   for (const [name, l, b, year, mPeak, t2] of NOVAE) { const day = (tyr - (year - 2000)) * 365.25; if (day > -3 && day < 400) push(name, galDir(l, b), novaMag(day, mPeak, t2), day); }
   if (Math.abs(tyr) < 60) return;     // (the recent sky has only the real ones)
   const y0 = Math.floor(tyr);
-  for (let y = y0 - 1; y <= y0; y++) for (let k = 0; k < 10; k++) {
+  for (let dy = -1; dy <= 0; dy++) for (let k = 0; k < 10; k++) {
+    const y = y0 + dy;
     const h = y * 31 + k * 7.13, tp = y + hash1(h), day = (tyr - tp) * 365.25; if (day < -3 || day > 365) continue;
     const g1 = hash1(h + 1), g2 = hash1(h + 2), g3 = hash1(h + 3), g4 = hash1(h + 4);
     // direction: towards the bulge (l ~ 0, |b| < ~5) for most, the disk for the rest

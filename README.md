@@ -374,7 +374,8 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 55 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 74 checks of the physics against published values (no browser needed)
+    tools/runall.sh                   # everything above in sequence (about two hours under SwiftShader)
     node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
     node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
     node tools/glcheck.mjs            # checks every WebGL draw call for errors across events and scenarios
@@ -389,7 +390,11 @@ figure-eight choreography, tidal disruption (half the debris bound, first fallba
 ΛCDM numbers (CMB 2.7255 K, event horizon 5.1 Gpc), the Andromeda orbit against van der Marel et al. 2012, the
 secular frequencies of the planets (g3 17.38"/yr vs 17.33, s3 −18.75 vs −18.74), Earth's eccentricity range,
 summer insolation at 65° N (478 W/m² today, 533 W/m² 11,000 years ago), the timing of the Last Glacial Maximum
-and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and a Type Ia supernova (peak −19.1).
+and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and a Type Ia supernova (peak −19.1),
+S2's pericentre and precession, the Milky Way-Andromeda turnaround (5.2 Gyr ago at 1.03 Mpc) and the LMC merger
+(2.3 Gyr), the polarity timescale and Laschamp excursion, solar cycles 19 and 24 and the Maunder minimum, Halley's
+1066 and 1910 perihelia, 'Oumuamua's 26.4 km/s, Scholz's Star (80 kyr ago, 51,000 AU), the cosmic star formation
+peak and the age of the universe at z = 1 (5.86 Gyr).
 
 ## Decisions and limits
 
