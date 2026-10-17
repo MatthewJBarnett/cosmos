@@ -53,6 +53,9 @@ export class SandboxUI {
     }
     const sb = this.sb;
     this.q('sbPreset').value = i; this.q('sbText').textContent = p.text;
+    // scenarios run against today's sky (the sandbox sits half a parsec from the Sun)
+    const now = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000;
+    if (Math.abs(nav.time - now) > 1000 * YEAR) nav.time = now;
     const r = sb.load(p);
     sb.grid = r.grid; this.q('sbGrid').checked = r.grid; sb.trailsOn = this.q('sbTrails').checked; sb.follow = this.q('sbFollow').checked;
     // camera above the orbital plane, looking at the centre of mass
