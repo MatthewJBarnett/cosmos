@@ -1011,7 +1011,9 @@ export function describeBody(b) {
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }
-  if (b.rotPeriod) rows.push(['Rotation', Math.abs(b.rotPeriod) < 1 ? fmt(Math.abs(b.rotPeriod) * 1000) + ' ms' : Math.abs(b.rotPeriod) < 86400 * 3 ? fmt(Math.abs(b.rotPeriod) / 3600) + ' h' : fmt(Math.abs(b.rotPeriod) / 86400) + ' d']);
+  // (the Moon is tidally locked: its day is its month, longer as it recedes)
+  const rp = Math.abs(b.rotPeriod) * (b.name === 'Moon' && b.system && b.system.tyr !== undefined ? Math.pow(moonScale(b.system.tyr), 1.5) : 1);
+  if (b.rotPeriod) rows.push(['Rotation', rp < 1 ? fmt(rp * 1000) + ' ms' : rp < 86400 * 3 ? fmt(rp / 3600) + ' h' : fmt(rp / 86400) + ' d']);
   if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', (b.precessRA && b.pole ? (Math.acos(Math.max(-1, Math.min(1, b.pole[1]))) / D2R).toFixed(2) : fmt(b.tilt)) + '°']);   // (Earth: the obliquity cycle)
   if (b.approxOrbit) rows.push(['Orbit', 'approximate elements']);
   if (b.observed) rows.push(['Data', 'observed exoplanet']);
