@@ -138,7 +138,14 @@ let pBH;
 export function drawBlackHole(b, o) {
   if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
   const rs = b.radius;
-  const disk = b.accretion || 0, spin = clamp(b.spin || 0, -0.998, 0.998);
+  // accretion flickers: hot spots and flares in the inner disk (Sagittarius A* flares several times a day, each about
+  // an hour). Averaged out when a frame spans more than a few hours.
+  let flick = 1;
+  if (b.accretion && o.time !== undefined && !(Math.abs(o.dt || 0) > 4 * 3600)) {
+    const t = o.time / 3600, k = Math.floor(t), seed = (b.uid || 7) * 0.618;
+    for (let j = k - 2; j <= k; j++) { const h = Math.abs(Math.sin((j + seed) * 12.9898) * 43758.5453) % 1; if (h > 0.3) continue; const a = t - j - (h * 3.3) % 1; if (a > 0) flick += 2.5 * (h / 0.3) * Math.exp(-a / 0.6) * Math.min(1, a * 6); }
+  }
+  const disk = (b.accretion || 0) * flick, spin = clamp(b.spin || 0, -0.998, 0.998);
   pBH.use().set({ uScene: o.scene, uNoise3: o.noise3, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uDiskRot: Q.mat3(b.axisW || o.rotQ), uTanFov: o.tanFov, uRel: o.rel, uRs: rs, uExposure: o.exposure, uTime: o.time % 1e5, uDisk: disk * 40, uDiskT: 9000, uStrong: o.strong || 60, uSpin: spin, uIsco: iscoRadius(spin) / 2, ...skyU(o.sky) });
   drawFS();
 }

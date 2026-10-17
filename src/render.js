@@ -615,7 +615,7 @@ export class Renderer {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawBlackHole(b, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot, strong: blackHoles.length > 1 ? 25 : 60, sky: this.skyFallback });
+        drawBlackHole(b, { q: nav.q, scene: this.copyTex, camRot, tanFov: [tanX, tanY], rel: b.rel, exposure, time: nav.time, noise3: this.noise3, viewProj, rotQ: b.wrot, strong: blackHoles.length > 1 ? 25 : 60, sky: this.skyFallback, dt: world.dtyr * C.YEAR });
       }
     }
     gl.depthMask(true);
