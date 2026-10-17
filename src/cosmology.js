@@ -112,6 +112,15 @@ export function cosmoTexture() {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return tex;
 }
+// cosmic age (Gyr) at scale factor a (a = 1 today; matter + Lambda)
+export function tauOfA(a) { const x = Math.pow(Math.max(a, 1e-9) * aOfTau(T0_GYR) / K, 1.5); return 2 / (3 * Math.sqrt(OL)) * 977.792 / H0 * Math.asinh(x); }
+// what an observer at the current time sees of a galaxy at comoving distance chi (Mpc): redshift, how long ago the light
+// left it, its proper distance now and its recession speed now (Hubble's law, km/s; faster than light beyond ~4.4 Gpc today)
+export function galaxyInfo(chi) {
+  if (chi < 3) return null;
+  const aE = aOfU(cosmo.u + chi), z = cosmo.a / aE - 1, D = chi * cosmo.a;
+  return { z, lookback: cosmo.tau - tauOfA(aE), D, v: H0 * Hof(cosmo.a) * D, visible: aE > 0 };
+}
 export const COSMO_GLSL = `
 uniform sampler2D uCosmo; uniform float uUnow, uUobs, uAobs, uTauObs;
 // cosmic age (Gyr) at scale factor a (matter + Lambda; a = 1 today)

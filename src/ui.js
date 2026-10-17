@@ -13,7 +13,7 @@ import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
-import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
+import { cosmo, galaxyView, apparentPosU, galaxyInfo } from './cosmology.js';
 import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT } from './lgorbit.js';
@@ -507,7 +507,16 @@ export class UI {
         else if (nb.type === 1) rows.push(['Lit by', 'the hot exposed core of a dying Sun-like star, now becoming a white dwarf']);
         else if (nb.type === 2) rows.push(['Shock', 'a supernova blast wave sweeping up interstellar gas (Sedov expansion, radius ~ t^0.4)']);
       }
-      else { const g = t.galaxy; sub = 'Galaxy'; rows = [['Type', g.subtype], ['Diameter', (g.radius * 2 * 3.2616 / 1000).toPrecision(3) + ' kly'], ['Stellar mass', g.mass.toExponential(1) + ' M<sub>Sun</sub>'], ['Stars', '~' + g.nstars.toExponential(1)]]; }
+      else {
+        const g = t.galaxy; sub = 'Galaxy'; rows = [['Type', g.subtype], ['Diameter', (g.radius * 2 * 3.2616 / 1000).toPrecision(3) + ' kly'], ['Stellar mass', g.mass.toExponential(1) + ' M<sub>Sun</sub>'], ['Stars', '~' + g.nstars.toExponential(1)]];
+        // (seen from the Milky Way at the current time, through the expanding universe)
+        const gi = g !== MILKY_WAY && galaxyInfo(V.len(g.posU));
+        if (gi) {
+          rows.push(['Redshift', 'z = ' + gi.z.toFixed(gi.z < 0.1 ? 4 : 2)]);
+          rows.push(['Light left it', fmtSpan(gi.lookback * 1e9) + ' ago']);
+          rows.push(['Receding at', gi.v < 3e5 ? Math.round(gi.v).toLocaleString('en') + ' km/s' : (gi.v / 299792).toFixed(1) + ' c (space itself expanding)']);
+        }
+      }
       const html = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}${t.type === 'body' && !t.body.gone && t.body.kind !== 'star' && t.body.kind !== 'barycenter' ? '<tr><td>Illuminated</td><td id="iIll"></td></tr>' : ''}</table>`;
       if (html !== this._infoHtml) { this.info.innerHTML = html; this._infoHtml = html; }
     }
