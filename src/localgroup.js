@@ -69,11 +69,12 @@ void main(){
   // luminosity per particle (L_sun) -> flux in solar constants: 1 kpc = 2.0626e8 AU
   float L = gal == 0 ? uLum.x : uLum.y; float w = gal == 0 ? uW.x : uW.y;
   // young stars brighten in the starbursts that follow each close passage
-  float flux = L*wgt*(type > 1.5 ? uBurst : 1.)/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
+  // (young stars carry a larger share of the disk's blue light: x2, old disk stars x0.8, same total)
+  float flux = L*wgt*(type > 1.5 ? 2.*uBurst : type > 0.5 ? 0.8 : 1.)/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
   float h = type < 0.5 ? 0.4 : 0.8;      // smoothing length (kpc), about the particle spacing
   float sig = clamp(h/d*uPxPerRad*0.5, 0.7, uMaxPx);
   float I = flux/uPxSA*uExposure;
-  vSig = sig; vCol = (type < 0.5 ? vec3(1.0, 0.78, 0.55) : type < 1.5 ? vec3(1.0, 0.9, 0.8) : vec3(0.72, 0.84, 1.0))*min(I/(6.2832*sig*sig), 50.);
+  vSig = sig; vCol = (type < 0.5 ? vec3(1.0, 0.74, 0.48) : type < 1.5 ? vec3(1.0, 0.88, 0.76) : vec3(0.62, 0.78, 1.0))*min(I/(6.2832*sig*sig), 50.);
   gl_Position = uViewProj*vec4(rel, 1.); gl_Position.z = 0.;
   gl_PointSize = I/(6.2832*sig*sig) < 1e-4 ? 0. : ceil(sig*5.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
