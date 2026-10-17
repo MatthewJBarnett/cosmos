@@ -4,6 +4,10 @@ A universe at 1:1 scale that runs in the browser (WebGL2, no build step, no depe
 real stars and nebulae around the Sun, and a procedural galaxy and universe beyond. You can fly from a planet's
 surface out to intergalactic space without a loading screen.
 
+It is also a physics simulation across all of time: merge black holes and hear the gravitational waves (V),
+fast-forward to watch Betelgeuse explode, the Sun circle the Galaxy, Andromeda collide with the Milky Way, the Sun
+become a red giant and the other galaxies recede beyond our horizon (U for the timeline).
+
 **Play it:** https://matthewjbarnett.github.io/cosmos/ (press T for a guided tour, H for help)
 
 ## Gallery
