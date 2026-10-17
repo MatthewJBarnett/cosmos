@@ -578,8 +578,13 @@ export class UI {
   updateLabels() {
     const nav = this.nav, r = this.r, rect = this.canvas.getBoundingClientRect();
     let n = 0;
+    // (a label that would overlap one already placed is dropped: close pairs like Alpha Centauri A and B)
+    const placed = [];
     const put = (rel, text, cls, offPx) => {
       const p = r.project(rel); if (!p || p[0] < -0.05 || p[0] > 1.05 || p[1] < -0.05 || p[1] > 1.05) return;
+      const px = p[0] * rect.width + (offPx || 6), py = p[1] * rect.height;
+      if (cls !== 'sel' && placed.some(q => Math.abs(q[1] - py) < 11 && px < q[0] + q[2] && q[0] < px + text.length * 6.5)) return;
+      placed.push([px, py, text.length * 6.5]);
       const l = this.label(n++); l.textContent = text; l.className = 'label ' + cls; l.style.display = 'block';
       l.style.transform = `translate(${(p[0] * rect.width + (offPx || 6)).toFixed(1)}px, ${(p[1] * rect.height - 8).toFixed(1)}px)`;
     };
