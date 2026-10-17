@@ -11,7 +11,7 @@ await page.setViewport({ width: +w, height: +h });
 let errors = 0;
 page.on('console', m => { const t = m.text(); if (m.type() === 'error' || m.type() === 'warning' || t.startsWith('LOG')) { console.log('[' + m.type() + ']', t.slice(0, 1500)); if (m.type() === 'error') errors++; } });
 page.on('pageerror', e => { console.log('[pageerror]', e.message); errors++; });
-await page.goto(`http://localhost:8642/?test=1&${extra}`, { waitUntil: 'load' });
+await page.goto(`http://localhost:${process.env.PORT || 8642}/?test=1&${extra}`, { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos !== undefined', { timeout: 60000 }).catch(() => console.log('cosmos did not start'));
 const t0 = Date.now();
 const res = await page.evaluate(async (code) => {
