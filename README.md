@@ -4,9 +4,10 @@ A universe at 1:1 scale that runs in the browser (WebGL2, no build step, no depe
 real stars and nebulae around the Sun, and a procedural galaxy and universe beyond. You can fly from a planet's
 surface out to intergalactic space without a loading screen.
 
-It is also a physics simulation across all of time: merge black holes and hear the gravitational waves (V),
-fast-forward to watch Betelgeuse explode, the Sun circle the Galaxy, Andromeda collide with the Milky Way, the Sun
-become a red giant and the other galaxies recede beyond our horizon (U for the timeline).
+It is also a physics simulation across all of time: merge black holes and hear the gravitational waves, form the
+Moon in a giant impact, detonate white dwarfs (V for the sandbox); fast-forward to watch ice ages come and go, the
+continents drift, Betelgeuse explode, the Sun circle the Galaxy, Andromeda collide with the Milky Way, the Sun become
+a red giant and the other galaxies recede beyond our horizon (U for the timeline).
 
 **Play it:** https://matthewjbarnett.github.io/cosmos/ (press T for a guided tour, H for help)
 
@@ -324,3 +325,7 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
 - Black hole shadows are Schwarzschild (spin does not change their shape); binary lensing is two lenses applied in turn.
 - The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).
+- Earth's clouds are today's: after millions of years of drift they no longer match the continents beneath.
+- Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not
+  hydrodynamics, and the new Moon does not recede tidally in the sandbox.
+- Exposure is metered on the brightest part of the frame, so a bright Moon or supernova in view darkens the stars.
