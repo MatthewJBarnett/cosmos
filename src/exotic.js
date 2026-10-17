@@ -524,12 +524,13 @@ void main(){
   float dpt = texture(uDepth, vUV).r;
   float sceneT = dpt >= 0.99999 ? 1e30 : (exp2(dpt*2./uFcoef) - 1.)*length(vec3((vUV*2. - 1.)*uTanFov, -1.));
   // bounding sphere around nucleus and tails
-  vec3 cen = uNuc + uAway*uLen*0.5; float R = uLen*0.62 + uComa*3.;
+  // (large enough for the curved dust tail; both tails fade to nothing well inside it, so bright comets show no cut-off)
+  vec3 cen = uNuc + uAway*uLen*0.6; float R = uLen*1.15 + uComa*3.;
   float b = dot(-cen, rd), c = dot(cen, cen) - R*R, h = b*b - c;
   if (h < 0.) { o = vec4(0.); return; }
   h = sqrt(h); float t0 = max(-b - h, 0.), t1 = min(-b + h, sceneT);
   if (t1 <= t0) { o = vec4(0.); return; }
-  const int N = 48; float dt = (t1 - t0)/float(N), jit = ign(gl_FragCoord.xy);
+  const int N = 64; float dt = (t1 - t0)/float(N), jit = ign(gl_FragCoord.xy);
   vec3 side = normalize(cross(uAway, uVel));
   vec3 Ld = vec3(0.), Li = vec3(0.);
   for (int i = 0; i < N; i++) {
@@ -547,8 +548,9 @@ void main(){
     vec3 pd = p - uAway*x + uVel*(xd*xd/uLen*0.35);
     float wd = uComa*0.6 + xd*0.12;
     float dust = x > -uComa ? exp(-dot(pd, pd)/(wd*wd))*exp(-xd/(uLen*0.35)) : 0.;
-    Ld += vec3(1.0, 0.93, 0.8)*(dust*1.0 + coma*2.5)*dt;
-    Li += vec3(0.32, 0.55, 1.0)*ion*dt;
+    float win = smoothstep(1.6*uLen, 0.7*uLen, x);
+    Ld += vec3(1.0, 0.93, 0.8)*(dust*win + coma*2.5)*dt;
+    Li += vec3(0.32, 0.55, 1.0)*ion*win*dt;
   }
   // surface brightness scales with activity and sunlight; dust scatters sunlight, ions fluoresce
   vec3 col = (Ld*uE*5e-10 + Li*uE*3e-10)*uAct/uComa;   // calibrated to Halley 1986: coma ~18, tail ~21 mag/arcsec^2
