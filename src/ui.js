@@ -70,7 +70,7 @@ export class UI {
       <tr><td>Wheel</td><td>Change flight speed (Ctrl + wheel: zoom to selection)</td></tr>
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
-      <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr><tr><td>&lt; &gt; Home</td><td>Speed three steps at a time; back to the present</td></tr>
+      <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr><tr><td>&lt; &gt; Home</td><td>Speed three steps at a time; back to the present</td></tr><tr><td>PgUp PgDn</td><td>Previous / next event on the timeline</td></tr>
       <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>V</td><td>Physics sandbox: black holes, neutron stars, gravitational waves</td></tr><tr><td>M</td><td>Relativistic flight: below light speed, with aberration, Doppler shift, beaming, time dilation</td></tr><tr><td>Rate menu</td><td>Slow motion to 10 billion years per second</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
@@ -207,6 +207,13 @@ export class UI {
       else if (k === '.') this.stepRate(1); else if (k === ',') this.stepRate(-1);
       else if (k === '>') this.stepRate(3); else if (k === '<') this.stepRate(-3);
       else if (k === 'home') { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; nav.rate = 1; nav.paused = false; this.timeline.lastTyr = nav.time / YEAR; this.toast('Back to the present'); }
+      else if (k === 'pagedown' || k === 'pageup') {
+        // the next (or previous) event on the timeline, from the current moment
+        e.preventDefault();
+        const tyr = nav.time / YEAR, evs = this.timeline.events.slice().sort((a, b) => a.t - b.t);
+        const ev = k === 'pagedown' ? evs.find(x => x.t > tyr + Math.max(1, Math.abs(tyr) * 1e-9) + 0.02) : evs.filter(x => x.t < tyr - Math.max(1, Math.abs(tyr) * 1e-9) - 0.5 - Math.abs(nav.rate) / YEAR * 8).pop();   // (skipping the one just passed)
+        if (ev) { this.timeline.go(ev); this.toast(ev.title); } else this.toast(k === 'pagedown' ? 'No later events' : 'No earlier events');
+      }
       else if (k === 'j') nav.rate = -nav.rate; else if (k === '\\') { nav.rate = 1; nav.paused = false; }
       else if (k === 'h' || k === '?') this.toggle(this.help);
       else if (k === 'k') rcfg.constellations = !rcfg.constellations;

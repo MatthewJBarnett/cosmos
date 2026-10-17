@@ -76,6 +76,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | G, L, C | Go to, land on, look at the selection |
 | T | Guided tour (T again for the next stop, Esc to stop) |
 | Space, `,` `.` J `\` | Pause, slower, faster, reverse, real time (`<` `>` change speed three steps at once, Home returns to the present) |
+| PgUp PgDn | Jump to the previous / next event on the timeline from wherever you are in time |
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
