@@ -8,6 +8,7 @@ import { GLSL_BB, bbColor, vSurface } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
 import { world } from './galdyn.js';
+import { globularNebulae } from './globulars.js';
 import { iscoRadius } from './nbody.js';
 
 // ---------------- black hole ----------------
@@ -271,6 +272,13 @@ void main(){
       d = (sh1*2.4 + sh2*0.5*fil) + smoothstep(0.42, 0., rr)*0.25;
       col = mix(uColA, uColB, smoothstep(0.35, 0.75, rr));
       d *= 2.;
+    } else if (uType == 4) {
+      // globular cluster: a King-like profile of old stars (core ~1/6 of the radius) that resolves into individual
+      // stars towards the edge
+      float rc = 0.09, kp = 1./pow(1. + r*r/(rc*rc), 1.5) - 1./pow(1. + 1./(rc*rc), 1.5);
+      float grain = pow(texture(uNoise3, q*11.).r, 7.)*9. + pow(texture(uNoise3, q*29. + 0.37).g, 9.)*16. + pow(texture(uNoise3, q*61. + 0.71).b, 10.)*22.;
+      d = max(kp, 0.)*(0.35 + grain*smoothstep(0.02, 0.4, r))*2.2;
+      col = mix(uColA, uColB, 0.15*grain);
     } else if (uType == 3) {
       // protoplanetary disk: flared (scale height ~ r^1.25), lit by the young star at its centre, with the dust
       // gaps that forming planets carve (as ALMA sees around HL Tauri), opaque in the midplane
@@ -316,7 +324,7 @@ export const REAL_NEBULAE = [ORION,
   (() => { const d = galDir(287.6, -0.6); return { pos: V.addm(SUN_POS, d, 2600), radius: 35, type: 0, seed: 8.8, name: 'Carina Nebula', colA: [1.0, 0.3, 0.33], colB: [0.9, 0.5, 0.4], lum: 45, life: 3e6 }; })(),
 ];
 export function nebulaeNear(galaxy, cam, dens) {
-  const out = galaxy === MILKY_WAY ? REAL_NEBULAE.slice() : [];
+  const out = galaxy === MILKY_WAY ? REAL_NEBULAE.concat(globularNebulae(world.tyr)) : [];
   const cx = Math.floor(cam[0] / NEB_CELL), cy = Math.floor(cam[1] / NEB_CELL), cz = Math.floor(cam[2] / NEB_CELL);
   const dd = [0, 0];
   for (let x = cx - 3; x <= cx + 3; x++) for (let y = cy - 1; y <= cy + 1; y++) for (let z = cz - 3; z <= cz + 3; z++) {
@@ -368,7 +376,7 @@ export function drawNebulaeAndFx(nav, o) {
     const px = nb.radius / Math.max(d, 1e-9) * o.pxPerRad;
     if (px < 1.5 && d > nb.radius) continue;
     // distant nebulae are seen through the galaxy's dust and are hard to pick out: fade them with distance
-    if (d > 300 && !nb.name.match(/Orion|Lagoon|Carina|Ring|Crab|Veil/)) continue;
+    if (d > 300 && !nb.far && !nb.name.match(/Orion|Lagoon|Carina|Ring|Crab|Veil/)) continue;
     vis.push({ nb, rel: Q.rot(gq, relL), d, px });
   }
   vis.sort((a, b) => b.d - a.d);

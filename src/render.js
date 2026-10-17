@@ -5,6 +5,7 @@ import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
 import { drawPlanet, planetHousekeeping, planetState, pendingBakes, LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS, heatGlow } from './planet.js';
 import { cosmo } from './cosmology.js';
+import { globularPoints } from './globulars.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
 import { vSurface } from './stars.js';
 import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './galdyn.js';
@@ -397,6 +398,8 @@ export class Renderer {
     if (gal && nav.field && camLocal && nav.level !== 'universe') {
       sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
       if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
+      // globular clusters too small or far to resolve, as points
+      if (gal === MILKY_WAY && starsVisible) { const gp = globularPoints(camLocal, gal.quat, world.tyr, pxPerRad, []); if (gp.length) drawPoints(gp, viewProj, Object.assign({}, common, { refrUp })); }
       // a supernova brighter than about magnitude -7 lights planets and skies like a second moon
       if (sys && nav.level === 'system') for (const p of sne.points.slice(0, 2)) {
         if (p.m > -7) continue;

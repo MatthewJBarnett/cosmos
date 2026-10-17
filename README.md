@@ -188,6 +188,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   star-forming) as seen at their light's emission time, then vanish before ~300 Myr; the Milky Way fades out
   before ~13 Gyr ago. The cosmic background (radiation era included) is hot enough to see for the first few million
   years: dull red, then orange, then white before recombination at 380,000 years. The HUD names the era.
+- **Globular clusters:** Omega Centauri, 47 Tucanae, M13 and nine more at their measured positions plus ~130 in a
+  procedural halo, each orbiting the Galaxy; points from afar, balls of stars up close.
 - **The Galactic Centre:** the S-stars (S2, S29, S38, S55, S1, S4711) orbit Sagittarius A* on their measured
   elements; S2 passes 120 AU from the hole every 16.0 years and its orbit precesses 12 arcminutes per orbit, as
   GRAVITY measured in 2020.
