@@ -50,7 +50,7 @@ export class UI {
     root.innerHTML = '';
     this.info = root.appendChild(el('div', 'panel info'));
     this.top = root.appendChild(el('div', 'panel top'));
-    this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Titan, Andromeda…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
+    this.top.innerHTML = `<input id="search" placeholder="Search: Saturn, Andromeda, dinosaurs, 2 Gyr…" autocomplete="off" list="searchlist"><datalist id="searchlist"></datalist>
       <select id="places" title="Places"><option value="">Places…</option></select>
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bSandbox" title="Physics sandbox: black holes, neutron stars, gravitational waves (V)">Sandbox</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
@@ -116,7 +116,7 @@ export class UI {
     this.buildSettings();
     this.bind();
     this.lastInfoKey = null; this.labelPool = []; this.sysKey = null;
-    const fillSearch = () => { document.getElementById('searchlist').innerHTML = searchList(nav).map(n => `<option value="${n}">`).join(''); };
+    const fillSearch = () => { document.getElementById('searchlist').innerHTML = searchList(nav).concat(this.timeline ? this.timeline.events.map(e => e.title) : []).map(n => `<option value="${n}">`).join(''); };
     fillSearch(); loadCatalog().then(fillSearch);
   }
   saveSettings() {
@@ -330,7 +330,17 @@ export class UI {
     let i = RATES.findIndex(r => r >= a * 0.999); if (i < 0) i = RATES.length - 1;
     i = clamp(i + d, 0, RATES.length - 1); nav.rate = RATES[i] * sg; nav.paused = false;
   }
-  search(text) { const t = findByName(this.nav, text); if (t) { if (this.nav.fov < 0.3) this.nav.fov = 55 * Math.PI / 180; this.nav.selected = t; this.nav.goTo(t); } }
+  search(text) {
+    const q = String(text || '').trim().toLowerCase(); if (!q) return;
+    // a moment in time ("Snowball Earth", "dinosaurs", "Big Bang") or an amount of time ("2 Gyr", "year 3000")
+    const evs = this.timeline.events, ev = evs.find(e => e.title.toLowerCase() === q) || (q.length > 3 && evs.find(e => e.title.toLowerCase().includes(q) || (e.text.toLowerCase().includes(q) && q.length > 5)));
+    const t = findByName(this.nav, text);
+    if (t) { if (this.nav.fov < 0.3) this.nav.fov = 55 * Math.PI / 180; this.nav.selected = t; this.nav.goTo(t); return; }
+    if (ev) { this.timeline.go(ev); return; }
+    const y = /\d/.test(q) ? parseTimeSpec(q) : null;
+    if (y !== null) { this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; this.timeline.lastTyr = this.nav.time / YEAR; this.toast(fmtSimDate(this.nav.time)); return; }
+    this.toast('Nothing found for "' + text + '"');
+  }
   // travel to a random interesting place
   // kind: 'star' | 'earthlike' | 'rings' | 'giant-star' | 'galaxy'
   explore(kind = 'star') {
