@@ -346,7 +346,7 @@ export class Nav {
     if (P && an0 === top && top.precessRA && this.altitude < an0.radius * 0.05) P = P / (1 + P / (25772 * YEAR));
     if (!this.paused && P && this.level === 'system' && !this.goto && Math.abs(this.rate) > 0.17 * P && Math.abs(this.rate) < 3e15) {
       const y = this._yl;
-      if (y && y.top === top && Math.abs(this.time - (y.lastSet + dAdv)) <= Math.abs(dAdv) * 1e-6 + 1) y.tv += dAdv;
+      if (y && y.top === top && Math.abs(this.time - (y.lastSet + dAdv)) <= Math.abs(dAdv) * 1e-6 + Math.abs(this.time) * 1e-14 + 1) y.tv += dAdv;
       else this._yl = { top, t0: this.time, tv: this.time };
       const L = this._yl;
       this.time = L.t0 + Math.round((L.tv - L.t0) / P) * P;
