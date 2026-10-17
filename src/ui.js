@@ -662,8 +662,9 @@ export class UI {
       const t = findByName(nav, v.globe); if (!t || t.type !== 'body') return;
       const b = t.body; nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
       // move to midsummer in that hemisphere (within the year) so the place is in full sunlight
-      if (b.seasonal) { const t0 = nav.time; let best = t0, bs = -9; for (let f = 0; f < 1; f += 0.02) { nav.time = t0 + f * YEAR; sol.update(nav.time); const sv = (b.season || 0) * Math.sign(v.lat || 1); if (sv > bs) { bs = sv; best = nav.time; } } nav.time = best; }
-      sol.update(nav.time); nav.setLocalTime(b, v.lon, 13);
+      if (v.at !== undefined) { nav.time = v.at * YEAR - 900; sol.update(nav.time); }      // (an exact moment: no season or hour adjustments)
+      else if (b.seasonal) { const t0 = nav.time; let best = t0, bs = -9; for (let f = 0; f < 1; f += 0.02) { nav.time = t0 + f * YEAR; sol.update(nav.time); const sv = (b.season || 0) * Math.sign(v.lat || 1); if (sv > bs) { bs = sv; best = nav.time; } } nav.time = best; }
+      sol.update(nav.time); if (v.at === undefined) nav.setLocalTime(b, v.lon, 13);
       const la = v.lat * Math.PI / 180, lo = v.lon * Math.PI / 180, d = Q.rot(b.wrot, [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]);
       nav.S = V.add(b.wpos, V.mul(d, b.radius * 3.4)); nav.q = Q.look(V.mul(d, -1), Q.rot(b.wrot, [0, 1, 0])); nav.selected = t; nav.anchor = b;
       return;

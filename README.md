@@ -153,6 +153,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   real continental shelves (Beringia, Doggerland, Sundaland). It peaks 18,000 years ago and is clear by 9,000
   years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
   years by human CO₂).
+- **The Chicxulub impact** (66.043 Myr ago): a fireball over Yucatán, an ejecta plume, the whole sky glowing as debris
+  re-enters an hour later, then soot spreading around the planet within days and darkening it for years.
 - **Earth's deep past:** before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
   (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; for its
   first ~10 Myr the Sun sits in a flared protoplanetary disk with planet-carved gaps (like HL Tauri); the young

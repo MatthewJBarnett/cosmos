@@ -373,6 +373,8 @@ export class StarSystem {
         // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
         // (no weather clouds over a magma ocean or once the oceans have boiled away)
         b.noClouds = b.climate.magma > 0 || b.climate.dry > 0.9;
+        // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W
+        { const ageH = (t / YEAR + 66.043e6) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 21.4 * D2R, lo = -89.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }

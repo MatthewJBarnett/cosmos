@@ -113,7 +113,7 @@ uniform vec3 uFaceA;
 uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
 uniform vec2 uDetailO; uniform float uChunkA;
-uniform int uKind; uniform vec2 uCaps, uSeaIce;
+uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK;
 ${ICE_GLSL}
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
@@ -160,6 +160,14 @@ void main(){
         vec3 shelf = mix(vec3(0.045, 0.07, 0.03), vec3(0.17, 0.15, 0.1), smoothstep(0.35, 0.75, latS));   // forest to steppe-tundra
         alb.rgb = mix(alb.rgb, shelf*(0.85 + 0.3*texture(uNoise3, dir*3.1).r), ex); water *= 1. - ex; depth *= 1. - ex;
       }
+    }
+    if (uImpact.w > 0.) {
+      // after a giant asteroid impact (Chicxulub): soot from global wildfires and the impact spreads around the planet
+      // within days and darkens it for years (impact winter)
+      float angI = acos(clamp(dot(dir, uImpact.xyz), -1., 1.)), ageH = uImpact.w;
+      float front = min(3.2, 0.25 + ageH/24.*0.35), nzs = (texture(uNoise3, dir*2.7).r - 0.5)*0.5;
+      float soot = smoothstep(front + 0.2, front - 0.3, angI + nzs)*smoothstep(2., 30., ageH)*exp(-ageH/(24.*365.*4.));
+      alb.rgb *= 1. - 0.8*soot; water *= 1. - 0.6*soot;
     }
     if (uSeaIce.x < 90. && water > 0.) {
       // seasonal sea ice over open water, with leads and a ragged edge
@@ -336,6 +344,14 @@ void main(){
     float pn = texture(uNoise3, dir*1.3).r*0.6 + texture(uNoise3, dir*4.1).g*0.4;
     float tl = uHeatT*(0.9 + 0.2*pn), k = pow(tl/uHeatT, 11.);
     vec3 hc = bbColor(tl); col += hc/max(dot(hc, vec3(0.2126, 0.7152, 0.0722)), 1e-6) * uHeatK * k * 0.8;
+  }
+  // the impact itself: a fireball for minutes, an ejecta plume for hours, and the whole sky glowing as ejecta
+  // re-enter the atmosphere around the globe an hour or so later
+  if (uImpact.w > 0. && uImpact.w < 24.) {
+    float angI = acos(clamp(dot(normalize(vDir), uImpact.xyz), -1., 1.)), ageH = uImpact.w;
+    float f1 = exp(-ageH/0.05)*exp(-pow(angI/0.03, 2.))*300., f2 = exp(-ageH/3.)*exp(-pow(angI/(0.05 + 0.5*min(ageH, 1.)), 2.))*12.;
+    float f3 = smoothstep(0.3, 1., ageH)*exp(-max(ageH - 1., 0.)/2.)*0.15;
+    col += (vec3(1., 0.55, 0.25)*(f1 + f2) + vec3(0.9, 0.28, 0.08)*f3)*uImpactK;
   }
   oColor = vec4(min(col*uExposure, vec3(60000.)), 1.);
 }`;
@@ -769,7 +785,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
-    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
+    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
