@@ -43,7 +43,9 @@ export const STOPS = [
   { title: 'Andromeda', text: 'The nearest large spiral, 765 kiloparsecs away, at its real position and inclination.',
     run: (nav) => { nav.goTo(findByName(nav, 'Andromeda')); } },
   { title: 'Two black holes merge', text: 'Physics sandbox: 36 and 29 solar masses spiral together under general relativistic radiation reaction. The grid carries the real gravitational wave field; the scope shows the chirp. Slowed to a quarter of real time.',
-    run: (nav, ui) => { ui.sbui.start(0); ui.sbui.panel.classList.remove('hidden'); }, wait: 22 },
+    run: (nav, ui) => { ui.sbui.start(0); ui.sbui.panel.classList.remove('hidden');
+      // start a few seconds before the merger so it happens during the stop (trails drawn as it goes)
+      const sb = ui.sbui.sb; for (let i = 0; i < 300; i++) { sb.sim.advance(0.03); sb.sync(); } }, wait: 24 },
   { title: 'Betelgeuse explodes', text: 'About 100,000 years from now (an estimate), Orion\'s red supergiant becomes a supernova 170 parsecs away: brighter than the half Moon, visible by day for months.',
     run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); const e = ui.timeline.events.find(x => x.id === 'betelgeuse'); ui.timeline.go(e); }, wait: 14 },
   { title: 'The Sun\'s orbit around the Galaxy', text: 'One galactic year is about 220 million years. The Sun bobs through the disk as it goes; the spiral pattern turns more slowly than the stars.',
