@@ -355,7 +355,7 @@ export class UI {
   search(text) {
     const q = String(text || '').trim().toLowerCase(); if (!q) return;
     // a moment in time ("Snowball Earth", "dinosaurs", "Big Bang") or an amount of time ("2 Gyr", "year 3000")
-    const evs = this.timeline.events, ev = evs.find(e => e.title.toLowerCase() === q) || (q.length > 3 && evs.find(e => e.title.toLowerCase().includes(q) || (e.text.toLowerCase().includes(q) && q.length > 5)));
+    const evs = this.timeline.events, ev = evs.find(e => e.title.toLowerCase() === q) || (q.length > 3 && (evs.find(e => e.title.toLowerCase().includes(q)) || (q.length > 5 && evs.find(e => e.text.toLowerCase().includes(q)))));
     const t = findByName(this.nav, text);
     if (t) { if (this.nav.fov < 0.3) this.nav.fov = 55 * Math.PI / 180; this.nav.selected = t; this.nav.goTo(t); return; }
     if (ev) { this.timeline.go(ev); return; }
