@@ -125,6 +125,7 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
     const o = { hyp: true, q, e, a, inc: 0, node: 0, argp: 0, tp: 17.688 * YR, n: Math.sqrt(GM / a ** 3) };
     check("'Oumuamua at perihelion (AU)", Math.hypot(...sysm.keplerPos(o, 17.688 * YR)) / AU, '0.255', 0.002, ' AU');
     check("'Oumuamua speed far from the Sun (km/s)", Math.sqrt(GM * (e - 1) / q) / 1e3, '26.3 (Micheli et al. 2018)', 0.5, ' km/s'); }
+  check('Star formation 10 Gyr ago vs today (cosmic noon)', gd.sfrRel(-10e9), '~2-3x (Madau & Dickinson 2014)', (v) => v > 2 && v < 4);
   check('LMC merges with the Milky Way (Gyr)', lgo.LMC_ORBIT.merged / 1e3, '2.4 +- 0.8 (Cautun et al. 2019)', (v) => v > 1.6 && v < 3.2);
   check('LMC distance 1.5 Gyr ago (kpc)', Math.hypot(...lgo.lmcAt(-1500)), '> 200 (first infall)', (v) => v > 200, ' kpc');
   check("Sun's vertical period (Myr)", gd.SUN_ORBIT.verticalYr / 1e6, '~70-90 Myr', (v) => v > 60 && v < 95);

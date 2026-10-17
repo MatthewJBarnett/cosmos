@@ -197,7 +197,9 @@ void main(){
   // disks turn: about 220 km/s at half the radius (a 200 Myr period for a Milky Way sized spiral)
   vec4 q = aQuat;
   if (length(wp) > 1e-3 && uTmyr != 0.) { float ang = -uTmyr*0.45/(aCen.w*1000.); vec4 r = vec4(0., sin(ang*0.5), 0., cos(ang*0.5)); q = vec4(q.w*r.xyz + r.w*q.xyz + cross(q.xyz, r.xyz), q.w*r.w - dot(q.xyz, r.xyz)); }
-  vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
+  vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2;
+  // early disks (seen in their first few Gyr) were thick, turbulent and clumpy: weak spiral arms, few bars, more young stars
+  vP1.y *= smoothstep(1.5, 5., vTauE); vP2.y *= smoothstep(3., 7., vTauE); vP2.x *= mix(2.5, 1., smoothstep(2., 8., vTauE)); vP2.w *= 1. + 1.5*young; vLum = vec2(aLum, expand); vPx = px;
   gl_Position = uViewProj*vec4(w, 1.); gl_Position.z = 0.;
   float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.18, 1.0, vTauE)*(1. + vQSO);
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
