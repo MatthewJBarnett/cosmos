@@ -207,6 +207,12 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **The Milky Way's own history:** its young blue population and H II regions follow its star formation rate (about
   twice today's 10 Gyr ago, dying away in the future); after the merger it is an elliptical. Earth's life row notes
   the recovery after each of the Big Five mass extinctions.
+- **Comet showers:** after Gliese 710 crosses the Oort cloud (1.3 Myr from now) bright long-period comets arrive
+  several times as often for a few million years.
+- **The young Sun** spun ~3x faster and was far more active (more spots, stronger aurorae) in its first billion years.
+- **Looking out through time:** selecting a galaxy shows its redshift, how long ago the light left it and how fast it
+  recedes at the current epoch; Andromeda's separation and approach (or, before 5 Gyr ago, recession) and the LMC's
+  distance follow their orbits. Early galaxies are thick and clumpy with weak arms and few bars.
 - **Mars weather:** global dust storms on their real dates (1971, 1977 twice, 1982, 2001, 2007, 2018) hide the surface
   for months, leaving only the Tharsis volcanoes; outside the record about one Mars year in three, near perihelion.
 - **Stellar remnants age:** pulsars spin down by magnetic braking and fall silent after ~10 Myr, white dwarfs
