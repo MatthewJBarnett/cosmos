@@ -37,7 +37,7 @@ button:hover { background: rgba(110, 170, 255, 0.25); }
 .settings { right: 14px; top: 64px; width: 300px; }
 .settings label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .settings input[type=range] { flex: 1; }
-.help { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 460px; max-width: 90vw; }
+.help { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 560px; max-width: 92vw; }
 .fatal { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); background: #401818; border: 1px solid #a44; padding: 16px 20px; border-radius: 8px; pointer-events: auto; max-width: 70vw; }
 @media (max-width: 760px) { .top input#search { width: 120px; } .info { width: 210px; font-size: 12px; } .time span { display: none; } }
 
@@ -113,3 +113,5 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .whatsnew { left: 50%; top: 80px; transform: translateX(-50%); max-width: 520px; line-height: 1.5; }
 .whatsnew b { display: block; margin-bottom: 4px; color: #fff; }
 .whatsnew button { margin-top: 8px; }
+.help .physlist { margin: 4px 0 6px; padding-left: 18px; font-size: 12.5px; line-height: 1.45; }
+.help .physlist li { margin: 3px 0; }

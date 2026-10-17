@@ -75,14 +75,19 @@ export class UI {
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Physics and deep time</h3>
-      <p class="dim">The Rate menu runs the clock from slow motion to 10 billion years per second. The Timeline (U) lists what is
-      coming (Betelgeuse's supernova, Andromeda's collision, the Sun's red giant phase, the last stars) with a slider from the Big Bang
-      to 100 trillion years ahead; the clock slows down for each event. Stars move, the Galaxy turns, the Sun evolves, galaxies recede,
-      the planets' orbits slowly change, ice ages come and go with them and the continents drift. Near a planet, fast time-lapses
-      advance in whole days and orbits so the view holds still.
-      The Sandbox (V) is an N-body simulation with general relativistic corrections: merge black holes and neutron stars, hear the
-      gravitational wave chirp, shred a star, form the Moon in a giant impact, detonate colliding white dwarfs, or send a black hole
-      through the Solar System. M toggles relativistic flight.</p>
+      <p class="dim">The Rate menu (or , . &lt; &gt;) runs the clock from slow motion to 10 billion years per second, forwards or back (J).
+      The Timeline (U) runs from the Big Bang to the last stars; Go jumps to an event, and the search box takes events
+      ("dinosaurs") and times ("2 Gyr", "year 3000", "age 380 kyr"). What changes with time:</p>
+      <ul class="dim physlist">
+        <li><b>The universe</b>: expansion, redshift and the event horizon; galaxies form, start small, blue and star-bursting, then age and fade; supernovae flare in other galaxies; the early cosmos glows (try "age 380 kyr").</li>
+        <li><b>The Galaxy</b>: stars orbit and stream, the spiral pattern turns, massive stars explode and their remnants expand, nebulae form and disperse, Andromeda collides with us.</li>
+        <li><b>Stars</b>: every star you visit ages (main sequence, giant, white dwarf, neutron star or black hole); Betelgeuse, Rigel and six other real stars explode on estimated dates; Miras and Cepheids pulsate; red dwarfs flare; the S-stars orbit Sagittarius A*.</li>
+        <li><b>The Sun</b>: its birth in a dusty disk, 11-year cycle, slow brightening, red giant, planetary nebula and white dwarf.</li>
+        <li><b>The planets</b>: orbits precess and change shape (secular theory), planets are swallowed or heated by the giant Sun, Phobos and Triton break into rings, Saturn's rings rain away, Mars once had an ocean.</li>
+        <li><b>Earth</b>: magma ocean, bare continents before land plants, Snowball Earth, ice ages paced by its orbit (sea level and ice sheets), drifting continents, a lengthening day and receding Moon, precession, and the oceans boiling away in a billion years.</li>
+        <li><b>The sandbox (V)</b>: N-body gravity with general relativity: merging black holes (Kerr shadows, gravitational waves you can hear), neutron star mergers and kilonovae, tidal disruption, the Moon-forming impact, Type Ia supernovae.</li>
+      </ul>
+      <p class="dim">Near a planet, fast time-lapses advance in whole days and orbits so the view holds still. M toggles relativistic flight.</p>
       <h3 style="margin-top:12px">Data and credits</h3>
       <p class="dim credits">Earth: NASA Blue Marble NG, Black Marble 2016, Blue Marble clouds (NASA Earth Observatory); ETOPO 2022 (NOAA); Natural Earth.
       Moon: LRO LROC WAC and LOLA (NASA SVS CGI Moon Kit). Mars: Viking MDIM 2.1 and MOLA (USGS Astrogeology). Mercury, moons, Pluto, Ceres: USGS Astrogeology mosaics from MESSENGER, Galileo, Voyager, Cassini, New Horizons and Dawn.
