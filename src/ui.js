@@ -81,7 +81,7 @@ export class UI {
       Milky Way: ESO/S. Brunier panorama (CC BY 4.0). Exoplanets: NASA Exoplanet Archive.
       Ephemerides: JPL approximate planetary elements (E. M. Standish), J. Meeus, Astronomical Algorithms.</p>
       <p class="dim">Press H or ? to close.</p>`;
-    this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click an object to travel · <b>H</b> for help'));
+    this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click to travel · <b>V</b> physics sandbox · <b>U</b> timeline · <b>H</b> help'));
     setTimeout(() => this.hint.classList.add('fade'), 9000);
     // on-screen fly buttons for touch screens
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {

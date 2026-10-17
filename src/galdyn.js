@@ -97,3 +97,9 @@ export function updateWorld(time, dtyr = 0) {
   MILKY_WAY.quat = Q.mul(MW_Q0, Q.axis([0, 1, 0], -a));
   updateCosmo(tyr);
 }
+
+// The end of the stelliferous era: once star formation has run out of gas (~10 Gyr from now, after the merger with
+// Andromeda), no new stars replace the old ones. A star of luminosity L lives about 10 Gyr * L^-0.7, so the
+// brightest survivors fade: blue stars first, then Sun-like stars, leaving red dwarfs and white dwarfs.
+export function popLmax(tyr) { const t = tyr / 1e9; return t < 15 ? Infinity : Math.pow(10 / (t - 5), 1 / 0.7); }
+export function popFade(tyr) { const L = popLmax(tyr); return L === Infinity ? 1 : Math.min(1, Math.pow(L, 0.4)); }

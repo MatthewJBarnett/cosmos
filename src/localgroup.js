@@ -7,7 +7,7 @@ import { gl, Program, tex2D, fbo, drawFS, FS_VS, texCube } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
 import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
-import { sunPos, YEAR, sunHook } from './galdyn.js';
+import { sunPos, YEAR, sunHook, popFade } from './galdyn.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { GAL_I0, skyCfg } from './sky.js';
 
@@ -211,7 +211,7 @@ export class LocalGroup {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
     this.pPart.use().set({ uPos: this.pos[this.cur], uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
-      uLum: [GAL.mw.L / HALF, GAL.m31.L / HALF], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
+      uLum: [GAL.mw.L / HALF * popFade(NOW_TYR + this.t * 1e6), GAL.m31.L / HALF * popFade(NOW_TYR + this.t * 1e6)], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }
   // sky seen from inside: particles splatted into a cube map around the camera, refreshed as time moves on

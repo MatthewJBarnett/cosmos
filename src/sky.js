@@ -7,7 +7,7 @@ import { GLSL_BB } from './stars.js';
 import { REFRACT_VS } from './planet.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
-import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE } from './galdyn.js';
+import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE, popLmax, popFade } from './galdyn.js';
 import { COSMO_GLSL, cosmoTexture, cosmo, U_NOW } from './cosmology.js';
 import { variableStars } from './variables.js';
 
@@ -21,7 +21,7 @@ layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT; layout(location
 uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uPixScale, uBoost; uniform vec3 uHide;
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 // motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
-uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight; uniform mat3 uRotC;
+uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight, uLmax; uniform mat3 uRotC;
 uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[4]; uniform int uVarIdx[8]; uniform float uVarDm[8];
 ${REFRACT_VS}
 out vec3 vCol; out float vSig;
@@ -49,6 +49,8 @@ void main(){
     for (int i = 0; i < 8; i++) if (gl_VertexID == uVarIdx[i]) w *= exp(-0.9210340372*uVarDm[i]);
   }
   vec3 p = lp + uOffset; float d = length(p);
+  // in the far future only long-lived (faint) stars remain
+  if (uMode != 2 && uLmax < 1e20) { float L = exp(-0.9210340372*(aMT.x - 4.83)); w *= smoothstep(uLmax*1.6, uLmax*0.6, L); }
   if (uMode == 0) {
     // massive stars end their lives; seen with the light travel delay
     int k = snClass(aMT.x, T);
@@ -255,7 +257,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   const p = pStar.use();
   const tyr = world.tyr;
   p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
-    uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
+    uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1]) });
   { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm }); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
@@ -315,7 +317,7 @@ export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
   // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6 });
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
@@ -380,7 +382,7 @@ export class GalaxySky {
   draw(rotLocalFromView, tanFov, exposure, weight = 1) {
     if (!this.valid || weight <= 0) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
-    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure * weight, uFade: weight });
+    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure * weight * popFade(world.tyr), uFade: weight });
     drawFS();
   }
 }
