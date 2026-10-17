@@ -7,7 +7,8 @@ import { RNG, hashCombine } from './rng.js';
 import { NOCT, GEN_COMMON, GEN_TERRA, GEN_GAS, GEN_STAR, GEN_MAIN } from './terrain_glsl.js';
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
-import { bodyMaps } from './assets.js';
+import { bodyMaps, loadTexture } from './assets.js';
+import { plateInverse } from './tectonics.js';
 
 export const cfg = { T: 193, maxChunks: 420, genPerFrame: 3, lodScale: 1.0, shadows: true, autoLod: 1, trees: true, treeRange: 1800, treeBudget: 60000 };
 const FACES = [
@@ -545,6 +546,10 @@ class PlanetState {
       uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uSeason: this.body.seasonal && mp ? (this.season = this.body.season || 0) : -2, uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
       uClimate: this.body.climate ? [(this.climate = this.body.climate).dry, this.body.climate.life, this.body.climate.ice] : [0, 1, 1],
       uCraterO0: mp && mp.height ? mapOct : 2 });
+    // drifting continents (Earth): the plate map loads the first time it is needed
+    const drift = this.body.drift || 0, pm = drift && mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(pm && pm.ready);
+    this.drift = dOn ? drift : 0;
+    prog.set({ uDrift: this.drift, uPlates: dOn ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift) });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
@@ -638,14 +643,19 @@ export function planetState(body) {
   init();
   let s = states.get(body.uid);
   const maps = bodyMaps(body);
-  if (s && s.mapsVersion !== (body.mapsVersion || 0)) { s.dispose(); states.delete(body.uid); s = null; }
-  // seasonal surfaces are rebaked when the season has moved on (rate limited)
-  if (s && body.seasonal && s.maps && Math.abs((body.season || 0) - (s.season || 0)) > 0.12 && performance.now() - (s.born || 0) > 4000) { s.dispose(); states.delete(body.uid); s = null; }
-  // the Sun's evolution changes Earth's surface (and the size of stars): rebake when it has moved on
-  if (s && body.climate && s.climate && performance.now() - (s.born || 0) > 3000) { const a = body.climate, b = s.climate; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) { s.dispose(); states.delete(body.uid); s = null; } }
-  if (s && body.kind === 'star' && s.bakeR && Math.abs(Math.log(body.radius / s.bakeR)) > 0.35 && performance.now() - (s.born || 0) > 1500) { s.dispose(); states.delete(body.uid); s = null; }
-  if (s && body.kind === 'star' && body.surface && Math.abs((body.surface.spots || 0) - (s.bakeSpots || 0)) > 0.2 && performance.now() - (s.born || 0) > 5000) { s.dispose(); states.delete(body.uid); s = null; }
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; states.set(body.uid, s); }
+  if (s && s.mapsVersion !== (body.mapsVersion || 0)) { if (s.prev) s.prev.dispose(); s.dispose(); states.delete(body.uid); s = null; }
+  // Surfaces that change with time (seasons, the Sun's evolution, drifting continents) are rebaked. The old tiles
+  // stay on screen until the new set has caught up, so a rebake never shows as a blurry flash.
+  let stale = false;
+  const age = s ? performance.now() - (s.born || 0) : 0;
+  if (s && body.seasonal && s.maps && Math.abs((body.season || 0) - (s.season || 0)) > 0.12 && age > 4000) stale = true;
+  if (s && body.climate && s.climate && age > 3000) { const a = body.climate, b = s.climate; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) stale = true; }
+  if (s && body.kind === 'star' && s.bakeR && Math.abs(Math.log(body.radius / s.bakeR)) > 0.35 && age > 1500) stale = true;
+  if (s && body.kind === 'star' && body.surface && Math.abs((body.surface.spots || 0) - (s.bakeSpots || 0)) > 0.2 && age > 5000) stale = true;
+  if (s && body.drift !== undefined && s.maps && Math.abs(body.drift - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
+  if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
+  const prev = stale ? s : null; if (stale) s = null;
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }
@@ -671,7 +681,7 @@ export function drawPlanet(body, o) {
   const rot3 = Q.mat3(o.rotQ);
   // telephoto views would otherwise ask for unbounded detail: LOD saturates below a ~6 degree field of view
   const K = 1.45 * cfg.T / Math.min(o.pxPerRad, o.pxPerRadMax || o.pxPerRad) / (cfg.lodScale * cfg.autoLod);
-  const draws = [];
+  let draws = [], S = st, noQueue = false, incomplete = false;
   const visit = (ch) => {
     ch.last = frame;
     // horizon cull
@@ -690,16 +700,18 @@ export function drawPlanet(body, o) {
     if (dn > 0.01) {
       const a = clamp(V.dot(camDir, F.A) / dn, ch.a0, ch.a0 + ch.size), b = clamp(V.dot(camDir, F.B) / dn, ch.b0, ch.b0 + ch.size);
       const q = V.norm([F.N[0] + a * F.A[0] + b * F.B[0], F.N[1] + a * F.A[1] + b * F.B[1], F.N[2] + a * F.A[2] + b * F.B[2]]);
-      const rr = R + st.groundH;
+      const rr = R + S.groundH;
       dist = Math.hypot(camLocal[0] - q[0] * rr, camLocal[1] - q[1] * rr, camLocal[2] - q[2] * rr);
     } else dist = Math.max(V.len(cRel) - ch.angRad * R, 1);
     dist = Math.max(dist, alt, 0.5);
-    const split = ch.level < st.maxLevel && sizeM / dist > K;
+    const split = ch.level < S.maxLevel && sizeM / dist > K;
     if (split) {
-      if (!ch.children) { ch.children = []; for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) ch.children.push(new Chunk(st, ch.face, ch.level + 1, ch.ix * 2 + i, ch.iy * 2 + j, ch)); }
+      if (!ch.children) { if (noQueue) { draws.push({ ch, cRel, sizeM }); return; } ch.children = []; for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) ch.children.push(new Chunk(S, ch.face, ch.level + 1, ch.ix * 2 + i, ch.iy * 2 + j, ch)); }
       let all = true;
-      for (const c of ch.children) { c.last = frame; if (!c.ready) { all = false; if (!c.queued) { c.queued = true; queue.push(c); } c.prio = sizeM / dist; } }
+      for (const c of ch.children) { c.last = frame; if (!c.ready) { all = false; if (!noQueue && !c.queued) { c.queued = true; queue.push(c); } c.prio = sizeM / dist; } }
       if (all) { for (const c of ch.children) visit(c); return; }
+      // (a coarser tile stands in while the finer ones bake; only count it if it is clearly too coarse)
+      if (sizeM / dist > K * 1.6) incomplete = true;
     }
     draws.push({ ch, cRel, sizeM });
   };
@@ -711,6 +723,15 @@ export function drawPlanet(body, o) {
     if (blend) gl.enable(gl.BLEND); if (depth) gl.enable(gl.DEPTH_TEST);
   }
   for (const r of st.roots) visit(r);
+  // after a rebake, keep drawing the previous tiles until the new ones have caught up (or a few seconds pass)
+  let dst = st;
+  if (st.prev) {
+    if (incomplete && performance.now() - st.born < 5000 && st.prev.roots.every(r => r.ready)) {
+      const d1 = draws; draws = []; S = st.prev; noQueue = true; st.prev.last = frame;
+      for (const r of st.prev.roots) visit(r);
+      dst = st.prev; noQueue = false; void d1;
+    } else { st.prev.dispose(); st.prev = null; }
+  }
   // draw
   const p = progDraw.use();
   gl.bindVertexArray(gridVAO.vao);
@@ -736,7 +757,7 @@ export function drawPlanet(body, o) {
     p.set({ uHeightTex: ch.tex.h, uNormTex: ch.tex.n, uAlbTex: ch.tex.a, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size, uSkirt: d.sizeM * 0.06, uChunkM: d.sizeM, uChunkA: ch.size * R, uDetailO: om });
     gl.drawElements(gl.TRIANGLES, gridCount, gl.UNSIGNED_INT, 0);
   }
-  if (surf.gen === 'terra' && (surf.veg > 0 || (body.maps && st.maps))) drawTrees(body, st, draws, o, R, rot3);
+  if (surf.gen === 'terra' && (surf.veg > 0 || (body.maps && st.maps))) drawTrees(body, dst, draws, o, R, rot3);
   st.drawn = draws.length;
   return st;
 }
@@ -763,7 +784,7 @@ export function planetHousekeeping() {
     const total = totalChunks();
     const maxAge = total > cfg.maxChunks ? 30 : 600;
     for (const [uid, st] of states) {
-      if (frame - st.last > 900) { st.dispose(); states.delete(uid); continue; }
+      if (frame - st.last > 900) { if (st.prev) st.prev.dispose(); st.dispose(); states.delete(uid); continue; }
       const prune = (ch) => {
         if (!ch.children) return;
         let stale = true;

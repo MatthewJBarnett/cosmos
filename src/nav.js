@@ -330,7 +330,7 @@ export class Nav {
   // ----- per frame -----
   update(dt, input) {
     // (the anchor's position and rotation before anything moves this frame, for following it)
-    const anc0 = this.anchor, anc0Pos = anc0 ? anc0.wpos : null, anc0Ang = anc0 ? anc0.rotAngle : 0;
+    const anc0 = this.anchor, anc0Pos = anc0 ? anc0.wpos : null, anc0Ang = anc0 ? anc0.rotAngle : 0, anc0Rot = anc0 ? anc0.wrot : null;
     // relativistic flight: the outside clock runs fast by the Lorentz factor of the camera
     const b2 = this.beta ? this.beta[0] ** 2 + this.beta[1] ** 2 + this.beta[2] ** 2 : 0;
     this.gamma = 1 / Math.sqrt(1 - Math.min(b2, 0.999999));
@@ -341,7 +341,9 @@ export class Nav {
     // from frame to frame; advance in whole orbits instead so the lit face holds still while the ages pass
     this.yearLocked = false;
     let top = an0; while (top && top.parent && top.parent.kind !== 'star') top = top.parent;
-    const P = top && top.kind !== 'star' && top.orbit && top.orbit.period && !(top.system && top.system.sandbox) ? top.orbit.period : 0;
+    let P = top && top.kind !== 'star' && top.orbit && top.orbit.period && !(top.system && top.system.sandbox) ? top.orbit.period : 0;
+    // on Earth's surface keep the seasons still: whole tropical years (the equinoxes precess every 25,772 years)
+    if (P && an0 === top && top.precessRA && this.altitude < an0.radius * 0.05) P = P / (1 + P / (25772 * YEAR));
     if (!this.paused && P && this.level === 'system' && !this.goto && Math.abs(this.rate) > 0.17 * P && Math.abs(this.rate) < 3e15) {
       const y = this._yl;
       if (y && y.top === top && Math.abs(this.time - (y.lastSet + dAdv)) <= Math.abs(dAdv) * 1e-6 + 1) y.tv += dAdv;
@@ -382,8 +384,17 @@ export class Nav {
         if (w > 0 && prev.rotPeriod && !this.paused) {
           // follow the body's actual rotation since the last frame (time may have been snapped to whole days)
           let da = prev.rotAngle - prevAng; da -= 2 * Math.PI * Math.round(da / (2 * Math.PI));
-          const dAng = (Math.abs(this.rate * dt) < Math.abs(prev.rotPeriod) * 0.4 || this.dayLocked ? da : 2 * Math.PI * dt * this.rate / prev.rotPeriod) * w;
-          const axis = Q.rot(prev.wrot, [0, 1, 0]), rq = Q.axis(axis, dAng);
+          const slow = Math.abs(this.rate * dt) < Math.abs(prev.rotPeriod) * 0.4 || this.dayLocked;
+          let rq;
+          const prevRot = prev === anc0 ? anc0Rot : null;
+          if (slow && prevRot && prev.wrot) {
+            // the body's whole change of orientation (spin, and over long time-lapses precession and nodding too)
+            const dq = Q.norm(Q.mul(prev.wrot, Q.conj(prevRot)));
+            rq = w >= 1 ? dq : Q.slerp([0, 0, 0, 1], dq, w);
+          } else {
+            const dAng = (slow ? da : 2 * Math.PI * dt * this.rate / prev.rotPeriod) * w;
+            rq = Q.axis(Q.rot(prev.wrot, [0, 1, 0]), dAng);
+          }
           this.S = V.add(prev.wpos, Q.rot(rq, rel)); this.q = Q.norm(Q.mul(rq, this.q));
         }
       }

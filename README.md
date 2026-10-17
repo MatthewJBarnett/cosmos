@@ -141,6 +141,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   real continental shelves (Beringia, Doggerland, Sundaland). It peaks 18,000 years ago and is clear by 9,000
   years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
   years by human CO₂).
+- **Drifting continents:** Earth's plates (Bird 2003 outlines) turn about their present Euler poles (NNR-NUVEL-1A):
+  the Atlantic widens, Australia heads for Southeast Asia, the Pacific shrinks; gaps between diverging plates fill
+  with new sea floor. Present motions are extrapolated to +100 Myr (and back to -50 Myr), then held.
 - **Time-lapse at a planet:** at fast rates the clock advances in whole days (and, faster still, whole orbits),
   like a camera taking one photo per night, so the lit face holds still instead of strobing.
 - **Andromeda:** M31's orbit (765 kpc, −109 km/s, dynamical friction) gives a first passage at 3.7 Gyr
@@ -285,7 +288,9 @@ figure-eight choreography, tidal disruption (half the debris bound, first fallba
 - Andromeda: the tangential velocity is uncertain (Gaia-era estimates even allow a ~50% chance of no merger within
   10 Gyr, Sawala et al. 2025); 30 km/s was chosen to follow van der Marel et al. 2012. The N-body is restricted
   (particles feel both galaxies' analytic potentials, not each other), with no gas.
-- Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified; continents do not drift.
+- Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified. Continents move rigidly
+  with today's plate velocities (no subduction, mountain building or plate reorganisation; held after 100 Myr).
+  Ice sheets are colour on the surface (their 3 km thickness is not added to the terrain).
 - Relativistic flight (M) transforms the sky (stars, galaxies, the Milky Way); nearby planets are not aberrated, and
   go-to remains a faster-than-light jump.
 

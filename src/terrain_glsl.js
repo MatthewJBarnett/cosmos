@@ -47,6 +47,25 @@ uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; u
 const float MPI = 3.14159265358979;
 // (z is nudged away from exactly 0: some GPUs return garbage for atan(-0, x), which put a seam on the prime meridian)
 vec2 mapUV(vec3 P){ vec3 n = normalize(P); float z = abs(n.z) < 1e-9 ? -1e-9 : n.z; return vec2(atan(-z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
+// ---- plate tectonics: each plate turns about its Euler pole; a point shows the crust of whichever plate has carried
+// it there (continents win where plates overlap); gaps opened between diverging plates are new ocean floor ----
+uniform float uDrift; uniform sampler2D uPlates; uniform mat3 uPlateInv[14];
+float gFreshCrust = 0.;
+vec3 plateSrc(vec3 P){
+  gFreshCrust = 0.;
+  if (uDrift == 0.) return P;
+  ivec2 ps = textureSize(uPlates, 0);
+  vec3 best = P; float bestS = -1.;
+  for (int k = 1; k < 14; k++) {
+    vec3 q = uPlateInv[k]*P; vec2 uv = mapUV(q);
+    int id = int(texelFetch(uPlates, ivec2(clamp(uv*vec2(ps), vec2(0.), vec2(ps) - 1.)), 0).r*255. + 0.5);
+    if (id != k) continue;
+    float sc = uHasM > 0.5 ? 1. - textureLod(uMMap, uv, 0.).r : 0.;       // land beats sea floor
+    if (sc > bestS) { bestS = sc; best = q; }
+  }
+  if (bestS < 0.) gFreshCrust = 1.;
+  return best;
+}
 float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
 // smooth (cubic B-spline) height lookup so map pixels never show as facets
 float heightMap(vec2 uv){
@@ -115,12 +134,13 @@ float craters(vec3 d){
 }
 
 float terrainMapped(vec3 d, vec3 P){
-  vec2 uv = mapUV(P);
-  float hm = heightMap(uv);
+  vec2 uv = mapUV(plateSrc(P));
+  // (new sea floor: young, hot crust sits high, ~2.6 km deep at the ridge)
+  float hm = gFreshCrust > 0.5 ? -2700. + fbm(2, 7, 77u, d, 0.6)*300. : heightMap(uv);
   float land = 1.;
   if (uHasM > 0.5) {
     // coastline from the land/water mask, roughened below map resolution
-    float wm = texture(uMMap, uv).r;
+    float wm = gFreshCrust > 0.5 ? 1. : texture(uMMap, uv).r;
     float cn = uOMax >= int(uMapOct) ? fbm(int(uMapOct), min(uOMax, int(uMapOct) + 6), 41u, d, 0.55)*0.35 : 0.;
     float water = smoothstep(0.42, 0.58, wm + cn);
     land = 1. - water;
@@ -294,8 +314,8 @@ vec3 albedoFromMap(vec3 lin){
   return 0.45*v + 0.5*pow(v, vec3(8.));
 }
 vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
-  vec2 uv = mapUV(P);
-  vec3 m = albedoFromMap(texture(uCMap, uv).rgb)*uMapTint;
+  vec2 uv = mapUV(plateSrc(P));
+  vec3 m = albedoFromMap(gFreshCrust > 0.5 ? vec3(0.04, 0.07, 0.19) : texture(uCMap, uv).rgb)*uMapTint;
   emis = 0.;
   int o0 = int(uMapOct);
   // how far below the map's resolution this tile is (0 = map scale, 1 = much finer)

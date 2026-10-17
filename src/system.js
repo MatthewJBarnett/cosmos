@@ -8,7 +8,8 @@ import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge } from './evolution.js';
-import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt } from './ephem.js';
+import { driftMyr } from './tectonics.js';
+import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
@@ -289,6 +290,7 @@ export class StarSystem {
         b.climate = earthClimate(tyr);
         // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
         b.iceAge = iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
+        b.drift = driftMyr(tyr);
       }
       if (b.seasonal && this.stars[0]) {
         // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)
@@ -324,6 +326,8 @@ function buildSol(sys) {
   const P = (name, cls, aAU, e, i, node, peri, L, massE, radKm, rotH, tilt, albedo, temp, extra = {}) => {
     const b = body({ name, kind: 'planet', cls, mass: massE * C.Mearth, radius: radKm * 1e3, rotPeriod: rotH * 3600, tilt, albedo, temp, real: true, ...extra });
     b.orbit = orbit(aAU, e, i, node, peri, L, C.Msun, b.mass);
+    // (the ephemeris moves the planet at its fitted mean motion: use that period, so time-lapses land on whole orbits)
+    if (JPL[name]) b.orbit.period = 360 / JPL[name][1][3] * 36525 * 86400;
     return addChild(sun, b);
   };
   const Mn = (parent, name, cls, aKm, e, inc, massKg, radKm, albedo, extra = {}) => {
@@ -434,7 +438,7 @@ function buildSol(sys) {
   const ALB = { mercury: 0.14, io: 0.62, europa: 0.64, ganymede: 0.42, callisto: 0.2, titan: 0.2, enceladus: 0.95, pluto: 0.5, charon: 0.33, ceres: 0.09 };
   const setMaps = (b, maps) => { b.maps = maps; if (b.surface) b.surface.freq = 1; };
   const tintOf = (c) => { const l = 0.3 * c[0] + 0.5 * c[1] + 0.2 * c[2]; return [c[0] / l * 0.5, c[1] / l * 0.5, c[2] / l * 0.5]; };
-  setMaps(earth, { curve: 'bmng', lo: { color: D + 'earth_color_lo.jpg', height: D + 'earth_height16_lo.png' }, color: D + 'earth_color.jpg', height: D + 'earth_height16.webp', hRange: [-11000, 9000], mask: D + 'earth_mask.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
+  setMaps(earth, { curve: 'bmng', lo: { color: D + 'earth_color_lo.jpg', height: D + 'earth_height16_lo.png' }, color: D + 'earth_color.jpg', height: D + 'earth_height16.webp', hRange: [-11000, 9000], mask: D + 'earth_mask.png', plates: D + 'earth_plates.png', lights: D + 'earth_lights.jpg', clouds: D + 'earth_clouds.jpg' });
   setMaps(moon, { lo: { color: D + 'moon_color_lo.jpg', height: D + 'moon_height16_lo.png' }, color: D + 'moon_color.jpg', height: D + 'moon_height16.webp', hRange: [-9500, 11000], albedo: 0.12 });
   setMaps(mars, { lo: { color: D + 'mars_color_lo.jpg', height: D + 'mars_height16_lo.png' }, color: D + 'mars_color.jpg', height: D + 'mars_height16.webp', hRange: [-8500, 21500], albedo: 0.2 });
   for (const [b, f, tint] of [[mercury, 'mercury', [0.62, 0.6, 0.57]], [io, 'io', null], [eu, 'europa', [1.0, 0.92, 0.82]], [ga, 'ganymede', [0.9, 0.86, 0.8]], [ca, 'callisto', [0.85, 0.8, 0.74]],
@@ -683,6 +687,13 @@ export function describeBody(b) {
     if (b.temp) rows.push(['Temperature', Math.round(b.temp) + ' K']);
     rows.push(['Luminosity', fmt(b.lum) + ' L<sub>Sun</sub>']);
     if (b.star) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
+    if (b.blackHole) {
+      // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
+      const m = b.mass / C.Msun;
+      rows.push(['Horizon radius', fmt(2 * C.G * b.mass / (C.c * C.c) / 1e3) + ' km']);
+      rows.push(['Hawking temperature', fmt(6.17e-8 / m) + ' K']);
+      rows.push(['Evaporates in', fmt(2.1e67 * m ** 3) + ' yr']);
+    }
   } else if (b.kind !== 'barycenter') {
     rows.push(['Mass', b.mass > 0.01 * C.Mearth ? (b.mass > 50 * C.Mearth ? fmt(b.mass / C.Mjup) + ' M<sub>Jup</sub>' : fmt(b.mass / C.Mearth) + ' M<sub>Earth</sub>') : fmt(b.mass) + ' kg']);
     rows.push(['Radius', fmt(b.radius / 1e3, 5) + ' km']);
