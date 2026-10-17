@@ -94,6 +94,16 @@ float ringShadow(vec3 p, vec3 L){
 }
 `;
 
+// ice ages: the southern edge (deg N) of the Northern ice sheets for the current ice volume (uIceAge.x, 1 = Last
+// Glacial Maximum), from LGM limits every 20 deg of longitude from 180 W (Laurentide, Cordilleran, Fennoscandian, ...)
+const ICE_GLSL = `uniform vec2 uIceAge;
+const float ICE_LIM[19] = float[19](72., 66., 58., 47., 45., 40., 44., 58., 62., 52., 51., 57., 62., 66., 72., 75., 74., 70., 72.);
+float iceEdgeLat(vec3 dir){
+  float lonD = degrees(atan(-(abs(dir.z) < 1e-9 ? -1e-9 : dir.z), dir.x));
+  float fi = clamp((lonD + 180.)/20., 0., 17.999); int ii = int(fi);
+  float lim = mix(ICE_LIM[ii], ICE_LIM[ii + 1], smoothstep(0., 1., fi - float(ii)));
+  return mix(82., lim, pow(min(uIceAge.x, 1.15), 0.7));
+}`;
 const DRAW_FS = `
 in vec3 vDir; in vec2 vUV; in vec3 vWorld;
 uniform sampler2D uHeightTex, uNormTex, uAlbTex, uIrrLUT, uParentH, uGParentH; uniform vec3 uParentUV, uGParentUV;
@@ -103,9 +113,8 @@ uniform vec3 uFaceA;
 uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
 uniform vec2 uDetailO; uniform float uChunkA;
-uniform int uKind; uniform vec2 uIceAge;
-// southern limit (deg N) of the Northern ice sheets at the Last Glacial Maximum, every 20 deg of longitude from 180 W
-const float ICE_LIM[19] = float[19](72., 66., 58., 47., 45., 40., 44., 58., 62., 52., 51., 57., 62., 66., 72., 75., 74., 70., 72.);
+uniform int uKind;
+${ICE_GLSL}
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
@@ -156,10 +165,8 @@ void main(){
       // ice sheets at their Last Glacial Maximum extent (Laurentide, Cordilleran, Fennoscandian, Barents-Kara,
       // Patagonian), growing from the high latitudes as ice volume builds
       float lonD = degrees(atan(-(abs(dir.z) < 1e-9 ? -1e-9 : dir.z), dir.x)), latD = degrees(asin(clamp(dir.y, -1., 1.)));
-      float fi = clamp((lonD + 180.)/20., 0., 17.999); int ii = int(fi);
-      float lim = mix(ICE_LIM[ii], ICE_LIM[ii + 1], smoothstep(0., 1., fi - float(ii)));
       float nz = (texture(uNoise3, dir*1.7).r - 0.5)*5. + (texture(uNoise3, dir*7.).g - 0.5)*2.;
-      float latT = mix(82., lim, pow(min(uIceAge.x, 1.15), 0.7)) + water*6.;
+      float latT = iceEdgeLat(dir) + water*6.;
       float cov = smoothstep(-0.8, 0.8, latD + nz - latT);
       // Patagonian ice cap along the southern Andes
       cov = max(cov, smoothstep(-0.8, 0.8, mix(-56., -39., min(uIceAge.x, 1.)) - latD + nz*0.5)*smoothstep(-77., -74., lonD)*smoothstep(-68., -71., lonD)*step(0.05, uIceAge.x));
@@ -329,6 +336,7 @@ uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
 uniform float uQcLen, uSize, uRadius, uSea, uOcean, uTexSize;
 uniform vec2 uOff, uStep; uniform ivec2 uBase; uniform int uNX; uniform float uRange;
+${ICE_GLSL}
 out vec2 vC; out vec3 vCol; out vec3 vUp; out vec3 vWorld; out float vKind; out vec3 vRight; out float vSeed;
 ${LOGDEPTH_VS}
 uint th(ivec2 c, uint s){ uint h = uint(c.x)*0x8da6b343u ^ uint(c.y)*0xd8163841u ^ s*0x9e3779b9u; h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; return h; }
@@ -359,6 +367,8 @@ void main(){
   float s2 = (2.*dot(uQc, delta) + dot(delta, delta))/(uQcLen*uQcLen);
   float sq = sqrt(1. + s2); float k = -s2/(sq*(1. + sq));
   vec3 cdir = uQc/uQcLen, dd = cdir*k + delta/(uQcLen*sq), dir = cdir + dd;
+  // no forest on (or right at the edge of) an ice-age ice sheet
+  if (uIceAge.x > 0.05 && degrees(asin(clamp(normalize(dir).y, -1., 1.))) > iceEdgeLat(normalize(dir)) - 2.5) { gl_Position = vec4(2., 2., 2., 1.); return; }
   vec3 local = uRadius*dd + dir*hgt;
   vec3 base = uRot*local + uCenterRel;
   vec3 up = normalize(uRot*dir);
@@ -434,7 +444,7 @@ function drawTrees(body, st, draws, o, R, rot3) {
     if (nx * nx > budget) break;
     budget -= nx * nx;
     if (!bound) {
-      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex(), uRange: RANGE }, o.light));
+      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex(), uRange: RANGE, uIceAge: body.iceAge ? [body.iceAge, 0] : [0, 0] }, o.light));
       gl.bindVertexArray(treeVAO.vao); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); bound = true;
     }
     p.set({ uHeightTex: ch.tex.h, uAlbTex: ch.tex.a, uNormTex: ch.tex.n, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size,
