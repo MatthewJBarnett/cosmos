@@ -70,7 +70,7 @@ export class UI {
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
       <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr>
-      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>V</td><td>Physics sandbox</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
+      <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of future events</td></tr><tr><td>V</td><td>Physics sandbox: black holes, neutron stars, gravitational waves</td></tr><tr><td>Rate menu</td><td>Slow motion to 10 billion years per second</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
       <h3 style="margin-top:12px">Data and credits</h3>
@@ -514,6 +514,7 @@ export class UI {
   }
   updateTimeline() {
     if (this.linePanel.classList.contains('hidden')) return;
+    if (document.activeElement && document.activeElement.id === 'tlYears') return;
     const tyr = this.nav.time / YEAR, tl = this.timeline, nx = tl.next(tyr);
     const key = (nx ? nx.id : '') + ':' + Math.floor(Date.now() / 500);
     if (key === this.lineKey) return; this.lineKey = key;
@@ -521,9 +522,19 @@ export class UI {
       const dt = e.t - tyr, past = dt < 0;
       return `<div class="row${past ? ' past' : ''}${e === nx ? ' sel' : ''}" data-i="${i}" title="${e.text.replace(/"/g, '&quot;')}"><span class="nm">${e.title}${e.est ? ' <span class="dim">(estimate)</span>' : ''}</span><span class="ds">${past ? fmtSpan(dt) + ' ago' : 'in ' + fmtSpan(dt)}</span><button data-i="${i}">Go</button></div>`;
     }).join('');
-    this.linePanel.innerHTML = `<h3>Timeline</h3><div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label><p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
+    this.linePanel.innerHTML = `<h3>Timeline</h3><div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label>
+      <div class="tljump">Jump to <input id="tlYears" placeholder="years from now, e.g. 5e9 or -65e6" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
+      <p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
     this.linePanel.querySelectorAll('button').forEach(b => { b.onclick = () => { tl.go(tl.events[+b.dataset.i]); this.lineKey = null; }; });
     this.linePanel.querySelector('#tlAuto').onchange = (e) => { tl.auto = e.target.checked; };
+    const yi = this.linePanel.querySelector('#tlYears');
+    yi.oninput = () => { this.tlYears = yi.value; };
+    yi.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') this.linePanel.querySelector('#tlGo').click(); };
+    this.linePanel.querySelector('#tlGo').onclick = () => {
+      const y = parseFloat(String(yi.value).replace(/,/g, '')); if (!isFinite(y)) { this.toast('Enter a number of years, e.g. 1e6'); return; }
+      this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; this.timeline.lastTyr = this.nav.time / YEAR; this.lineKey = null;
+      this.toast(fmtSimDate(this.nav.time));
+    };
   }
   // set up the camera for an event from the timeline
   eventView(e) {

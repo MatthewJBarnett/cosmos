@@ -210,7 +210,7 @@ export class StarSystem {
       const earthB = this.root.children.find(b => b.name === 'Earth'); if (earthB) earthB.aurora = 0.35 + 0.9 * act;
       oScale = orbitScale(tyr); mScale = moonScale(tyr);
       let changed = false;
-      for (const b of this.root.children) if (b.kind !== 'barycenter') { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) c.gone = g; }
+      for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
       // surfaces heated by the giant Sun glow
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }

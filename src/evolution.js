@@ -28,6 +28,8 @@ const TRACK = [
 export const PN_START = 12.3602, WD_START = 12.3603, RGB_TIP = 12.167;
 const ageOf = (tyr) => SUN_AGE_NOW + tyr / 1e9;
 function interp(age) {
+  // before the Sun: a contracting protostar (Hayashi track), then nothing at all before the cloud collapsed
+  if (age < 0) { const f = Math.min(1, -age / 0.05); return [age, 0.7 + 3 * f, 0.89 + 3 * f, 1.0]; }
   if (age <= TRACK[0][0]) return TRACK[0];
   for (let i = 1; i < TRACK.length; i++) {
     const b = TRACK[i]; if (age > b[0]) continue;
@@ -48,7 +50,10 @@ export function orbitScale(tyr) { return 1 / interp(ageOf(tyr))[3]; }
 // planets swallowed by the giant Sun (Mercury and Venus certainly; Earth very likely through tidal drag)
 const AU_RSUN = 215.03;
 export function engulfed(name, tyr) {
-  const age = ageOf(tyr); if (age < 12.1) return false;
+  const age = ageOf(tyr);
+  // before the planets formed (the first tens of millions of years) there is only the young Sun and its disk
+  if (age < 0.03 || (name === 'Moon' && age < 0.07)) return true;
+  if (age < 12.1) return false;
   if (name === 'Earth' || name === 'Moon') return age >= RGB_TIP - 0.0005;
   const a0 = { Mercury: 0.387, Venus: 0.723 }[name]; if (!a0) return false;
   // once inside the envelope they never come back

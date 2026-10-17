@@ -23,6 +23,7 @@ export function radiusFor(kind, m) {
   return 6.371e6 * Math.pow(m / 5.972e24, 0.27);
 }
 const compact = (b) => b.kind === 'bh' || b.kind === 'ns';
+const clampN = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export class NBody {
   constructor() { this.bodies = []; this.t = 0; this.events = []; this.pn = true; this.steps = 0; this.particles = null; this.gw = new GWRecorder(); this.Erad = 0; }
@@ -144,11 +145,19 @@ export class NBody {
     const vcm = [0, 1, 2].map(k => (a.m * a.v[k] + b.m * b.v[k]) / M), xcm = [0, 1, 2].map(k => (a.m * a.x[k] + b.m * b.x[k]) / M);
     let kind = a.m >= b.m ? a.kind : b.kind, m = M, chi = 0, kick = 0, Erad = 0, note = '';
     const bothCompact = compact(a) && compact(b);
+    // orbital angular momentum at merger relative to that of a quasi-circular orbit at the same separation:
+    // head-on collisions (from rest) radiate far less and leave a non-spinning remnant
+    const rv = [a.x[0] - b.x[0], a.x[1] - b.x[1], a.x[2] - b.x[2]], vv = [a.v[0] - b.v[0], a.v[1] - b.v[1], a.v[2] - b.v[2]];
+    const Lr = Math.hypot(rv[1] * vv[2] - rv[2] * vv[1], rv[2] * vv[0] - rv[0] * vv[2], rv[0] * vv[1] - rv[1] * vv[0]);
+    // fraction of the relative velocity that is tangential: ~1 for an inspiral, 0 for a head-on plunge
+    const vtan = Lr / Math.max(Math.hypot(...rv), 1e-9), vtot = Math.hypot(...vv) || 1;
+    const xq = clampN((vtan / vtot - 0.2) / 0.5, 0, 1), circ = xq * xq * (3 - 2 * xq);
     if (bothCompact) {
-      // numerical relativity fits for non-spinning binaries (Healy, Lousto & Zlochower; Gonzalez et al. 2007)
-      const Ef = 0.0559745 * eta + 0.580951 * eta * eta - 0.960673 * eta ** 3 + 3.35241 * eta ** 4;
-      chi = Math.min(0.998, 2 * Math.sqrt(3) * eta - 3.871 * eta * eta + 4.028 * eta ** 3);
-      kick = 1.2e4 * eta * eta * Math.sqrt(Math.max(0, 1 - 4 * eta)) * (1 - 0.93 * eta) * 1e3;   // m/s
+      // numerical relativity fits for non-spinning quasi-circular binaries (Healy, Lousto & Zlochower; Gonzalez et al.
+      // 2007), blended towards head-on values (Sperhake et al.: ~0.06% of the mass radiated, no spin) as L -> 0
+      const Ef = (0.0559745 * eta + 0.580951 * eta * eta - 0.960673 * eta ** 3 + 3.35241 * eta ** 4) * circ * circ + 0.0024 * eta * (1 - circ * circ);
+      chi = Math.min(0.998, (2 * Math.sqrt(3) * eta - 3.871 * eta * eta + 4.028 * eta ** 3) * circ);
+      kick = 1.2e4 * eta * eta * Math.sqrt(Math.max(0, 1 - 4 * eta)) * (1 - 0.93 * eta) * 1e3 * (0.3 + 0.7 * circ);   // m/s
       Erad = (a.kind === 'bh' && b.kind === 'bh' ? Ef : Ef * 0.6) * M;
       m = M - Erad;
       if (a.kind === 'ns' && b.kind === 'ns') {

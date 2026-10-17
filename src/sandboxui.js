@@ -12,14 +12,14 @@ const fmtF = (f) => f >= 1 ? f.toPrecision(3) + ' Hz' : f >= 1e-3 ? (f * 1e3).to
 
 export class SandboxUI {
   constructor(ui) {
-    this.ui = ui; this.nav = ui.nav; this.sb = null; this.placing = null; this.audio = null;
+    this.ui = ui; this.nav = ui.nav; this.sb = null; this.placing = null; this.audio = null; this.presets = PRESETS;
     const p = this.panel = ui.root.appendChild(el('div', 'panel sandbox hidden'));
     p.innerHTML = `<h3>Physics sandbox</h3>
       <div class="sbrow"><select id="sbPreset" style="width:100%">${PRESETS.map((x, i) => `<option value="${i}">${x.name}</option>`).join('')}</select></div>
       <div class="sbrow"><button id="sbStart">Start scenario</button><button id="sbRestart">Restart</button><button id="sbClear">Empty space</button></div>
       <div class="dim sbtext" id="sbText"></div>
       <div class="sbrow"><select id="sbKind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select>
-        <input id="sbMass" type="number" min="0.001" step="any" value="30"><span id="sbUnit">M☉</span><button id="sbPlace" title="Click in the view to place; drag to set its velocity">Place</button></div>
+        <input id="sbMass" type="number" min="0.001" step="any" value="30"><span id="sbUnit">M☉</span><button id="sbPlace" title="Click in the view to place; drag to set its velocity">Place</button><label title="A plain click places the body at rest instead of on a circular orbit"><input type="checkbox" id="sbRest"> At rest</label></div>
       <div class="sbrow"><label><input type="checkbox" id="sbGrid" checked> Spacetime grid</label><label><input type="checkbox" id="sbTrails" checked> Trails</label><label><input type="checkbox" id="sbFollow" checked> Follow</label><label><input type="checkbox" id="sbAudio"> Sound</label></div>
       <div class="sbrow"><button id="sbSlow" title="Slow motion">½× speed</button><button id="sbFast" title="Faster">2× speed</button><span class="dim" id="sbClock"></span></div>
       <div id="sbBodies" class="sbbodies"></div>
@@ -78,7 +78,7 @@ export class SandboxUI {
       const at = this.placing.at, dv = V.sub(pt, at), dl = V.len(dv);
       let v;
       const others = this.sb.sim.bodies.length > 0;
-      if (dl < V.len(V.sub(at, o)) * 0.01 || !others) v = others ? this.sb.circularVelocity(at, m) : [0, 0, 0];
+      if (dl < V.len(V.sub(at, o)) * 0.01 || !others) v = others && !this.q('sbRest').checked ? this.sb.circularVelocity(at, m) : [0, 0, 0];
       else {
         // drag length equal to the distance from the centre of mass gives the circular speed, along the drag
         let M = 0; for (const b of this.sb.sim.bodies) M += b.m;

@@ -96,3 +96,10 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .sandbox .sbb .nm { flex: 1; cursor: pointer; }
 .sandbox .sbb .nm:hover { color: #fff; }
 .sandbox .sbb button { padding: 0 6px; line-height: 16px; }
+.timeline .tljump { margin: 8px 0 2px; display: flex; gap: 6px; align-items: center; }
+.timeline .tljump input { flex: 1; min-width: 0; }
+@media (max-width: 760px) {
+  .sandbox, .timeline { left: 8px; right: 8px; width: auto; max-height: 55vh; }
+  .sandbox canvas { height: 70px; }
+  .time select { max-width: 90px; }
+}
