@@ -44,7 +44,7 @@ uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uP
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 // motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
 uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight, uLmax; uniform mat3 uRotC;
-uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[8]; uniform float uVarDm[8];
+uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[8]; uniform float uVarDm[8]; uniform float uDays, uDtDays;
 ${REFRACT_VS}
 ${REL_GLSL}
 out vec3 vCol; out float vSig;
@@ -78,6 +78,19 @@ void main(){
     // massive stars end their lives; seen with the light travel delay
     int k = snClass(aMT.x, T);
     if (k >= 0) { float ph = fract(uSNph[k] + aVel.w - d*3.2616/uSNtau[k]); w *= step(ph, ${SN_LIVE.toFixed(4)})*smoothstep(0., 0.002, ph); }
+    // pulsating variables: about one cool luminous giant in ten is a Mira (periods of 150-500 days, several magnitudes
+    // in visible light), a third of yellow supergiants are Cepheids (3-50 days, about a magnitude). A frame spanning
+    // more than a cycle shows the average brightness rather than a random phase.
+    float hv = fract(aVel.w*7.31 + 0.13), dmv = 0.;
+    if (T < 3600. && aMT.x < 0.5 && hv < 0.1) {
+      float P = mix(150., 500., fract(hv*53.1)), A = mix(2.5, 6., fract(hv*91.7)), ph = fract(uDays/P + fract(hv*17.3));
+      dmv = A*clamp(1. - uDtDays/P, 0., 1.)*(pow(0.5 - 0.5*cos(6.2832*ph), 0.7) - 0.55);
+    } else if (T > 5000. && T < 7000. && aMT.x < -2. && hv < 0.3) {
+      float P = exp(mix(log(3.), log(50.), fract(hv*41.3))), ph = fract(uDays/P + fract(hv*29.1));
+      float saw = ph < 0.25 ? ph/0.25 : 1. - (ph - 0.25)/0.75;     // fast rise, slow decline
+      dmv = -0.9*clamp(1. - uDtDays/P, 0., 1.)*(saw - 0.4);
+    }
+    w *= exp(-0.9210340372*dmv);
   }
   float m = aMT.x + 5.*log(max(d, 1e-9))/log(10.) - 5.;
   float flux = exp(-0.9210340372*(m + 26.74))*w;
@@ -297,7 +310,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   p.set({ uViewProj: viewProjLocal, uExposure: o.exposure * mwFormation(tyr), uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
     uBeta: o.betaLocal || [0, 0, 0], uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1, -1, -1, -1, -1]) });
-  { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm }); }
+  { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm, uDays: (world.time / 86400) % 1e5, uDtDays: Math.abs(world.dtyr) * 365.25 }); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;
   const hide = o.hide;
