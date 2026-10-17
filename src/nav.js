@@ -10,7 +10,8 @@ import { starFromCatalog } from './stars.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
-import { descPosP, updateWorld, YEAR } from './galdyn.js';
+import { descPosP, updateWorld, YEAR, world } from './galdyn.js';
+import { GLOBULARS, globularNebulae } from './globulars.js';
 import { apparentPosU } from './cosmology.js';
 import { visibleGalaxyCells } from './sky.js';
 
@@ -561,6 +562,8 @@ export function findByName(nav, name) {
   if (mwf) return { type: 'star', desc: mwf.desc };
   const nb = REAL_NEBULAE.find(x => x.name.toLowerCase().includes(n));
   if (nb) return { type: 'nebula', neb: nb, galaxy: MILKY_WAY };
+  const gc = n.length > 1 && GLOBULARS.find(x => x.real && x.name.toLowerCase().includes(n));
+  if (gc) { const neb = globularNebulae(world.tyr).find(x => x.name === gc.name); if (neb) return { type: 'nebula', neb, galaxy: MILKY_WAY }; }
   const g = REAL_GALAXIES.find(g => g.name.toLowerCase().includes(n));
   if (g) return { type: 'galaxy', galaxy: g };
   return null;
@@ -571,7 +574,7 @@ export function searchList(nav) {
   for (const b of solSystem().bodies) if (!out.includes(b.name)) out.push(b.name);
   for (const g of REAL_GALAXIES) out.push(g.name);
   for (const x of REAL_NEBULAE) out.push(x.name);
-  out.push('Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar', 'Proxima Centauri', 'TRAPPIST-1', "Barnard's Star");
+  out.push('Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar', 'Proxima Centauri', 'TRAPPIST-1', "Barnard's Star", 'Omega Centauri', '47 Tucanae', 'M13 (Hercules Cluster)');
   if (catalog.ready) for (const x of catalog.named) if (!/^HIP /.test(x.name)) out.push(x.name);
   return out;
 }

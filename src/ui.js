@@ -241,6 +241,7 @@ export class UI {
     const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
       'Exoplanets': ['Proxima Centauri', 'TRAPPIST-1', 'Helvetios', 'Ran', 'Tau Ceti', "Barnard's Star", 'Sirius'],
       'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'], 'Black holes and pulsars': ['Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar'],
+      'Star clusters': ['Omega Centauri', '47 Tucanae', 'M13 (Hercules Cluster)', 'M22', 'M4'],
       'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };
     $('places').innerHTML = '<option value="">Places…</option>' + Object.entries(groups).map(([g, l]) => `<optgroup label="${g}">${l.map(n => `<option>${n}</option>`).join('')}</optgroup>`).join('');
     $('places').onchange = (e) => { if (e.target.value) this.search(e.target.value); e.target.value = ''; e.target.blur(); };
