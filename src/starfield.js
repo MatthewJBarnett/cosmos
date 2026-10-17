@@ -184,7 +184,7 @@ export class StarField {
       const score = ang / maxAng * 6 + m * 0.35;
       if (score < bestScore) { bestScore = score; best = { cell, i, fixed, d }; }
     };
-    for (const f of this.fixed) test(f.pos[0], f.pos[1], f.pos[2], f.MV, null, 0, f);
+    for (const f of this.fixed) if (!f.hidden) test(f.pos[0], f.pos[1], f.pos[2], f.MV, null, 0, f);
     for (const cell of this.cells.values()) {
       if (cell.fixedCell && !cell.catalog) continue;
       this.cellPhase(cell);
@@ -205,7 +205,7 @@ export class StarField {
   nearest(cam, maxDist) {
     let best = null, bd = maxDist;
     const q = [0, 0, 0];
-    for (const f of this.fixed) { const d = Math.hypot(f.pos[0] - cam[0], f.pos[1] - cam[1], f.pos[2] - cam[2]); if (d < bd) { bd = d; best = { fixed: f }; } }
+    for (const f of this.fixed) { if (f.hidden) continue; const d = Math.hypot(f.pos[0] - cam[0], f.pos[1] - cam[1], f.pos[2] - cam[2]); if (d < bd) { bd = d; best = { fixed: f }; } }
     for (const cell of this.cells.values()) {
       if (cell.fixedCell && !cell.catalog) continue;
       const s = cell.catalog ? 1e6 : this.bins[cell.b].size, o = cell.origin;
@@ -227,6 +227,8 @@ export class StarField {
   updateFixed() {
     for (const f of this.fixed) {
       f.pos = descPosP(f.desc); if (f.cell) f.cell.origin = f.pos;
+      // nearby stars with measured velocities move in straight lines, valid for a few million years like the catalogue
+      f.hidden = f.desc.motion && f.desc.motion.type === 'cat' && world.catW < 0.02; if (f.cell) f.cell.hidden = f.hidden;
       // the Sun as a star seen from afar changes as it evolves (red giant, white dwarf)
       if (f.desc.sol && f.cell && f.cell.vao) {
         const st = sunState(world.tyr), MV = 4.83 - 2.5 * Math.log10(st.L) - (bcOfT(st.T) - bcOfT(5772)), T = st.T;

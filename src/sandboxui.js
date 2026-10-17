@@ -107,6 +107,9 @@ export class SandboxUI {
     const sb = this.sb, nav = this.nav;
     if (!sb) return;
     const inside = nav.system === sb;
+    // a selected body that merged away: select what it became (the most massive body)
+    const sel = nav.selected && nav.selected.type === 'body' ? nav.selected.body : null;
+    if (inside && sel && sel.sandbox && !sb.bodies.includes(sel) && sb.bodies.length) nav.selected = { type: 'body', body: sb.bodies.reduce((a, b) => (b.mass > a.mass ? b : a)) };
     if (this.audio && this.q('sbAudio').checked) {
       // the chirp: gravitational wave frequency (time scaled by the simulation rate) with the strain envelope
       const buf = sb.sim.gw.buf, s = buf[buf.length - 1];

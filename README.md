@@ -217,6 +217,18 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
+    node tools/physicstest.mjs        # 39 checks of the physics against published values (no browser needed)
+    node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
+    node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
+
+The physics checks cover: a GW150914-like merger (final mass 61.9 M☉, spin 0.68, 3.1 M☉ radiated, ringdown
+275 Hz vs LIGO's 62 M☉, 0.67, 3.0 M☉), the recoil of a q = 1/8 merger, orbital decay against the Peters formula
+(within 3%), periastron precession against 6πGM/c²a(1−e²), energy conservation over 100 orbits, the
+figure-eight choreography, tidal disruption (half the debris bound, first fallback at the theoretical t_min of
+41 days), Barnard's Star and Gliese 710 encounters, the Sun's galactic orbit, the solar track (RGB tip 2,730 L☉,
+256 R☉, 0.668 M☉; white dwarf 0.54 M☉), lunar recession (3.82 cm/yr), the lengthening day, Vega as pole star,
+ΛCDM numbers (CMB 2.7255 K, event horizon 5.1 Gpc), and the Andromeda orbit against van der Marel et al. 2012.
+
 ## Decisions and limits
 
 - Raw WebGL2 was chosen over WebGPU so it runs everywhere and can be tested headless here.
@@ -227,6 +239,21 @@ The harness runs frames until tile baking and exposure have settled, then saves 
   handles this; `[` and `]` bias it. Galaxy and nebula surface brightness is boosted about 20 times to be visible.
 - Asteroid and dwarf planet orbits beyond the main planets use approximate elements, so their positions along the
   orbit are not exact.
+- Galactic dynamics: flat-ish rotation curve (223 km/s, 1.5 kpc core), spiral pattern speed 25 km/s/kpc, the Sun's
+  peculiar velocity from Schönrich et al. 2010. Procedural stars stream through their cells and wrap around (a
+  statistical model: the density stays right, individual stars are not followed for billions of years).
+- Supernova dates for Betelgeuse (100,000 yr) and Antares (600,000 yr) are estimates; their real dates are unknown.
+  Procedural massive stars use lifetimes from 4 to 35 Myr by luminosity class.
+- Sandbox: post-Newtonian terms act between compact objects only; black holes are non-spinning during the inspiral;
+  the merger is handed to numerical relativity fits at 5.5 GM/c²; the merger-ringdown waveform is a smooth
+  phenomenological join to the quasi-normal mode. Tidal debris is Newtonian test particles; returning debris is
+  counted as accreted at pericentre (stream collisions and disk formation are not simulated).
+- Andromeda: the tangential velocity is uncertain (Gaia-era estimates even allow a ~50% chance of no merger within
+  10 Gyr, Sawala et al. 2025); 30 km/s was chosen to follow van der Marel et al. 2012. The N-body is restricted
+  (particles feel both galaxies' analytic potentials, not each other), with no gas.
+- Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified; continents do not drift.
+- Relativistic flight (M) transforms the sky (stars, galaxies, the Milky Way); nearby planets are not aberrated, and
+  go-to remains a faster-than-light jump.
 
 ## Known gaps
 
@@ -238,3 +265,5 @@ The harness runs frames until tile baking and exposure have settled, then saves 
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
+- Black hole shadows are Schwarzschild (spin does not change their shape); binary lensing is two lenses applied in turn.
+- The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).

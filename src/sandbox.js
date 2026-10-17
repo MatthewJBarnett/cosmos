@@ -114,8 +114,8 @@ export class Sandbox {
     this.time = t;
     if (this.navT === undefined) this.navT = t;
     let dt = t - this.navT; this.navT = t;
-    // the solar-system clock can jump (date changes); never integrate across such jumps
-    if (Math.abs(dt) > 1e9) dt = 0;
+    // the clock can jump (dates set by hand); a step is limited by maxSteps anyway, but don't try to integrate eons
+    if (Math.abs(dt) > 1e15) dt = 0;
     const prevCom = this.follow ? this.com() : null;
     if (dt > 0) {
       const got = this.sim.advance(dt, this.maxSteps || 25000);

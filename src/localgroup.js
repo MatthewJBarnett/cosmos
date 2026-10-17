@@ -1,5 +1,5 @@
 // The Milky Way - Andromeda collision as a restricted N-body simulation on the GPU.
-// 2 x 32,768 star particles move in the time dependent potentials of both galaxies (halo + bulge + disk each),
+// 2 x 65,536 star particles move in the time dependent potentials of both galaxies (halo + bulge + disk each),
 // whose centres follow the orbit with dynamical friction from lgorbit.js. Integration is leapfrog (kick-drift-kick,
 // time reversible) in ping-pong float textures. The Sun is a tracer particle integrated identically on the CPU.
 // Units: kpc, Myr, solar masses. Frame: centre of mass of the pair, axes of the Milky Way at the present epoch.
@@ -14,7 +14,9 @@ import { GAL_I0, skyCfg } from './sky.js';
 export const LG_START = 2600;          // Myr from now: the N-body takes over (the galaxies are still ~400 kpc apart)
 export const MW_FADE = [3350, 3650];    // Myr: the Milky Way model hands over to particles as tides start to bite
 const NOW_TYR = 26.8;
-const SIDE = 256, NP = SIDE * SIDE, HALF = NP / 2;
+// particle textures: 512 x 256 (131,072 particles); 256 x 256 on low quality (set before start-up)
+export const lgCfg = { w: 512, h: 256 };
+let SW = 512, SH = 256, NP = SW * SH, HALF = NP / 2;
 const DT = 2.0;                         // Myr per step
 
 export const M31 = REAL_GALAXIES.find(g => /M31/.test(g.name));
@@ -54,14 +56,14 @@ void main(){
   oP = vec4(p, P.w); oV = vec4(v, Vv.w);
 }`;
 // particles as soft points (outside views) and into a sky cube (inside views)
-const PART_VS = `uniform sampler2D uPos; uniform mat4 uViewProj; uniform vec3 uCam; uniform float uExposure, uPxSA, uPxPerRad, uMaxPx, uNear;
+const PART_VS = `uniform sampler2D uPos; uniform int uSW, uHalf; uniform mat4 uViewProj; uniform vec3 uCam; uniform float uExposure, uPxSA, uPxPerRad, uMaxPx, uNear;
 uniform vec2 uLum; uniform vec2 uW; uniform float uBurst;
 out vec3 vCol; out float vSig;
 vec3 bb(float t){ return t < 5000. ? vec3(1.0, 0.72, 0.46) : t < 9000. ? vec3(1.0, 0.9, 0.78) : vec3(0.7, 0.82, 1.0); }
 void main(){
-  int i = gl_VertexID; ivec2 ij = ivec2(i % ${SIDE}, i / ${SIDE});
+  int i = gl_VertexID; ivec2 ij = ivec2(i % uSW, i / uSW);
   vec4 P = texelFetch(uPos, ij, 0);
-  int gal = i < ${HALF} ? 0 : 1; float type = floor(P.w/10.), wgt = P.w - type*10.;
+  int gal = i < uHalf ? 0 : 1; float type = floor(P.w/10.), wgt = P.w - type*10.;
   vec3 rel = P.xyz - uCam; float d = length(rel);
   // luminosity per particle (L_sun) -> flux in solar constants: 1 kpc = 2.0626e8 AU
   float L = gal == 0 ? uLum.x : uLum.y; float w = gal == 0 ? uW.x : uW.y;
@@ -111,11 +113,12 @@ export class LocalGroup {
   constructor() { this.ready = false; this.t = null; this.cubeT = -1e9; this.active = false; }
   initGL() {
     if (this.pStep) return;
+    SW = lgCfg.w; SH = lgCfg.h; NP = SW * SH; HALF = NP / 2;
     // (programs first so they compile in parallel with the others at start-up)
     this.pStep = new Program('lgstep', FS_VS, STEP_FS);
     this.pPart = new Program('lgparts', PART_VS, PART_FS);
     this.pCube = new Program('lgcube', FS_VS, CUBEDRAW_FS);
-    const mk = () => tex2D(SIDE, SIDE, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+    const mk = () => tex2D(SW, SH, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
     this.pos = [mk(), mk()]; this.vel = [mk(), mk()];
     this.fb = [fbo([this.pos[0], this.vel[0]]), fbo([this.pos[1], this.vel[1]])];
     this.cur = 0;
@@ -162,8 +165,8 @@ export class LocalGroup {
       }
     });
     for (const k of [0, 1]) {
-      gl.bindTexture(gl.TEXTURE_2D, this.pos[k]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SIDE, SIDE, gl.RGBA, gl.FLOAT, P);
-      gl.bindTexture(gl.TEXTURE_2D, this.vel[k]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SIDE, SIDE, gl.RGBA, gl.FLOAT, Vv);
+      gl.bindTexture(gl.TEXTURE_2D, this.pos[k]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SW, SH, gl.RGBA, gl.FLOAT, P);
+      gl.bindTexture(gl.TEXTURE_2D, this.vel[k]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SW, SH, gl.RGBA, gl.FLOAT, Vv);
     }
     // the Sun, from its analytic orbit at the start (pc -> kpc, Milky Way centred -> centre of mass frame)
     const ty = NOW_TYR + t0 * 1e6, s0 = sunPos(ty), s1 = sunPos(ty + 1e5);
@@ -172,7 +175,7 @@ export class LocalGroup {
   }
   stepGPU(dt) {
     const c0 = centresAt(this.t), c1 = centresAt(this.t + dt), src = this.cur, dst = 1 - src;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb[dst]); gl.viewport(0, 0, SIDE, SIDE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb[dst]); gl.viewport(0, 0, SW, SH);
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
     this.pStep.use().set({ uPos: this.pos[src], uVel: this.vel[src], uDt: dt, uC0: c0.mw, uC1: c0.m31, uC0b: c1.mw, uC1b: c1.m31,
       uR0: new Float32Array(U[0].R), uR1: new Float32Array(U[1].R), uH0: U[0].H, uH1: U[1].H, uB0: U[0].B, uB1: U[1].B, uD0: U[0].D, uD1: U[1].D });
@@ -210,7 +213,7 @@ export class LocalGroup {
   drawPoints(camCOM, viewProj, o, wMW, wM31, nearKpc) {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-    this.pPart.use().set({ uPos: this.pos[this.cur], uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
+    this.pPart.use().set({ uPos: this.pos[this.cur], uSW: SW, uHalf: HALF, uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
       uLum: [GAL.mw.L / HALF * popFade(NOW_TYR + this.t * 1e6), GAL.m31.L / HALF * popFade(NOW_TYR + this.t * 1e6)], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }

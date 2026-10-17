@@ -295,7 +295,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   let n = 0;
   const hide = o.hide;
   for (const c of field.cells.values()) {
-    if (!c.vao) continue;
+    if (!c.vao || c.hidden) continue;
     let mode = 2, origin = c.origin, wgt = 1;
     if (c.catalog) { mode = 1; origin = world.sunP; wgt = world.catW; if (wgt <= 0) continue; }
     else if (c.vel) mode = 0;

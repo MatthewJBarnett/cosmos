@@ -14,7 +14,7 @@ import { initSkyPrograms } from './sky.js';
 import { initExtraPrograms, initRingParticles } from './extras.js';
 import { initExoticPrograms } from './exotic.js';
 import { initSandboxPrograms } from './sandbox.js';
-import { initLocalGroupPrograms } from './localgroup.js';
+import { initLocalGroupPrograms, lgCfg } from './localgroup.js';
 import { V, Q, C } from './math.js';
 
 const params = new URLSearchParams(location.search);
@@ -48,6 +48,7 @@ try {
   L('gl'); rcfg.prof = params.has('prof');
   // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight
   showLoading('Compiling shaders');
+  if (quality === 'low') { lgCfg.w = 256; lgCfg.h = 256; }
   initPlanetPrograms(); initTreeProgram(); initAtmoPrograms(); initSkyPrograms(); initExtraPrograms(); initRingParticles(); initExoticPrograms(); initSandboxPrograms(); initLocalGroupPrograms();
   renderer = new Renderer(canvas); L('renderer');
   nav = new Nav(); L('nav');

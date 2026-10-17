@@ -10,6 +10,7 @@ page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0
 page.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
 await page.goto(`http://localhost:${process.env.PORT || 8642}/?test=1&tex=49&cube=128&cloudres=256&scale=1&galr=0.2`, { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos !== undefined', { timeout: 120000 });
+if (!process.env.UI) await page.evaluate(() => { cosmos.ui.root.classList.add('hide'); cosmos.ui.hidden = true; });
 const ids = await page.evaluate(() => cosmos.ui.timeline.events.map(e => e.id));
 const sb = await page.evaluate(() => cosmos.ui.sbui.presets.map(p => p.id));
 const out = (n) => new URL(`../shots/${n}.png`, import.meta.url).pathname;
