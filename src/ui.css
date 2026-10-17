@@ -82,7 +82,7 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .timeline .row.sel { background: rgba(120, 170, 255, 0.14); }
 .timeline .row button { padding: 1px 8px; }
 
-.sandbox { left: 14px; top: 70px; width: 400px; max-height: calc(100vh - 170px); overflow: auto; }
+.sandbox { right: 14px; top: 64px; width: 400px; max-height: calc(100vh - 150px); overflow: auto; }
 .sandbox h3 { margin: 0 0 6px; }
 .sandbox .sbrow { display: flex; gap: 6px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
 .sandbox select { flex: 1; min-width: 0; }

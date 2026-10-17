@@ -301,7 +301,7 @@ export class UI {
     const d = Q.rot(Q.conj(b.wrot), V.norm(V.sub(nav.S, b.wpos)));
     return [Math.asin(clamp(d[1], -1, 1)) * 180 / Math.PI, Math.atan2(-d[2], d[0]) * 180 / Math.PI];
   }
-  toggle(p) { const was = p.classList.contains('hidden'); [this.sysPanel, this.setPanel, this.help, this.linePanel].forEach(q => q.classList.add('hidden')); if (was) p.classList.remove('hidden'); if (p === this.sysPanel) this.sysKey = null; if (p === this.linePanel) this.lineKey = null; }
+  toggle(p) { const was = p.classList.contains('hidden'); [this.sysPanel, this.setPanel, this.help, this.linePanel].forEach(q => q.classList.add('hidden')); if (was && this.sbui) this.sbui.panel.classList.add('hidden'); if (was) p.classList.remove('hidden'); if (p === this.sysPanel) this.sysKey = null; if (p === this.linePanel) this.lineKey = null; }
   stepRate(d) {
     const nav = this.nav, a = Math.abs(nav.rate), sg = nav.rate < 0 ? -1 : 1;
     let i = RATES.findIndex(r => r >= a * 0.999); if (i < 0) i = RATES.length - 1;
@@ -584,7 +584,7 @@ export class UI {
         const n = V.norm(V.cross(LG_R0, LG_V0));
         nav.level = 'universe'; nav.galaxy = null; nav.system = null; nav.field = null; nav.anchor = null;
         const mid = t ? V.mul(t.galaxy.posU, 0.5) : [0, 0, 0];
-        nav.U = V.add(mid, V.mul(n, 0.28)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
+        nav.U = V.add(mid, V.mul(n, 0.16)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
         if (t) nav.selected = t;
       } else {
         // from the Solar System, looking at Andromeda

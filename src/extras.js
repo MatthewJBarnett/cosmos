@@ -60,7 +60,9 @@ function ringTexture(b) {
     const e = loadTexture(b.rings.map, 'color');
     if (e.ready) { if (b.rings.inner !== b.rings.mapInner) { b.rings.inner = b.rings.mapInner; b.rings.outer = b.rings.mapOuter; } return e.tex; }
   }
-  let t = ringTex.get(b.uid); if (t) return t;
+  // (keyed by opacity too: debris rings fade over time)
+  const key = b.uid + ':' + Math.round((b.rings.opacity || 0) * 10);
+  let t = ringTex.get(key); if (t) return t;
   const N = 2048, d = new Uint8Array(N * 4), rg = b.rings, rng = new RNG(rg.seed * 7919 + 13);
   // layered noise
   const lay = []; for (let k = 0; k < 7; k++) { const n = 6 << k, a = new Float32Array(n + 2); for (let i = 0; i < n + 2; i++) a[i] = rng.f(); lay.push(a); }
@@ -91,7 +93,7 @@ function ringTexture(b) {
     d[i * 4] = clamp(rg.color[0] * tone * v * 255, 0, 255); d[i * 4 + 1] = clamp(rg.color[1] * tone * v * 255, 0, 255); d[i * 4 + 2] = clamp(rg.color[2] * tone * v * 255, 0, 255); d[i * 4 + 3] = op * 255;
   }
   t = tex2D(N, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR, gl.CLAMP_TO_EDGE, d);
-  ringTex.set(b.uid, t);
+  ringTex.set(key, t);
   return t;
 }
 export function drawRings(b, o) {

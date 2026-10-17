@@ -225,6 +225,18 @@ export class StarSystem {
       oScale = orbitScale(tyr); mScale = moonScale(tyr);
       let changed = false;
       for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
+      // tidal decay: Phobos breaks up into a ring around Mars in ~40 Myr (Black & Mittal 2015); Triton, on a retrograde
+      // orbit, is torn apart inside Neptune's Roche limit in ~3.6 Gyr. The debris rings last ~100 Myr / ~1 Gyr here.
+      const all = this._all || this.bodies;
+      for (const [moon, planet, t0, life, ring] of [['Phobos', 'Mars', 4e7, 1e8, [1.25, 2.8, [0.45, 0.37, 0.31]]], ['Triton', 'Neptune', 3.6e9, 1e9, [1.4, 2.6, [0.62, 0.62, 0.64]]]]) {
+        const m = all.find(b => b.name === moon), p = all.find(b => b.name === planet); if (!m || !p) continue;
+        const g = tyr > t0 || p.gone; if (!!m.gone !== g) { m.gone = g; changed = true; }
+        const age = tyr - t0;
+        if (age > 0 && age < life && !p.gone) {
+          if (!p._debrisRing) p._debrisRing = { inner: ring[0] * p.radius, outer: ring[1] * p.radius, opacity: 0.6, color: ring[2], seed: 17, kind: 'debris' };
+          p._debrisRing.opacity = 0.6 * (1 - age / life); if (!p.rings || p.rings === p._debrisRing) p.rings = p._debrisRing;
+        } else if (p.rings && p.rings === p._debrisRing) p.rings = null;
+      }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
       // surfaces heated by the giant Sun glow
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }

@@ -42,7 +42,7 @@ export class SandboxUI {
     q('sbFast').onclick = () => { this.nav.rate *= 2; this.nav.paused = false; };
     this.scope = q('sbScope').getContext('2d');
   }
-  toggle() { const was = this.panel.classList.contains('hidden'); this.panel.classList.toggle('hidden'); if (was && (!this.sb || this.nav.system !== this.sb)) this.start(+this.q('sbPreset').value); }
+  toggle() { const was = this.panel.classList.contains('hidden'); if (was) [this.ui.sysPanel, this.ui.setPanel, this.ui.help, this.ui.linePanel].forEach(q => q.classList.add('hidden')); this.panel.classList.toggle('hidden'); if (was && (!this.sb || this.nav.system !== this.sb)) this.start(+this.q('sbPreset').value); }
   start(i) {
     const p = PRESETS[i], nav = this.nav;
     if (!this.sb) {

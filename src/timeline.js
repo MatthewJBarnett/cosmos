@@ -76,6 +76,7 @@ export function buildEvents() {
   add({ id: 'g710', hold: 8, maxRate: 3000000.0, t: g710.t, title: 'Gliese 710 passes through the Oort cloud', text: `An orange dwarf passes ${Math.round(g710.d * 206265).toLocaleString('en')} AU from the Sun, shining at magnitude −2.7, and perturbs comets towards the planets.`, view: { star: 'Gliese 710', from: 'sun' }, rate: YEAR * 2000 });
   add({ id: 'midplane', maxRate: 300000000.0, t: nextMidplane(), title: 'The Sun crosses the galactic plane', text: 'The Sun bobs through the disk every ~38 million years on its orbit around the Galaxy.', view: { galaxy: 'side' }, rate: YEAR * 1e5 });
   add({ id: 'galyear', maxRate: 3000000000.0, t: now + SUN_ORBIT.periodYr, title: 'One galactic year', text: `The Sun completes an orbit around the centre of the Milky Way (${(SUN_ORBIT.periodYr / 1e6).toFixed(0)} million years).`, view: { galaxy: 'top' }, rate: YEAR * 2e6 });
+  add({ id: 'phobos', t: now + 4e7, est: true, title: 'Phobos breaks up', text: 'Tides drag Mars\' inner moon inward until it is torn apart: Mars has a ring for about a hundred million years.', view: { body: 'Mars' }, rate: YEAR * 1e5 });
   add({ id: 'eclipses', t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
   add({ id: 'oceans', t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
   add({ id: 'lmc', t: now + 2.4e9, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction drags our largest satellite galaxy into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
@@ -86,6 +87,7 @@ export function buildEvents() {
   if (lg.merged > 0) add({ id: 'merge', hold: 10, t: now + lg.merged * 1e6, est: true, title: 'Milkomeda', text: 'The two centres coalesce. Over the next billion years the debris settles into one giant elliptical galaxy.', view: { lg: 'outside' }, rate: YEAR * 1e7 });
   const ageT = (age) => (age - SUN_AGE_NOW) * 1e9;
   const engulfT = (name) => { for (let a = 12.0; a < 12.2; a += 0.0002) if (engulfed(name, ageT(a))) return ageT(a); return null; };
+  add({ id: 'triton', t: now + 3.6e9, est: true, title: 'Triton is torn apart', text: 'Neptune\'s large moon orbits backwards; tides shrink its orbit until it breaks up into a ring around Neptune.', view: { body: 'Neptune' }, rate: YEAR * 2e6 });
   add({ id: 'subgiant', t: ageT(10.0), title: 'The Sun leaves the main sequence', text: 'Hydrogen in the core runs out after 10 billion years. The Sun swells and cools into a subgiant, twice as bright as today.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
   const tm = engulfT('Mercury'), tv = engulfT('Venus');
   if (tm) add({ id: 'mercury', t: tm, title: 'Mercury is swallowed', text: 'The red giant Sun grows past Mercury\'s orbit.', view: { body: 'Venus', far: true }, rate: YEAR * 2e5 });
