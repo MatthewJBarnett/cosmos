@@ -16,7 +16,7 @@ import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU, galaxyInfo } from './cosmology.js';
 import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
-import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT } from './lgorbit.js';
+import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
 import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
 
@@ -510,6 +510,13 @@ export class UI {
       else {
         const g = t.galaxy; sub = 'Galaxy'; rows = [['Type', g.subtype], ['Diameter', (g.radius * 2 * 3.2616 / 1000).toPrecision(3) + ' kly'], ['Stellar mass', g.mass.toExponential(1) + ' M<sub>Sun</sub>'], ['Stars', '~' + g.nstars.toExponential(1)]];
         // (seen from the Milky Way at the current time, through the expanding universe)
+        const tMyr = (world.tyr - 26.8) / 1e6;
+        if (g === M31) {
+          // (from the Milky Way-Andromeda orbit: the timing argument in the past, the collision ahead)
+          const o = lgRelAt(tMyr), d = V.len(o.r), vr = V.dot(o.r, o.v) / Math.max(d, 1e-9) / LG_KMS;
+          if (d > 2) { rows.push(['From the Milky Way', d.toFixed(0) + ' kpc (centre to centre)']); rows.push([vr < 0 ? 'Approaching at' : 'Receding at', Math.abs(vr).toFixed(0) + ' km/s']); }
+        }
+        if (/Large Magellanic/.test(g.name)) { const d = V.len(lmcAt(tMyr)); if (d > 3) rows.push(['From the Galactic centre', d.toFixed(0) + ' kpc']); }
         const gi = g !== MILKY_WAY && galaxyInfo(V.len(g.posU));
         if (gi) {
           rows.push(['Redshift', 'z = ' + gi.z.toFixed(gi.z < 0.1 ? 4 : 2)]);
