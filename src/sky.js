@@ -190,7 +190,7 @@ void main(){
   if (length(wp) > 1e-3 && uTmyr != 0.) { float ang = -uTmyr*0.45/(aCen.w*1000.); vec4 r = vec4(0., sin(ang*0.5), 0., cos(ang*0.5)); q = vec4(q.w*r.xyz + r.w*q.xyz + cross(q.xyz, r.xyz), q.w*r.w - dot(q.xyz, r.xyz)); }
   vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
   gl_Position = uViewProj*vec4(w, 1.); gl_Position.z = 0.;
-  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.25, 1.2, vTauE);
+  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.18, 1.0, vTauE);
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
@@ -199,7 +199,7 @@ in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in ve
 // cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
 // Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
 vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
-  vec3 evo = smoothstep(0.25, 1.2, vTauE)*(1. + 1.2*young)*mix(vec3(1.), vec3(0.72, 0.88, 1.3), young*0.7);
+  vec3 evo = smoothstep(0.18, 1.0, vTauE)*(1. + 1.2*young)*mix(vec3(1.), vec3(0.72, 0.88, 1.3), young*0.7);
   return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5))*evo; }
 uniform float uScale; uniform int uMaxSteps;
 out vec4 o;
