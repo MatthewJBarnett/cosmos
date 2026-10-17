@@ -12,6 +12,7 @@ import { galQuat0, toPattern, world, YEAR } from './galdyn.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS } from './planet.js';
 import { beam } from './exotic.js';
 import { NBody, makeBody, binary, separationForTime, circularBinary, petersTime, MSUN } from './nbody.js';
+import { planetPos } from './ephem.js';
 
 const G = C.G, c = C.c, AU = C.AU, DAY = 86400;
 export const SANDBOX_POS = [SUN_POS[0] + 0.7, SUN_POS[1] + 0.4, SUN_POS[2] + 0.5];
@@ -67,6 +68,21 @@ export const PRESETS = [
       [[3, 1, 3], [4, -2, -1], [5, 1, -1]].forEach(([m, x, y], i) => sim.add(makeBody('star', m * mu, [x * L, 0, y * L], [0, 0, 0], { name: m + ' M☉ star' })));
       sim.pn = false;
       return { rate: 20 * YEAR, scale: 3 * L, grid: false };
+    } },
+  { id: 'rogue', name: 'Rogue black hole through the Solar System', text: 'A 10 solar mass black hole crosses the Solar System at 30 km/s, passing 3 AU from the Sun. The Sun and the eight planets start where they really are today; watch the orbits get scrambled and planets flung out.',
+    setup(sim) {
+      sim.pn = false;
+      const t = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000, M = MSUN;
+      sim.add(makeBody('star', M, [0, 0, 0], [0, 0, 0], { name: 'Sun' }));
+      const PL = [['Mercury', 0.0553], ['Venus', 0.815], ['Earth', 1], ['Mars', 0.107], ['Jupiter', 317.8], ['Saturn', 95.2], ['Uranus', 14.5], ['Neptune', 17.1]];
+      for (const [n, mE] of PL) {
+        const p = planetPos(n, t), p2 = planetPos(n, t + 3600), v = [(p2[0] - p[0]) / 3600, (p2[1] - p[1]) / 3600, (p2[2] - p[2]) / 3600];
+        sim.add(makeBody('planet', mE * C.Mearth, p, v, { name: n }));
+      }
+      // hyperbolic approach from 80 AU, aimed to pass ~3 AU from the Sun
+      const d0 = 80 * AU, vinf = 30e3, b = 3 * AU * Math.sqrt(1 + 2 * G * 11 * M / (3 * AU * vinf * vinf));
+      sim.add(makeBody('bh', 10 * M, [-d0, 0.2 * AU, b], [vinf, 0, 0], { name: 'Rogue black hole (10 M☉)' }));
+      return { rate: 0.5 * YEAR, scale: 12 * AU, grid: false };
     } },
   { id: 'tatooine', name: 'Planet around a binary star', text: 'A circumbinary planet like Kepler-16b: a K and an M dwarf in a 41 day orbit, with a planet 0.7 AU out.',
     setup(sim) {
