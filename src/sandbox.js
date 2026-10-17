@@ -417,8 +417,8 @@ export function drawDebris(sb, nav, o) {
     blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, b.knL / (dAU * dAU), b.knR]);
   }
   if ((!P || !P.n) && !blobs.length) return;
-  if (!pDeb) {
-    pDeb = new Program('debris', DEB_VS, DEB_FS);
+  if (!pDeb) pDeb = new Program('debris', DEB_VS, DEB_FS);
+  if (!debVAO) {
     debVAO = gl.createVertexArray(); gl.bindVertexArray(debVAO); debBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 32, 28); gl.bindVertexArray(null);
