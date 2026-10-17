@@ -323,7 +323,7 @@ export class Debris {
         vel = [out[0] * vu + tt[0] * vt + hh[0] * zz, out[1] * vu + tt[1] * vt + hh[1] * zz, out[2] * vu + tt[2] * vt + hh[2] * zz];
       }
       for (let k = 0; k < 3; k++) { x[i * 3 + k] = host.x[k] + p[k]; v[i * 3 + k] = host.v[k] + vel[k]; }
-      Tm[i] = 2500 + 1500 * rnd();
+      Tm[i] = 2300 + 900 * rnd();
     }
     this.x = x; this.v = v; this.T = Tm; this.out = new Uint8Array(n); this.n = n; this.mp = Md / nDisk;
     this.kind = 'impact'; this.bh = host; this.bhId = host.id; this.racc = 0; this.tImp = t; this.t0 = t;

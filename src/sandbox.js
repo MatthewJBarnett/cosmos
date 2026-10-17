@@ -199,7 +199,7 @@ export class Sandbox {
         b.lum = mdot > 0 ? Math.min(0.1 * mdot * c * c, 1.26e31 * pb.m / MSUN) / C.Lsun : 0;
       }
       // after a giant impact the surface is a magma ocean glowing at ~2,300 K (it takes centuries to crust over)
-      if (pb.magma) b.heatT = 2300 * Math.exp(-(this.sim.t - pb.magma.t) / (3 * YEAR));
+      if (pb.magma) { const age = this.sim.t - pb.magma.t; b.heatT = (2300 + 700 * Math.exp(-age / (10 * DAY))) * Math.exp(-age / (3 * YEAR)); }
       if (pb.flash) { const age = this.sim.t - pb.flash.t; b.lum = b.baseLum * (1 + pb.flash.L * Math.exp(-age / (30 * DAY))); }
       if (pb.kilonova) {
         // kilonova: r-process ejecta expanding at ~0.2 c, peaking after about a day and reddening over a week
@@ -438,6 +438,13 @@ void main(){
 }`;
 const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz; o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig)), 1.); }`;
 let pDeb, debVAO, debBuf;
+// fraction of a blackbody's output that falls between 400 and 700 nm
+const visCache = new Map();
+function visFrac(T) {
+  const k = Math.round(T / 50) * 50; let f = visCache.get(k);
+  if (f === undefined) { let v = 0; for (let l = 400e-9; l < 700e-9; l += 10e-9) v += 3.7418e-16 / (l ** 5 * (Math.exp(0.014388 / (l * k)) - 1)) * 10e-9; f = v / (C.sigma * k ** 4); visCache.set(k, f); }
+  return f;
+}
 export function drawDebris(sb, nav, o) {
   const P = sb.sim.particles;
   // kilonova ejecta: a sphere expanding at ~0.2 c (drawn as one soft blob; inside it, as seen from its edge)
@@ -471,14 +478,15 @@ export function drawDebris(sb, nav, o) {
   if (P && P.n && P.kind === 'impact') {
     // giant impact debris: silicate vapour and magma droplets glowing at a few thousand K, cooling over weeks
     const age = sb.sim.t - P.tImp, cool = Math.max(0.5, Math.exp(-age / (25 * DAY))), host = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh;
-    const size = host.R * 0.06, area = Math.PI * size * size * 0.25;
+    const size = host.R * 0.1, area = Math.PI * size * size * 0.25;
     for (let i = 0; i < P.n; i++) {
       const x = P.x[i * 3]; if (x !== x) continue;
       const T = P.T[i] * cool, cc = bbColor(T), mx = Math.max(...cc), rel = [x - nav.S[0], P.x[i * 3 + 1] - nav.S[1], P.x[i * 3 + 2] - nav.S[2]];
       // (hidden behind the planet? the points are drawn without depth testing)
       const hc = [host.x[0] - nav.S[0], host.x[1] - nav.S[1], host.x[2] - nav.S[2]], dl = Math.hypot(...rel), tca = (hc[0] * rel[0] + hc[1] * rel[1] + hc[2] * rel[2]) / dl;
       if (tca > 0 && tca < dl && hc[0] ** 2 + hc[1] ** 2 + hc[2] ** 2 - tca * tca < host.R * host.R) continue;
-      const dAU = dl / AU, L = C.sigma * T ** 4 * area / C.Lsun;
+      // (visible light only, relative to the Sun's visible fraction, as the renderer's luminosities are)
+      const dAU = dl / AU, L = C.sigma * T ** 4 * area / C.Lsun * visFrac(T) / visFrac(5772);
       data.set([rel[0], rel[1], rel[2], cc[0] / mx, cc[1] / mx, cc[2] / mx, L / (dAU * dAU), size], n * 8); n++;
     }
   } else if (P && P.n) {

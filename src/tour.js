@@ -18,6 +18,9 @@ export const STOPS = [
     run: (nav, ui) => { ui.sbui.start(0); ui.sbui.panel.classList.remove('hidden');
       // start a few seconds before the merger so it happens during the stop (trails drawn as it goes)
       const sb = ui.sbui.sb; for (let i = 0; i < 300; i++) { sb.sim.advance(0.03); sb.sync(); } }, wait: 24 },
+  { title: 'The Moon is born', text: 'Physics sandbox: 4.5 billion years ago a Mars-sized planet strikes the young Earth. Molten rock is thrown into orbit, winds into a disk, and the part beyond the Roche limit will gather into the Moon.',
+    run: (nav, ui) => { const u = ui.sbui; u.start(u.presets.findIndex(p => p.id === 'theia')); u.panel.classList.remove('hidden');
+      const sb = u.sb; while (sb.sim.t < 1.4 * 3600) sb.sim.advance(30, 200000); sb.sync(); sb.later = sb.later.filter(l => l.t > 4 * 3600); nav.rate = 500; }, wait: 16 },
   { title: 'Total solar eclipse, 8 April 2024', text: 'The Moon from lunar theory and Earth from JPL elements put the shadow where it really fell. Exposure switches to the corona.',
     run: (nav) => { nav.time = iso('2024-04-08T18:30:00Z'); nav.paused = true; const e = body(nav, 'Earth'), s = body(nav, 'Sun'), m = body(nav, 'Moon'); e.system.update(nav.time);
       const d = V.norm(V.sub(m.pos, s.pos)), o = V.sub(m.pos, e.pos), b = V.dot(o, d), h = b * b - (V.dot(o, o) - e.radius ** 2);

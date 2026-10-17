@@ -2,7 +2,7 @@
 // Usage: node glcheck.mjs [event ids...]  (default: a representative set)
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : ['betelgeuse', 'rgb', 'pn', 'm31', 'merge', 'galyear', 'horizon', 'phobos', 'eclipses'];
+const ids = process.argv.slice(2).length ? process.argv.slice(2) : ['betelgeuse', 'rgb', 'pn', 'm31', 'merge', 'galyear', 'horizon', 'phobos', 'eclipses', 'iceage'];
 const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', protocolTimeout: 1800000,
   args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--window-size=320,180'] });
 const page = await browser.newPage(); await page.setViewport({ width: 320, height: 180 });
@@ -18,6 +18,6 @@ const run = (code) => page.evaluate(async (code) => { const c = window.cosmos, n
   for (let i = 0; i < 20; i++) { c.frame(0.05); if (i % 5 === 0) await new Promise(r => setTimeout(r, 0)); } }, code);
 await run('for (let i = 0; i < 20; i++) c.frame(0.05);'); console.log('STEP start');
 for (const id of ids) { await run(`const tl = c.ui.timeline; tl.go(tl.events.find(e => e.id === '${id}'));`); console.log('STEP ' + id); }
-for (const id of ['gw150914', 'tde', 'gw170817']) { await run(`const u = c.ui.sbui; u.start(u.presets.findIndex(p => p.id === '${id}')); nav.paused = false; for (let i = 0; i < 60; i++) c.frame(0.05);`); console.log('STEP sb ' + id); }
+for (const id of ['gw150914', 'tde', 'gw170817', 'theia', 'wdia']) { await run(`const u = c.ui.sbui; u.start(u.presets.findIndex(p => p.id === '${id}')); nav.paused = false; for (let i = 0; i < 60; i++) c.frame(0.05);`); console.log('STEP sb ' + id); }
 console.log(errs + ' GL/console errors');
 await browser.close();
