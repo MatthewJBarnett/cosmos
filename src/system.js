@@ -317,6 +317,9 @@ export class StarSystem {
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
       // Comet Shoemaker-Levy 9's fragments (G, K, L, H, Q1, R hit hardest) struck Jupiter at 44 S on 16-22 July 1994;
       // their dark scars, larger than Earth, spread and faded over months (System II longitudes; fresh scar w -> 0)
+      // the Moon's history: a magma ocean for its first ~100 Myr, then bright highlands, then the maria flooding 3.9-3.1 Gyr ago
+      const moonB = all.find(b => b.name === 'Moon');
+      if (moonB) { moonB.mariaFill = clamp((tyr + 3.9e9) / 0.8e9, 0, 1); const mg = clamp((-4.42e9 - tyr) / 5e7, 0, 1); if (mg > 0) { moonB.heatT = 1200 + 500 * mg; moonB._mh = true; } else if (moonB._mh) { moonB.heatT = 0; moonB._mh = false; } }
       const jup = all.find(b => b.name === 'Jupiter');
       if (jup) {
         const t94 = (t / 86400) - (Date.UTC(1994, 6, 16) - Date.UTC(2000, 0, 1, 12)) / 864e5;    // days since 16 July 1994

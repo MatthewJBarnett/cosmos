@@ -158,7 +158,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   fade over months.
 - **The Chicxulub impact** (66.043 Myr ago): a fireball over Yucatán, an ejecta plume, the whole sky glowing as debris
   re-enters an hour later, then soot spreading around the planet within days and darkening it for years.
-- **Earth's deep past:** before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
+- **Earth's deep past:** the Moon begins as a magma ocean and gets its dark maria only 3.9-3.1 Gyr ago; before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
   (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; for its
   first ~10 Myr the Sun sits in a flared protoplanetary disk with planet-carved gaps (like HL Tauri); the young
   Sun is fainter, the day shorter and the Moon closer. (Continents keep today's shapes beyond 50 Myr back.) Mars has

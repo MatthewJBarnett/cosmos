@@ -113,7 +113,7 @@ uniform vec3 uFaceA;
 uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
 uniform vec2 uDetailO; uniform float uChunkA;
-uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK; uniform vec4 uScars[6]; uniform int uNumScars;
+uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK; uniform vec4 uScars[6]; uniform int uNumScars; uniform float uMariaFill;
 ${ICE_GLSL}
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
@@ -154,6 +154,8 @@ void main(){
     float ang = acos(clamp(dot(dir, uScars[i].xyz), -1., 1.)), w = uScars[i].w;
     if (w > 0.) { float rr = 0.07 + 0.22*w, ring = exp(-pow((ang - rr*0.9)/(rr*0.25), 2.))*0.4; alb.rgb *= 1. - 0.8*(exp(-pow(ang/(rr*0.6), 2.)) + ring)*(1. - 0.7*w); }
   }
+  // (the Moon before its maria: the dark basalt plains erupted 3.9-3.1 Gyr ago; earlier it was all bright highland)
+  if (uMariaFill < 1. && uKind == 0) { float lm = dot(alb.rgb, vec3(0.3, 0.55, 0.15)); alb.rgb = mix(alb.rgb, max(alb.rgb, vec3(0.16, 0.155, 0.15)*(0.85 + 0.3*texture(uNoise3, normalize(vDir)*9.).r)), (1. - uMariaFill)*smoothstep(0.14, 0.05, lm)); }
   if (uKind == 0) {
     vec3 nt = texture(uNormTex, tuv).rgb; vec2 nn = nt.rg; aoT = nt.b;
     vec3 T1 = normalize(uFaceA - dir*dot(dir, uFaceA)), T2 = cross(dir, T1);
@@ -791,7 +793,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
-    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
+    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uMariaFill: body.mariaFill === undefined ? 1 : body.mariaFill, uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
