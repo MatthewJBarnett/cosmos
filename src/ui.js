@@ -401,6 +401,7 @@ export class UI {
         }
       }
     }
+    if (nav.dayLocked && nav._lock) alt += `<div class="dim">Time-lapse: time of day held at ${String(Math.floor(nav._lock.hour)).padStart(2, '0')}:${String(Math.floor((nav._lock.hour % 1) * 60)).padStart(2, '0')}</div>`;
     if (nav.relativistic) { const b = nav.beta ? Math.hypot(...nav.beta) : 0; alt += `<div><b>Relativistic</b> v = ${b.toFixed(b > 0.99 ? 5 : 3)} c · γ = ${(nav.gamma || 1).toFixed(b > 0.99 ? 2 : 3)}</div>`; }
     if (nav.orbit) { const o = nav.orbit; alt += `<div><b>Orbit</b> ${fmtDist(Math.max(o.peri, 0))} × ${isFinite(o.apo) ? fmtDist(o.apo) : 'escape'} · ${isFinite(o.period) ? (o.period < 7200 ? (o.period / 60).toFixed(1) + ' min' : (o.period / 3600).toFixed(2) + ' h') : ''}</div>`; }
     // deep time: the Sun's state and the universe

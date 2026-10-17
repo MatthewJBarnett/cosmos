@@ -249,6 +249,8 @@ export class Nav {
     this.time += delta / 360 * Math.abs(body.rotPeriod) * Math.sign(body.rotPeriod);
     sys.update(this.time);
   }
+  // planetographic latitude/longitude (degrees) of the camera over a body
+  latLonOf(b) { if (!b || !b.wrot) return null; const d = Q.rot(Q.conj(b.wrot), V.norm(V.sub(this.S, b.wpos))); return [Math.asin(clamp(d[1], -1, 1)) * 180 / Math.PI, Math.atan2(-d[2], d[0]) * 180 / Math.PI]; }
   // land at a planetographic latitude/longitude (degrees)
   landAt(body, lat, lon, opt = {}) {
     if (opt.hour !== undefined) this.setLocalTime(body, lon, opt.hour);
@@ -327,10 +329,24 @@ export class Nav {
 
   // ----- per frame -----
   update(dt, input) {
+    // (the anchor's position and rotation before anything moves this frame, for following it)
+    const anc0 = this.anchor, anc0Pos = anc0 ? anc0.wpos : null, anc0Ang = anc0 ? anc0.rotAngle : 0;
     // relativistic flight: the outside clock runs fast by the Lorentz factor of the camera
     const b2 = this.beta ? this.beta[0] ** 2 + this.beta[1] ** 2 + this.beta[2] ** 2 : 0;
     this.gamma = 1 / Math.sqrt(1 - Math.min(b2, 0.999999));
     if (!this.paused) this.time += dt * this.rate * this.gamma;
+    // time-lapse on a planet's surface: faster than a couple of hours per second, day and night would strobe every
+    // frame; hold the local solar time fixed instead (time advances in whole days, like a photo taken each night)
+    this.dayLocked = false;
+    const an0 = this.anchor;
+    if (!this.paused && an0 && an0.rotPeriod && an0.kind !== 'star' && this.level === 'system' && this.altitude < an0.radius * 0.05 && Math.abs(this.rate) > 7200 && Math.abs(this.rate) < 3e9 && !this.goto) {
+      if (!this._lock || this._lock.body !== an0) {
+        const ll = this.latLonOf(an0); const sun = an0.system.stars[0];
+        if (ll && sun) { const d = Q.rot(Q.conj(an0.wrot), V.norm(V.sub(sun.wpos, an0.wpos))); const subLon = Math.atan2(-d[2], d[0]) * 180 / Math.PI;
+          let hr = 12 + (ll[1] - subLon) / 15 * Math.sign(an0.rotPeriod); hr = ((hr % 24) + 24) % 24; this._lock = { body: an0, lon: ll[1], hour: hr }; }
+      }
+      if (this._lock) { this.setLocalTime(an0, this._lock.lon, this._lock.hour); this.dayLocked = true; }
+    } else this._lock = null;
     updateWorld(this.time, this.paused ? 0 : dt * this.rate / YEAR);
     if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early
@@ -340,14 +356,16 @@ export class Nav {
     let anchor = null;
     if (sys && this.level === 'system') {
       const prev = this.anchor && this.anchor.system === sys ? this.anchor : null;
-      const prevPos = prev ? prev.wpos : null, prevAng = prev ? prev.rotAngle : 0;
+      const prevPos = prev ? (prev === anc0 ? anc0Pos : prev.wpos) : null, prevAng = prev ? (prev === anc0 ? anc0Ang : prev.rotAngle) : 0;
       sys.update(this.time);
       if (prev) {
         this.S = V.add(this.S, V.sub(prev.wpos, prevPos));
         const rel = V.sub(this.S, prev.wpos), alt = V.len(rel) - prev.radius;
         const w = prev.kind === 'star' || this.orbit ? 0 : clamp((1.2 * prev.radius - alt) / (1.0 * prev.radius), 0, 1);
         if (w > 0 && prev.rotPeriod && !this.paused) {
-          const dAng = 2 * Math.PI * dt * this.rate / prev.rotPeriod * w;
+          // follow the body's actual rotation since the last frame (time may have been snapped to whole days)
+          let da = prev.rotAngle - prevAng; da -= 2 * Math.PI * Math.round(da / (2 * Math.PI));
+          const dAng = (Math.abs(this.rate * dt) < Math.abs(prev.rotPeriod) * 0.4 || this.dayLocked ? da : 2 * Math.PI * dt * this.rate / prev.rotPeriod) * w;
           const axis = Q.rot(prev.wrot, [0, 1, 0]), rq = Q.axis(axis, dAng);
           this.S = V.add(prev.wpos, Q.rot(rq, rel)); this.q = Q.norm(Q.mul(rq, this.q));
         }
