@@ -125,7 +125,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   so constellations distort; procedural stars stream through the rotating spiral pattern with the Galaxy's
   rotation curve and their own random motions. After a few million years the catalogue fades into the field.
 - **The Sun's galactic orbit:** an epicyclic orbit (period 218 Myr, ±290 pc in radius, ±92 pc vertically) drawn
-  at galaxy level; the spiral pattern turns at 25 km/s/kpc, the stars faster, the Solar System keeps its own
+  at galaxy level, with radial migration: the Sun formed ~1.7 kpc further in and drifted out (Minchev et al. 2013); the spiral pattern turns at 25 km/s/kpc, the stars faster, the Solar System keeps its own
   inertial orientation.
 - **Supernovae:** massive procedural stars live, explode and are replaced, with light-travel delay, Type II-P
   and Ib/c light curves averaged over each frame (a one-year flash still registers at a million years per

@@ -38,8 +38,16 @@ export const sunHook = { fn: null, t0: Infinity };
 export function sunPos(tyr) {
   if (!tyr) return SUN_POS.slice();
   if (sunHook.fn && tyr > sunHook.t0) { const p = sunHook.fn(tyr); if (p) return p; }
-  const R = R0 - AR * Math.sin(KAPPA * tyr), z = AZ * Math.sin(NU * tyr + PZ);
-  const a = -OMS * tyr;
+  // radial migration: the Sun's metallicity says it formed ~1.7 kpc further in and was carried out by the spiral arms'
+  // churning (Minchev et al. 2013). Here a steady outward drift of the guiding radius over its lifetime; the guiding
+  // circle turns at V/R (flat rotation curve), so the azimuth is the integral of that over time.
+  let Rg = R0, a = -OMS * tyr;
+  if (tyr < 0) {
+    const tau = Math.min(-tyr, 4.57e9), k = 1700 / 4.57e9;
+    Rg = R0 - k * tau;
+    a = OMS * R0 / k * Math.log(R0 / Rg) + OMS * R0 / Rg * (-tyr - tau);
+  }
+  const R = Rg - AR * Math.sin(KAPPA * tyr), z = AZ * Math.sin(NU * tyr + PZ);
   const p = [-R, z, 0];                                     // epoch azimuth: Sun on the -x axis
   return rotY(p, a);
 }
