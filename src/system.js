@@ -11,7 +11,7 @@ import { SCHEDULED, fireball } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR } from './evolution.js';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START } from './paleo.js';
-import { initEvolution, stellarState, tMS, wdProgenitor } from './stellarevo.js';
+import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -251,6 +251,8 @@ export class StarSystem {
     let scale = 1, changed = false;
     // (the whole system forms together: nothing is there before its primary star)
     const p0 = (this._allStars || this.stars)[0], r0 = p0 && p0.evo ? stellarState(p0, tyr) : null, sysUn = !!(r0 && r0.unborn); this.unborn = sysUn;
+    // planets condense in the first few million years, inside the star's disk of gas and dust
+    const age0 = p0 && p0.evo && p0.evo.x0 !== null ? p0.evo.x0 * p0.evo.life + tyr : 1e10, young = age0 < 5e6;
     for (const s of this._allStars || this.stars) {
       const e = s.evo; if (!e) continue;
       const st = stellarState(s, tyr); if (!st) continue;
@@ -271,7 +273,7 @@ export class StarSystem {
     for (const b of root.children) {
       if (!b.orbit || b.kind === 'star') continue;
       const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
-      const g = !!(root.evo && a < root.radius * 1.1) || sysUn; if (!!b.gone !== g) changed = true; b.gone = g;
+      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young; if (!!b.gone !== g) changed = true; b.gone = g;
       for (const c of b.children) { if (!!c.gone !== g) changed = true; c.gone = g; }
       const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
       b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
@@ -392,10 +394,12 @@ export class StarSystem {
       if (!this._evoInit) {
         this._evoInit = true; this._allStars = this.stars.slice();
         // the primary's age is shared by its companions (stars of one system form together)
-        const p0 = this.stars[0]; initEvolution(p0, this.seed || 1); let age0 = p0 && p0.evo && p0.evo.x0 !== null ? p0.evo.x0 * p0.evo.life : 0;
+        const p0 = this.stars[0], known = p0 && KNOWN_AGE[(p0.name || '').toLowerCase()];
+        initEvolution(p0, this.seed || 1, known && p0.star && p0.star.kind === KIND.MS ? known * 1e9 : 0);
+        let age0 = known ? known * 1e9 : p0 && p0.evo && p0.evo.x0 !== null ? p0.evo.x0 * p0.evo.life : 0;
         // a white dwarf companion (Sirius B, Procyon B) came from a heavier star that has already lived and died: the
         // system is at least that old
-        if (age0 && p0.evo.x0 < 1) for (const s of this.stars.slice(1)) if (s.star && s.star.kind === KIND.WD) {
+        if (age0 && !known && p0.evo.x0 < 1) for (const s of this.stars.slice(1)) if (s.star && s.star.kind === KIND.WD) {
           const need = tMS(wdProgenitor(s.mass / C.Msun)) + 3e7;
           if (age0 < need) { age0 = Math.min(need * (1.2 + 0.8 * ((this.seed || 1) % 97) / 97), 0.95 * p0.evo.life); p0.evo.x0 = age0 / p0.evo.life; }
         }

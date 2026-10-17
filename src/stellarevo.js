@@ -13,6 +13,12 @@ const hashf = (x, k) => { let h = (Math.floor(x) * 2654435761 + k * 40503) >>> 0
 const msL = (x) => 0.7 + 0.6 * x + 0.6 * x * x * x, msR = (x) => 0.89 + 0.2 * x + 0.45 * x * x * x;
 const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
+// measured ages (Gyr) of well-known stars (asteroseismology, isochrones, white dwarf cooling, gyrochronology); the
+// rest get an age from their hash
+export const KNOWN_AGE = { 'rigil kentaurus': 5.3, 'toliman': 5.3, 'proxima centauri': 4.85, 'sirius': 0.24, 'vega': 0.455, 'altair': 0.1,
+  'procyon': 1.87, 'tau ceti': 5.8, 'epsilon eridani': 0.6, 'ran': 0.6, "barnard's star": 10, 'trappist-1': 7.6, '61 cygni': 6.1,
+  'fomalhaut': 0.44, 'polaris': 0.07, 'capella': 0.59, 'pollux': 0.72, 'regulus': 0.05, 'achernar': 0.06, 'canopus': 0.025,
+  '51 pegasi': 6.1, 'helvetios': 6.1, 'deneb': 0.01, 'castor': 0.29, 'alcyone': 0.1, 'mizar': 0.37, 'alderamin': 0.82 };
 // set up the evolutionary state of a star body (once)
 // (ageYr: the age of the system's primary, so that the stars of a binary or multiple system, born together, share it)
 export function initEvolution(b, seed, ageYr) {

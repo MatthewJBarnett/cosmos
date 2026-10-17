@@ -430,6 +430,11 @@ export class Renderer {
         }
         if (k >= 0) sne.remnants.push(this._nurs = Object.assign(this._nurs || {}, { pos: at.slice(), radius: 2.5 + 6 * k, type: 0, seed: 12.7, colA: [1.0, 0.27, 0.35], colB: [0.45, 0.4, 0.9], lum: 12 * (1 - k * 0.8) * Math.min(1, (1 - k) * 8), name: nm }));
       }
+      // other young stars have disks too (planets condense in them in the first ~5 Myr; the gas is gone by ~10 Myr)
+      if (sys && !sys.desc.sol && !sys.sandbox && sys._allStars && sys.posLocal && !sys.unborn) {
+        const p0 = sys._allStars[0], a = p0.ageYr / 1e6;
+        if (a > 0 && a < 12) sne.remnants.push(this._ppdX = Object.assign(this._ppdX || {}, { pos: sys.posLocal.slice(), radius: 120 * Math.sqrt(p0.mass / C.Msun) * C.AU / C.PC, type: 3, seed: 5.1, colA: [1.0, 0.72, 0.45], colB: [0.8, 0.5, 0.35], lum: 14000 * Math.exp(-a / 4) * Math.min(1, a / 0.2) * Math.min(3, Math.sqrt(p0.lum)), name: p0.name + ' protoplanetary disk' }));
+      }
       // any visited star that has just died: its planetary nebula (~20 km/s, lit for ~30,000 years) or its supernova
       // remnant (free expansion, then Sedov-Taylor, fading over ~100,000 years)
       if (sys && sys.posLocal && sys.root && !sys.desc.sol && !sys.sandbox) {
