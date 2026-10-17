@@ -244,7 +244,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   near the horizon; stars twinkle more near the horizon; light pollution from the real night-lights map glows over
   cities; airglow at 95 km; aurora around the real geomagnetic pole.
 - **Seasons and ages:** Earth's snow cover follows the date (continental interiors first, forests show through the
-  snow); ice sheets and sea level follow the Milankovitch cycles; the continents drift with the plates.
+  snow) and so does sea ice (the Arctic largest in March, the Antarctic in September); ice sheets and sea level follow the Milankovitch cycles; the continents drift with the plates.
 - **Orbit mode (Y):** Newtonian two-body flight with thrusters; a 400 km orbit around Earth takes 92.4 minutes.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.

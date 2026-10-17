@@ -376,6 +376,14 @@ export class StarSystem {
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
         b.drift = driftMyr(tyr);
       }
+      // sea ice follows the seasons (lagging the solstices): the Arctic peaks in March and is smallest in September,
+      // the Antarctic the other way round; the Sun's longitude from the equinox of date sets the phase
+      if (b.precessRA && b.pole && this.stars[0]) {
+        const sd = V.norm(V.sub(this.stars[0].pos, b.pos)), Ev = V.norm(V.cross(b.pole, [0, 1, 0])), Fv = V.cross([0, 1, 0], Ev);
+        const lam = Math.atan2(V.dot(sd, Fv), V.dot(sd, Ev)), ar = 0.5 + 0.5 * Math.cos(lam - 350 * D2R), an = 0.5 + 0.5 * Math.cos(lam - 177 * D2R);
+        b.solarLon = ((lam / D2R) + 360) % 360;
+        b.seaIce = [80 - 16 * ar, -(71 - 13 * an)];
+      }
       if (b.seasonal && this.stars[0]) {
         // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)
         const sd = V.norm(V.sub(this.stars[0].pos, b.pos));
