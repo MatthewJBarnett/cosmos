@@ -14,7 +14,7 @@ import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
-import { LG, LG_START } from './localgroup.js';
+import { LG, LG_START, updateLocalGroupPositions } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
@@ -540,7 +540,7 @@ export class UI {
   eventView(e) {
     const nav = this.nav, v = e.view || {}, sol = solSystem();
     // after a jump, bring the galaxy collision simulation (and with it the Sun's galactic position) up to date first
-    { const tMyr = (nav.time / YEAR - 26.8) / 1e6; if (tMyr > LG_START) { LG.advance(tMyr, 100000); updateWorld(nav.time); } }
+    { const tMyr = (nav.time / YEAR - 26.8) / 1e6; if (tMyr > LG_START) LG.advance(tMyr, 100000); updateWorld(nav.time); updateLocalGroupPositions(nav.time / YEAR); }
     nav.goto = null; nav.onArrive = null; nav.lookTarget = null; nav.orbit = null; nav.fov = 55 * Math.PI / 180;
     this.caption(e.title, e.text + (e.est ? ' <span class="dim">Date is an estimate.</span>' : ''), '', '');
     clearTimeout(this.capTimer); this.capTimer = setTimeout(() => { if (!this.tour.active) this.caption(null); }, 14000);
@@ -592,6 +592,16 @@ export class UI {
         if (t) { nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]); }
         nav.fov = 80 * Math.PI / 180;
       }
+      return;
+    }
+    if (v.galaxy) {
+      // above (or beside) the Milky Way, with the Sun selected and its galactic orbit drawn
+      const mw = findByName(nav, 'Milky Way').galaxy, sunT = { type: 'star', desc: sol.desc };
+      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
+      const sp = Q.rot(mw.quat, world.sunP);
+      if (v.galaxy === 'top') { nav.G = Q.rot(mw.quat, [0, 42000, 0]); nav.q = Q.look(V.mul(nav.G, -1), Q.rot(mw.quat, [1, 0, 0])); }
+      else { const out = V.norm([sp[0], 0, sp[2]]); nav.G = V.add(sp, V.add(V.mul(V.cross(out, [0, 1, 0]), 3500), [0, 600, 0])); nav.q = Q.look(V.sub(sp, nav.G), [0, 1, 0]); }
+      nav.selected = sunT;
       return;
     }
     if (v.pole) {

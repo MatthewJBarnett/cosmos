@@ -154,7 +154,7 @@ export class SandboxUI {
     const g = this.scope, W = g.canvas.width, H = g.canvas.height, buf = sb.sim.gw.buf;
     g.clearRect(0, 0, W, H);
     g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, W, H);
-    g.strokeStyle = 'rgba(160,190,230,0.25)'; g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke();
+    g.strokeStyle = 'rgba(160,190,230,0.25)'; g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W - 92, H / 2); g.stroke();
     if (buf.length < 2) return;
     const tEnd = buf[buf.length - 1].t, f = buf[buf.length - 1].f || 1;
     // show about 10 cycles, but keep the view from zooming too fast
@@ -165,10 +165,21 @@ export class SandboxUI {
     for (let i = buf.length - 1; i >= 0 && buf[i].t >= t0; i--) { const h = sb.sim.gw.strain(buf[i])[0]; pts.push([buf[i].t, h]); amax = Math.max(amax, Math.abs(h)); }
     this.amax = this.amax ? Math.max(amax, this.amax * 0.98) : amax;
     g.strokeStyle = '#7fd4ff'; g.lineWidth = 1.3; g.beginPath();
-    pts.reverse().forEach(([t, h], i) => { const x = (t - t0) / this.win * W, y = H / 2 - h / this.amax * H * 0.42; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+    pts.reverse().forEach(([t, h], i) => { const x = (t - t0) / this.win * (W - 92), y = H / 2 - h / this.amax * H * 0.42; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
     g.stroke();
     g.fillStyle = 'rgba(200,220,255,0.7)'; g.font = '11px system-ui';
     g.fillText('h₊ at 100 Mpc (face-on)  ±' + this.amax.toExponential(1), 6, 13);
-    g.fillText(fmtT(this.win), W - 50, H - 5);
+    g.fillText(fmtT(this.win), W - 140, H - 5);
+    // a ring of free test masses as the wave passes (deformation exaggerated): + stretches along x and squeezes
+    // along y, x does the same rotated by 45 degrees
+    const last = buf[buf.length - 1], h = sb.sim.gw.strain(last), k = 0.28 / Math.max(this.amax, 1e-40);
+    const cx = W - 46, cy = H / 2 + 4, R = 26;
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(cx - 40, cy - 40, 80, 80);
+    g.fillStyle = '#ffd38a';
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * 2 * Math.PI, x = Math.cos(a), y = Math.sin(a);
+      const dx = (h[0] * x + h[1] * y) * k, dy = (-h[0] * y + h[1] * x) * k;
+      g.beginPath(); g.arc(cx + (x + dx) * R, cy + (y + dy) * R, 1.8, 0, 2 * Math.PI); g.fill();
+    }
   }
 }

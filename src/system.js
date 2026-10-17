@@ -6,6 +6,7 @@ import { galDir } from './universe.js';
 import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
+import { SCHEDULED } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq } from './evolution.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
@@ -197,6 +198,19 @@ export class StarSystem {
     // the star's motion through the galaxy
     const tyr = t / YEAR;
     if (this._ty !== tyr) { this._ty = tyr; this.posLocal = descPosP(this.desc, tyr); this.posGu = Q.rot(galQuat0(this.galaxy), toInertial(this.posLocal, tyr)); }
+    // real stars with scheduled supernovae: afterwards the system holds the neutron star left behind
+    if (this.desc.catIndex !== undefined) {
+      const sn = SCHEDULED.find(x => x.i === this.desc.catIndex);
+      if (sn && sn.tEm !== undefined) {
+        const dead = tyr > sn.tEm, st = this.stars[0];
+        if (st && dead !== !!st._remnant) {
+          if (dead) { st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
+            Object.assign(st, { radius: 12e3, lum: 4 * Math.PI * 12e3 ** 2 * C.sigma * 1e6 ** 4 / C.Lsun, temp: 1e6, cls: 'Neutron star (remnant of the supernova)', mass: 1.4 * C.Msun, neutron: true, pulsar: true, rotPeriod: 0.03, _remnant: true });
+            if (st.surface) st.surface.gran = 0;
+          } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, _remnant: false }); }
+        }
+      }
+    }
     // the Sun's evolution, mass loss widening the orbits, Earth's precession and the Moon's recession
     let oScale = 1, mScale = 1;
     if (this.desc.sol) {
