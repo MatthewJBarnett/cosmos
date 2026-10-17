@@ -272,6 +272,7 @@ export class Renderer {
     const common = { exposure, pxSA, pixScale, pxPerRad, noise3: this.noise3, sync: this.sync, betaWorld, betaLocal };
 
     const prof = rcfg.prof ? [] : null; let pt = performance.now();
+    this.onGround = false;
     const gt = rcfg.gpuTimes ? (this.gpuTimer || (this.gpuTimer = new GpuTimer())) : null;
     if (gt) { gt.poll(); gt.begin('bake'); }
     const T = (n) => { if (gt) gt.begin(NEXT[n] || n); if (prof) { const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING); gl.bindFramebuffer(gl.FRAMEBUFFER, this.meterFBO); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, new Float32Array(4)); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); const t = performance.now(); prof.push(n + ':' + (t - pt).toFixed(0)); pt = t; } };
@@ -587,7 +588,7 @@ export class Renderer {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
       drawComets(sys, nav, { camRot, tanFov: [tanX, tanY], exposure, time: nav.time, noise3: this.noise3, depth: this.depthTex, fcoef });
       // orbit lines would cut across a real-looking sky: hide them when standing (or flying low) under an atmosphere
-      const onGround = nav.anchor && nav.anchor.atmo && nav.altitude < 1e5;
+      const onGround = nav.anchor && nav.anchor.atmo && nav.altitude < 1e5; this.onGround = !!onGround;
       if (rcfg.orbits && !onGround) { gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); drawOrbits(sys, nav, { viewProj, fcoef, selected: nav.selected }); }
       // black holes bend the finished image
       for (const b of blackHoles) {
@@ -720,6 +721,9 @@ export class Renderer {
       const hi = Math.max((this.deep > 0.05 || this.meterTop ? this.lumTop : this.lumHi) || 0, 1e-12), avg = Math.max((this.meterTop ? this.lumAvg : this.lumAvgC) || 0, 1e-12);
       // expose for bright areas, but don't let a large dim scene go black
       target = Math.min(0.7 / hi, 0.16 / avg * 6);
+      // under an atmosphere at night the eye never adapts all the way: a moonlit or twilight sky should look dim, not
+      // like a grey day (mesopic vision). Daylight is untouched; a moonless night is already at the exposure limit.
+      if (this.onGround) { const lev = clamp((Math.log10(hi) + 8) / 7.5, 0, 1); target = Math.min(target, 0.7 * (0.4 + 0.6 * lev) / hi); }
       target = clamp(target, rcfg.minExposure, this.maxExposure || rcfg.maxExposure);
     }
     target *= Math.pow(2, rcfg.exposureBias);
