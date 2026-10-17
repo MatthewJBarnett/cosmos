@@ -197,7 +197,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **History in the sky:** the supernovae of 185, 1006 (the brightest on record), 1054 (the Crab, seen by day), 1181,
   1572 (Tycho) and 1604 (Kepler) light up on their dates at their recorded brightness, and their remnants (plus
   Cassiopeia A) appear and expand from then on. Halley's comet returns on its real perihelion dates from 240 BC to
-  2134 (1066 on the Bayeux Tapestry). Scholz's Star passes 51,000 AU from the Sun 80,000 years ago.
+  2134 (1066 on the Bayeux Tapestry). Scholz's Star passes 51,000 AU from the Sun 80,000 years ago. The great comets
+  Hyakutake (1996), Hale-Bopp (1997) and NEOWISE (2020) and the interstellar objects 'Oumuamua (2017), Borisov (2019)
+  and 3I/ATLAS (2025) fly their real orbits (the last three on hyperbolic paths, in and out once).
 - **Novae:** ~10 a year reach magnitude 9 and one every year or two is visible to the eye, mostly towards the bulge,
   rising in days and fading over weeks; Nova Persei 1901, Nova Aquilae 1918, Nova Puppis 1942 and Nova Cygni 1975 on
   their dates.

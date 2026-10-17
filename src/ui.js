@@ -243,6 +243,7 @@ export class UI {
       'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'],
       'Supernova remnants': ['Crab Nebula', 'Cassiopeia A', "Tycho's supernova remnant", "Kepler's supernova remnant", 'SN 1006 remnant', 'RCW 86 (SN 185)'],
       'Black holes and pulsars': ['Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar'],
+      'Interstellar visitors': ["1I/'Oumuamua", '2I/Borisov', '3I/ATLAS'],
       'Stars passing the Sun': ["Scholz's Star", "Barnard's Star", 'Gliese 710', 'Rigil Kentaurus'],
       'Star clusters': ['Omega Centauri', '47 Tucanae', 'M13 (Hercules Cluster)', 'M22', 'M4'],
       'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };

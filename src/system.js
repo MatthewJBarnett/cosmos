@@ -48,7 +48,16 @@ function tropicalCyclones(t, solarLon, climate) {
 // ---------- Kepler ----------
 // an orbit whose elements are given in the plane of the sky (visual binaries, the S-stars): x north, y east, z away
 export function skyToFrame(sky, r) { const x = r[0], y = -r[2], z = r[1]; return [sky[0][0] * x + sky[1][0] * y + sky[2][0] * z, sky[0][1] * x + sky[1][1] * y + sky[2][1] * z, sky[0][2] * x + sky[1][2] * y + sky[2][2] * z]; }
+// hyperbolic orbits (interstellar objects): position in the orbital plane at hyperbolic anomaly H
+export function hypPlane(o, H) { const a = o.q / (o.e - 1); return [a * (o.e - Math.cosh(H)), a * Math.sqrt(o.e * o.e - 1) * Math.sinh(H)]; }
+// hyperbolic anomaly at time t (s): solve e sinh H - H = n (t - tp)
+export function hypAnomaly(o, t) {
+  const M = o.n * (t - o.tp); let H = Math.asinh(M / o.e);
+  for (let i = 0; i < 50; i++) { const dH = (o.e * Math.sinh(H) - H - M) / (o.e * Math.cosh(H) - 1); H -= dH; if (Math.abs(dH) < 1e-12) break; }
+  return H;
+}
 export function keplerPos(o, t) {
+  if (o.hyp) { const [xv, yv] = hypPlane(o, o.H !== undefined ? o.H : hypAnomaly(o, t)); return orbitToFrame(o, xv, yv, t); }
   // returns position in the orbit reference frame (y-up: orbital plane is XZ when i=0)
   let M = o.M0 + 2 * Math.PI * ((t / o.period) % 1);
   M = ((M % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;       // (-pi, pi]
@@ -56,6 +65,9 @@ export function keplerPos(o, t) {
   const e = o.e; let E = M + 0.85 * e * Math.sign(Math.sin(M) || 1);
   for (let i = 0; i < 40; i++) { const f = E - e * Math.sin(E) - M, f1 = 1 - e * Math.cos(E), f2 = e * Math.sin(E), dE = f / (f1 - 0.5 * f * f2 / f1); E -= dE; if (Math.abs(dE) < 1e-13) break; }
   const xv = o.a * (Math.cos(E) - e), yv = o.a * Math.sqrt(1 - e * e) * Math.sin(E);
+  return orbitToFrame(o, xv, yv, t);
+}
+function orbitToFrame(o, xv, yv, t) {
   // (apsidal precession, e.g. general relativity's for stars close to a black hole)
   const argp = o.argp + (o.argpDot ? o.argpDot * t : 0);
   const cw = Math.cos(argp), sw = Math.sin(argp), cO = Math.cos(o.node), sO = Math.sin(o.node), ci = Math.cos(o.inc), si = Math.sin(o.inc);
@@ -654,6 +666,14 @@ function buildSol(sys) {
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });
   halley.orbit = { a: 17.834 * C.AU, e: 0.96714, inc: 162.26 * D2R, node: 58.42 * D2R, argp: 111.33 * D2R, M0: 66.43 * D2R, period: 75.32 * C.YEAR };
   halley.surface = surfacePreset('asteroid', rng, halley); addChild(sun, halley);
+  // interstellar objects on hyperbolic orbits: 1I/'Oumuamua (2017), 2I/Borisov (2019) and 3I/ATLAS (2025)
+  for (const [name, kind, q, e, inc, node, argp, tp, R] of [["1I/'Oumuamua", 'dwarf', 0.2553, 1.2011, 122.74, 24.60, 241.70, 2017.688, 80],
+    ['2I/Borisov', 'comet', 2.0066, 3.357, 44.05, 308.15, 209.12, 2019.936, 500], ['3I/ATLAS', 'comet', 1.357, 6.14, 175.11, 322.16, 128.01, 2025.827, 1000]]) {
+    const ob = body({ name, kind, cls: 'Interstellar object', mass: 1e3 * 4.19 * R ** 3 * 0.5, radius: R, albedo: 0.06, temp: 150, rotPeriod: 7.3 * 3600, real: true });
+    const qm = q * C.AU, a = qm / (e - 1);
+    ob.orbit = { hyp: true, q: qm, e, a, inc: inc * D2R, node: node * D2R, argp: argp * D2R, tp: (tp - 2000) * C.YEAR, n: Math.sqrt(C.G * C.Msun / a ** 3) };
+    ob.surface = surfacePreset('asteroid', rng, ob); addChild(sun, ob);
+  }
   // great comets of recent decades on their real orbits (J2000 ecliptic elements; perihelion dates as decimal years)
   for (const [name, q, e, inc, node, argp, tp, R] of [['Comet Hyakutake', 0.2302, 0.9999, 124.92, 188.06, 130.18, 1996.329, 2000],
     ['Comet Hale-Bopp', 0.9141, 0.99508, 89.43, 282.47, 130.59, 1997.248, 30000], ['Comet NEOWISE', 0.2946, 0.99918, 128.94, 61.01, 37.28, 2020.504, 2500]]) {
@@ -984,7 +1004,12 @@ export function describeBody(b) {
   if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', fmt(b.tilt) + '°']);
   if (b.approxOrbit) rows.push(['Orbit', 'approximate elements']);
   if (b.observed) rows.push(['Data', 'observed exoplanet']);
-  if (b.orbit) {
+  if (b.orbit && b.orbit.hyp) {
+    const o = b.orbit, vinf = Math.sqrt(C.G * C.Msun * (o.e - 1) / o.q) / 1e3;
+    rows.push(['Orbit', 'hyperbolic: passing through once, from interstellar space']);
+    rows.push(['Perihelion', fmt(o.q / C.AU, 4) + ' AU']); rows.push(['Eccentricity', fmt(o.e)]); rows.push(['Speed far from the Sun', fmt(vinf) + ' km/s']);
+    rows.push(['Inclination', (o.inc / D2R).toFixed(2) + '°']);
+  } else if (b.orbit) {
     const o = b.orbit;
     rows.push(['Semi-major axis', o.a > 0.01 * C.AU ? fmt(o.a / C.AU, 4) + ' AU' : Math.round(o.a / 1e3).toLocaleString('en') + ' km']);
     rows.push(['Orbital period', o.period > C.YEAR ? fmt(o.period / C.YEAR, 4) + ' yr' : o.period > 86400 ? fmt(o.period / 86400, 4) + ' d' : fmt(o.period / 3600) + ' h']);

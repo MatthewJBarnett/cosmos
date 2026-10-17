@@ -138,13 +138,15 @@ export function drawOrbits(sys, nav, o) {
     // minor bodies (asteroids, dwarf planets, comets) only show their orbit when selected
     if (!sel && (b.kind === 'dwarf' || b.kind === 'comet')) continue;
     const col = sel ? [1, 0.85, 0.4] : b.kind === 'star' ? [1, 0.7, 0.3] : b.kind === 'moon' ? [0.45, 0.55, 0.7] : b.kind === 'dwarf' || b.kind === 'comet' ? [0.5, 0.5, 0.5] : [0.35, 0.6, 1.0];
-    const M0 = orb.M0 + 2 * Math.PI * nav.time / orb.period;
+    // (hyperbolic orbits: the branch within ~60 AU of the Sun, from the inbound leg to the outbound)
+    const Hmax = orb.hyp ? Math.acosh(Math.min(1e6, (60 * 1.496e11 / orb.a + 1) / orb.e)) : 0;
+    const M0 = orb.hyp ? 0 : orb.M0 + 2 * Math.PI * nav.time / orb.period;
     const start = data.length / 7;
     const fake = Object.assign({}, orb, { period: 1, argp: orb.argp + (orb.argpDot ? orb.argpDot * nav.time : 0), argpDot: 0 });
     // real planets follow their ephemeris (orbits that slowly change shape, and widen as the Sun loses mass)
     const eph = b.ephem === 'planet' ? (sys.oScale || 1) : 0, path = eph ? planetOrbitPath(b.name, nav.time, ORB_N) : null;
     for (let i = 0; i <= ORB_N; i++) {
-      fake.M0 = M0 + i / ORB_N * Math.PI * 2;
+      if (orb.hyp) fake.H = -Hmax + 2 * Hmax * i / ORB_N; else fake.M0 = M0 + i / ORB_N * Math.PI * 2;
       let p = path ? V.mul(path[i], eph) : keplerPos(fake, 0);
       if (orb.sky) p = skyToFrame(orb.sky, p);
       if (!path && b.parent === sys.root && sys.oScale && sys.oScale !== 1) p = V.mul(p, sys.oScale);
