@@ -279,14 +279,13 @@ export class Renderer {
     let lgCam = null;
     if (lgw.tMyr > LG_START - 1) {
       LG.advance(lgw.tMyr, this.sync ? 5000 : 24);
-      sunHook.t0 = 26.8 + LG_START * 1e6; sunHook.fn = (ty) => LG.ready && Math.abs(ty - (26.8 + LG.t * 1e6)) < 5e6 ? LG.sunRel() : null;
       if (LG.ready) {
         const cu = nav.camU(), cm = centresAt(LG.t);
         lgCam = [cm.mw[0] + cu[0] * 1e3, cm.mw[1] + cu[1] * 1e3, cm.mw[2] + cu[2] * 1e3];
         this.lgInside = Math.min(V.dist(lgCam, cm.mw), V.dist(lgCam, cm.m31)) < 70;
         if (this.lgInside) LG.updateCube(lgCam, 1 - lgw.mw, 1 - lgw.m31);
       }
-    } else { sunHook.fn = null; LG.active = false; }
+    } else LG.active = false;
     const hideReal = new Set();
     if (lgw.m31 < 0.5) { hideReal.add(M31); }
     if (lgw.mw < 0.5) hideReal.add(MILKY_WAY);

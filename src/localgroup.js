@@ -5,9 +5,9 @@
 // Units: kpc, Myr, solar masses. Frame: centre of mass of the pair, axes of the Milky Way at the present epoch.
 import { gl, Program, tex2D, fbo, drawFS, FS_VS, texCube } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
-import { GAL, G, KMS, centresAt, relAt, ORBIT } from './lgorbit.js';
+import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
-import { sunPos, YEAR } from './galdyn.js';
+import { sunPos, YEAR, sunHook } from './galdyn.js';
 import { CUBE_FACES } from './atmosphere.js';
 import { GAL_I0, skyCfg } from './sky.js';
 
@@ -55,17 +55,18 @@ void main(){
 }`;
 // particles as soft points (outside views) and into a sky cube (inside views)
 const PART_VS = `uniform sampler2D uPos; uniform mat4 uViewProj; uniform vec3 uCam; uniform float uExposure, uPxSA, uPxPerRad, uMaxPx, uNear;
-uniform vec2 uLum; uniform vec2 uW;
+uniform vec2 uLum; uniform vec2 uW; uniform float uBurst;
 out vec3 vCol; out float vSig;
 vec3 bb(float t){ return t < 5000. ? vec3(1.0, 0.72, 0.46) : t < 9000. ? vec3(1.0, 0.9, 0.78) : vec3(0.7, 0.82, 1.0); }
 void main(){
   int i = gl_VertexID; ivec2 ij = ivec2(i % ${SIDE}, i / ${SIDE});
   vec4 P = texelFetch(uPos, ij, 0);
-  int gal = i < ${HALF} ? 0 : 1; float type = P.w;
+  int gal = i < ${HALF} ? 0 : 1; float type = floor(P.w/10.), wgt = P.w - type*10.;
   vec3 rel = P.xyz - uCam; float d = length(rel);
   // luminosity per particle (L_sun) -> flux in solar constants: 1 kpc = 2.0626e8 AU
   float L = gal == 0 ? uLum.x : uLum.y; float w = gal == 0 ? uW.x : uW.y;
-  float flux = L/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
+  // young stars brighten in the starbursts that follow each close passage
+  float flux = L*wgt*(type > 1.5 ? uBurst : 1.)/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
   float h = type < 0.5 ? 0.4 : 0.8;      // smoothing length (kpc), about the particle spacing
   float sig = clamp(h/d*uPxPerRad*0.5, 0.7, uMaxPx);
   float I = flux/uPxSA*uExposure;
@@ -132,7 +133,7 @@ export class LocalGroup {
       const g = GAL[k];
       for (let i = 0; i < HALF; i++) {
         const idx = gi * HALF + i;
-        let pl, vl, type;
+        let pl, vl, type, wgt = 1;
         if (i < HALF * 0.22) {
           // bulge: Hernquist radii, isotropic Gaussian velocities from the local circular speed
           const u = Math.min(rnd(), 0.995), r = g.ab * Math.sqrt(u) / (1 - Math.sqrt(u));
@@ -142,10 +143,12 @@ export class LocalGroup {
           vl = [gauss(rnd) * sg, gauss(rnd) * sg, gauss(rnd) * sg];
           type = 0;
         } else {
-          // disk: exponential surface density (inverse CDF by bisection), sech^2-like thickness, circular rotation
+          // disk: exponential surface density, sampled from a 1.6x wider exponential and weighted back (importance
+          // sampling: more particles, each fainter, in the outskirts where tidal tails form; the light profile is unchanged)
           const u = rnd(); let lo = 0, hi = 12;
           for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (1 - (1 + m) * Math.exp(-m) < u) lo = m; else hi = m; }
-          const R = Math.min(lo * g.Rd, 30), ph = rnd() * 2 * Math.PI, z = gauss(rnd) * 0.25;
+          const R = Math.min(lo * g.Rd * 1.6, 40), ph = rnd() * 2 * Math.PI, z = gauss(rnd) * 0.25;
+          wgt = 2.56 * Math.exp(-0.375 * R / g.Rd);
           pl = [R * Math.cos(ph), z, R * Math.sin(ph)];
           const vc = vcirc(ui, Math.max(R, 0.2)), sr = 22 * KMS * Math.exp(-R / (3 * g.Rd)) + 8 * KMS;
           // clockwise seen from the disk's north (like the Milky Way)
@@ -153,7 +156,8 @@ export class LocalGroup {
           type = rnd() < 0.18 ? 2 : 1;
         }
         const pw = mat3tmul(ui.R, pl), vw = mat3tmul(ui.R, vl);
-        P.set([cen[0] + pw[0], cen[1] + pw[1], cen[2] + pw[2], type], idx * 4);
+        // w: type * 10 + luminosity weight
+        P.set([cen[0] + pw[0], cen[1] + pw[1], cen[2] + pw[2], type * 10 + Math.min(wgt, 9.99)], idx * 4);
         Vv.set([vcen[0] + vw[0], vcen[1] + vw[1], vcen[2] + vw[2], gi], idx * 4);
       }
     });
@@ -194,6 +198,12 @@ export class LocalGroup {
     this.behind = Math.abs(tMyr - this.t) > DT;
     return !this.behind;
   }
+  // star formation triggered by the tidal compression of each passage (peaks ~50 Myr after pericentre)
+  burst(t) {
+    if (!this._peris) this._peris = orbitEvents().pericentres.map(p => p.t);
+    let b = 1; for (const tp of this._peris) b += 3 * Math.exp(-(((t - tp - 50) / 140) ** 2));
+    return b;
+  }
   // the Sun relative to the Milky Way centre (pc, inertial Milky Way axes)
   sunRel() { const c = centresAt(this.t); return [(this.sun.x[0] - c.mw[0]) * 1e3, (this.sun.x[1] - c.mw[1]) * 1e3, (this.sun.x[2] - c.mw[2]) * 1e3]; }
   // draw particles as points; camCOM: camera in the centre of mass frame (kpc)
@@ -201,7 +211,7 @@ export class LocalGroup {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
     this.pPart.use().set({ uPos: this.pos[this.cur], uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
-      uLum: [GAL.mw.L / HALF, GAL.m31.L / HALF], uW: [wMW, wM31], uNear: nearKpc || 0.5 });
+      uLum: [GAL.mw.L / HALF, GAL.m31.L / HALF], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }
   // sky seen from inside: particles splatted into a cube map around the camera, refreshed as time moves on
@@ -246,6 +256,9 @@ export function updateLocalGroupPositions(tyr) {
   return moved;
 }
 export const LG = new LocalGroup();
+// after the N-body takes over, the Sun's galactic position comes from its tracer particle
+sunHook.t0 = NOW_TYR + LG_START * 1e6;
+sunHook.fn = (ty) => LG.ready && LG.active && Math.abs(ty - (NOW_TYR + LG.t * 1e6)) < 5e6 ? LG.sunRel() : null;
 // weights: how much of each galaxy is drawn by the regular renderer (1) vs by particles (0)
 export function lgWeights(tyr) {
   const t = (tyr - NOW_TYR) / 1e6;

@@ -12,9 +12,9 @@ import { catalog, loadCatalog } from './assets.js';
 import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
-import { world, YEAR } from './galdyn.js';
+import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
-import { LG } from './localgroup.js';
+import { LG, LG_START } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
@@ -528,6 +528,8 @@ export class UI {
   // set up the camera for an event from the timeline
   eventView(e) {
     const nav = this.nav, v = e.view || {}, sol = solSystem();
+    // after a jump, bring the galaxy collision simulation (and with it the Sun's galactic position) up to date first
+    { const tMyr = (nav.time / YEAR - 26.8) / 1e6; if (tMyr > LG_START) { LG.advance(tMyr, 100000); updateWorld(nav.time); } }
     nav.goto = null; nav.onArrive = null; nav.lookTarget = null; nav.orbit = null; nav.fov = 55 * Math.PI / 180;
     this.caption(e.title, e.text + (e.est ? ' <span class="dim">Date is an estimate.</span>' : ''), '', '');
     clearTimeout(this.capTimer); this.capTimer = setTimeout(() => { if (!this.tour.active) this.caption(null); }, 14000);
@@ -555,24 +557,11 @@ export class UI {
     if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }
     if (v.land) { const t = findByName(nav, v.land); if (t && t.type === 'body') { nav.landAt(t.body, 10, -60, { hour: v.hour || 12 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: sol.find('Sun') }; }; } return; }
     if (v.pn) {
-      // from half a parsec away (the nebula grows to about that size), looking back at the Sun; later than the
-      // jump point so the shell is already lit
-      nav.time += 1.6e4 * YEAR;
-      const mw = findByName(nav, 'Milky Way').galaxy;
-      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
-      const sp = Q.rot(mw.quat, world.sunP), off = V.norm([0.3, 0.5, 0.8]);
-      nav.G = V.addm(sp, off, 0.9); nav.q = Q.look(V.mul(off, -1), [0, 1, 0]);
-      nav.selected = { type: 'star', desc: sol.desc };
-      return;
-    }
-    if (v.galaxy) {
-      const g = world && nav.galaxy ? nav.galaxy : null;
-      const mw = findByName(nav, 'Milky Way').galaxy, sunT = { type: 'star', desc: sol.desc };
-      nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
-      const sp = Q.rot(mw.quat, world.sunP);
-      if (v.galaxy === 'top') { nav.G = Q.rot(mw.quat, [0, 42000, 0]); nav.q = Q.look(V.mul(nav.G, -1), Q.rot(mw.quat, [1, 0, 0])); }
-      else { const out = V.norm([sp[0], 0, sp[2]]); nav.G = V.add(sp, V.add(V.mul(V.cross(out, [0, 1, 0]), 3500), [0, 600, 0])); nav.q = Q.look(V.sub(sp, nav.G), [0, 1, 0]); }
-      nav.selected = sunT;
+      // from about a parsec away, looking back at the Sun (later than the jump point so the shell is lit). After the
+      // Andromeda encounter the Sun's position comes from the N-body tracer, so fly there rather than placing the camera
+      nav.time += 1.6e4 * YEAR; updateWorld(nav.time);
+      const t = { type: 'star', desc: sol.desc };
+      nav.selected = t; nav.goTo(t, { dist: 0.9 * C.PC, dur: 3 });
       return;
     }
     if (v.lg) {
