@@ -92,6 +92,63 @@ export function drawBlackHole(b, o) {
   drawFS();
 }
 
+// Several black holes at once (a merging binary): every ray is integrated through the combined field, each hole bending
+// it by the Schwarzschild photon equation a = -3/2 Rs h^2 r / r^5 (h: the ray's angular momentum about that hole).
+// Near merger the two shadows stretch towards each other and fuse, which lensing the holes one after another cannot do.
+const BHN_FS = `
+in vec2 vUV; out vec4 o;
+uniform sampler2D uScene; uniform mat3 uCamRot, uCamRotInv; uniform vec2 uTanFov;
+uniform vec4 uHoles[4]; uniform int uN; uniform float uStrong;
+vec3 sampleSky(vec3 d){
+  vec3 v = uCamRotInv*d;
+  if (v.z > -0.02) return vec3(0.);
+  vec2 uv = (v.xy/(-v.z*uTanFov))*0.5 + 0.5;
+  vec2 e = smoothstep(vec2(-0.02), vec2(0.03), uv)*smoothstep(vec2(1.02), vec2(0.97), uv);
+  return texture(uScene, clamp(uv, 0., 1.)).rgb*e.x*e.y;
+}
+void main(){
+  vec3 rd = normalize(uCamRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  // weak field everywhere along this ray? then just add up the small deflections
+  bool strong = false; vec3 dsum = vec3(0.); float rsMin = 1e30;
+  for (int i = 0; i < 4; i++) {
+    if (i >= uN) break;
+    vec3 c = uHoles[i].xyz; float rs = uHoles[i].w; rsMin = min(rsMin, rs);
+    float tca = dot(c, rd); vec3 pc = rd*tca - c; float b = length(pc);
+    if (tca > 0. && b < uStrong*rs) strong = true;
+    if (tca > 0.) dsum += pc/b*(2.*rs/b);
+  }
+  if (!strong) { o = vec4(sampleSky(normalize(rd - dsum)), 1.); return; }
+  // integrate the ray (positions in units of the smallest horizon radius)
+  vec3 p = vec3(0.), v = rd; float sc = 1./rsMin; bool captured = false;
+  vec3 H[4]; float R[4];
+  for (int i = 0; i < 4; i++) { H[i] = i < uN ? uHoles[i].xyz*sc : vec3(1e9); R[i] = i < uN ? uHoles[i].w*sc : 0.; }
+  float far = 0.; for (int i = 0; i < 4; i++) if (i < uN) far = max(far, length(H[i]));
+  for (int s = 0; s < 420; s++) {
+    vec3 acc = vec3(0.); float dmin = 1e30; bool past = true;
+    for (int i = 0; i < 4; i++) {
+      if (i >= uN) break;
+      vec3 d = p - H[i]; float r = length(d);
+      if (r < R[i]) { captured = true; break; }
+      vec3 hv = cross(d, v); acc += -1.5*R[i]*dot(hv, hv)*d/(r*r*r*r*r);
+      dmin = min(dmin, r/R[i]);
+      if (dot(d, v) < 0. || r < 60.*R[i]) past = false;
+    }
+    if (captured) break;
+    if (past && length(p) > far) break;
+    float dt = clamp(dmin*0.06, 0.015, 6.)*(dmin < 4. ? 0.5 : 1.)*rsMin*sc;
+    v = normalize(v + acc*dt); p += v*dt;
+  }
+  o = vec4(captured ? vec3(0.) : sampleSky(v), 1.);
+}`;
+let pBHN;
+export function drawBlackHoles(list, o) {
+  if (!pBHN) pBHN = new Program('blackholes', FS_VS, BHN_FS);
+  const h = new Float32Array(16); const n = Math.min(list.length, 4);
+  for (let i = 0; i < n; i++) h.set([list[i].rel[0], list[i].rel[1], list[i].rel[2], list[i].radius], i * 4);
+  pBHN.use().set({ uScene: o.scene, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uTanFov: o.tanFov, uHoles: h, uN: n, uStrong: 40 });
+  drawFS();
+}
+
 // ---------------- coronae ----------------
 const COR_VS = `layout(location=0) in vec2 aPos; uniform mat4 uViewProj; uniform vec3 uRel; uniform float uSize; out vec2 vP; ${LOGDEPTH_VS}
 ${REFRACT_VS}
@@ -313,6 +370,7 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
 export function initExoticPrograms() {
   initCometProgram();
   if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
+  if (!pBHN) pBHN = new Program('blackholes', FS_VS, BHN_FS);
   if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
   if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
   if (!pCor) pCor = new Program('corona', COR_VS, COR_FS);

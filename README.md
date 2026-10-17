@@ -41,7 +41,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Andromeda approaching](docs/m31_sky.jpg) Andromeda looming in the sky of the Solar System in 3.4 billion years | ![Sun's orbit](docs/sun_orbit.jpg) The Sun's orbit around the Milky Way |
 | ![Rogue black hole](docs/rogue_bh.jpg) A rogue black hole crosses the Solar System: the planets' trails 15 years later | ![Relativistic flight](docs/relativistic.jpg) Flying at 0.9 c: the sky crowds forward, blueshifted and beamed |
 | ![Last ice age](docs/ice_age.jpg) 20,000 years ago: ice sheets over North America, the sea 120 m lower (Milankovitch model) | ![Drifting continents](docs/drift.jpg) 80 million years from now: Australia has drifted north into the western Pacific |
-| ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | |
+| ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | ![Merging shadows](docs/bbh_shadow.jpg) 12 ms before a black hole merger: light traced through both holes at once, their shadows fuse |
 
 ## Run
 
@@ -100,7 +100,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   ringdown frequency and damping (GW150914-like masses give 61.9 M☉, spin 0.68, 3.1 M☉ radiated, 275 Hz,
   as measured). The scope shows the strain h₊ at 100 Mpc from the quadrupole formula; Sound plays the chirp.
   The spacetime grid shows each mass's well plus the actual retarded wave field (read at t − r/c), and is bent
-  by the black holes' lensing. Neutron star mergers collapse to a black hole and make a kilonova; stars that pass
+  by the black holes' lensing; a pair of holes is ray traced through their combined gravity, so near merger their
+  shadows stretch and fuse. Neutron star mergers collapse to a black hole and make a kilonova; stars that pass
   inside a black hole's tidal radius are shredded into debris that falls back at the t^−5/3 rate and lights an
   accretion disk. Stars that touch merge. Time runs backwards too (snapshots, then re-integration).
   Black holes can spin (aligned with the orbit): 1.5PN spin-orbit coupling delays the merger ("orbital hang-up")
@@ -323,7 +324,8 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
 - Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
-- Black hole shadows are Schwarzschild (spin does not change their shape); binary lensing is two lenses applied in turn.
+- Black hole shadows are Schwarzschild (spin does not change their shape). A pair of holes is ray traced through the
+  sum of their Schwarzschild bendings (each hole static during a ray's flight), not a full binary spacetime.
 - The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).
 - Earth's clouds are today's: after millions of years of drift they no longer match the continents beneath.
 - Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not
