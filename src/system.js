@@ -1012,7 +1012,7 @@ export function describeBody(b) {
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }
   if (b.rotPeriod) rows.push(['Rotation', Math.abs(b.rotPeriod) < 1 ? fmt(Math.abs(b.rotPeriod) * 1000) + ' ms' : Math.abs(b.rotPeriod) < 86400 * 3 ? fmt(Math.abs(b.rotPeriod) / 3600) + ' h' : fmt(Math.abs(b.rotPeriod) / 86400) + ' d']);
-  if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', fmt(b.tilt) + '°']);
+  if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', (b.precessRA && b.pole ? (Math.acos(Math.max(-1, Math.min(1, b.pole[1]))) / D2R).toFixed(2) : fmt(b.tilt)) + '°']);   // (Earth: the obliquity cycle)
   if (b.approxOrbit) rows.push(['Orbit', 'approximate elements']);
   if (b.observed) rows.push(['Data', 'observed exoplanet']);
   if (b.orbit && b.orbit.hyp) {
@@ -1021,9 +1021,13 @@ export function describeBody(b) {
     rows.push(['Perihelion', fmt(o.q / C.AU, 4) + ' AU']); rows.push(['Eccentricity', fmt(o.e)]); rows.push(['Speed far from the Sun', fmt(vinf) + ' km/s']);
     rows.push(['Inclination', (o.inc / D2R).toFixed(2) + '°']);
   } else if (b.orbit) {
-    const o = b.orbit;
-    rows.push(['Semi-major axis', o.a > 0.01 * C.AU ? fmt(o.a / C.AU, 4) + ' AU' : Math.round(o.a / 1e3).toLocaleString('en') + ' km']);
-    rows.push(['Orbital period', o.period > C.YEAR ? fmt(o.period / C.YEAR, 4) + ' yr' : o.period > 86400 ? fmt(o.period / 86400, 4) + ' d' : fmt(o.period / 3600) + ' h']);
+    const o = b.orbit, sy = b.system;
+    // (the Moon recedes; the planets' orbits widen as the Sun loses mass, a M = const, so P ~ a^2)
+    let a = o.a, P = o.period;
+    if (sy && sy.tyr !== undefined && b.name === 'Moon') { const k = moonScale(sy.tyr); a *= k; P *= Math.pow(k, 1.5); }
+    else if (sy && sy.oScale && sy.oScale !== 1 && b.parent === sy.root) { a *= sy.oScale; P *= sy.oScale ** 2; }
+    rows.push(['Semi-major axis', a > 0.01 * C.AU ? fmt(a / C.AU, 4) + ' AU' : Math.round(a / 1e3).toLocaleString('en') + ' km']);
+    rows.push(['Orbital period', P > C.YEAR ? fmt(P / C.YEAR, 4) + ' yr' : P > 86400 ? fmt(P / 86400, 4) + ' d' : fmt(P / 3600) + ' h']);
     rows.push(['Eccentricity', fmt(b.orbitE !== undefined ? b.orbitE : o.e)]);
     rows.push(['Inclination', (o.inc / D2R).toFixed(2) + '°']);
   }
