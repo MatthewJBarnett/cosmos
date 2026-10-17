@@ -317,6 +317,19 @@ export class StarSystem {
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
       // Comet Shoemaker-Levy 9's fragments (G, K, L, H, Q1, R hit hardest) struck Jupiter at 44 S on 16-22 July 1994;
       // their dark scars, larger than Earth, spread and faded over months (System II longitudes; fresh scar w -> 0)
+      if (this.longComets) for (let k = 0; k < this.longComets.length; k++) {
+        const cm = this.longComets[k], n = Math.floor((tyr + k * 1.5) / 6);
+        if (cm._epoch === n) continue;
+        cm._epoch = n;
+        let sd = (n * 7919 + k * 104729) >>> 0; const rnd = () => { sd = (Math.imul(sd, 1103515245) + 12345) >>> 0; return sd / 4294967296; };
+        const q = (0.3 + 1.2 * rnd()) * C.AU, e = 0.9995, a = q / (1 - e), P = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * C.Msun));
+        let tp = (n * 6 - k * 1.5 + 6 * rnd()) * C.YEAR;     // perihelion time (s from J2000)
+        // (no invented comets within a century of the present: the real sky has its own)
+        if (Math.abs(tp / C.YEAR - 26.8) < 100) tp = 1e9 * C.YEAR;
+        Object.assign(cm.orbit, { a, e, inc: Math.acos(1 - 2 * rnd()), node: rnd() * 2 * Math.PI, argp: rnd() * 2 * Math.PI, M0: -2 * Math.PI * ((tp / P) % 1), period: P });
+        const yr = Math.floor(2000 + tp / C.YEAR), L = 'ABCDEFGHJKLMNOPQRSTUVWXY'[Math.floor(rnd() * 24)];
+        cm.name = 'Comet C/' + yr + ' ' + L + (1 + Math.floor(rnd() * 4));
+      }
       // the Moon's history: a magma ocean for its first ~100 Myr, then bright highlands, then the maria flooding 3.9-3.1 Gyr ago
       const moonB = all.find(b => b.name === 'Moon');
       if (moonB) { moonB.mariaFill = clamp((tyr + 3.9e9) / 0.8e9, 0, 1); const mg = clamp((-4.42e9 - tyr) / 5e7, 0, 1); if (mg > 0) { moonB.heatT = 1200 + 500 * mg; moonB._mh = true; } else if (moonB._mh) { moonB.heatT = 0; moonB._mh = false; } }
@@ -566,6 +579,14 @@ function buildSol(sys) {
   const halley = body({ name: "Halley's Comet", kind: 'comet', cls: 'Comet', mass: 2.2e14, radius: 5500, albedo: 0.04, temp: 150, rotPeriod: 52.8 * 3600, real: true });
   halley.orbit = { a: 17.834 * C.AU, e: 0.96714, inc: 162.26 * D2R, node: 58.42 * D2R, argp: 111.33 * D2R, M0: 66.43 * D2R, period: 75.32 * C.YEAR };
   halley.surface = surfacePreset('asteroid', rng, halley); addChild(sun, halley);
+  // long-period comets from the Oort cloud: a bright one passes the Sun every few years. Four slots, each holding a
+  // different comet in every six-year window (near-parabolic orbit, random orientation, perihelion 0.3-1.5 AU)
+  sys.longComets = [];
+  for (let k = 0; k < 4; k++) {
+    const cm = body({ name: 'Comet', kind: 'comet', cls: 'Long-period comet (Oort cloud)', mass: 1e14, radius: 4000, albedo: 0.04, temp: 150, rotPeriod: 20 * 3600, real: true });
+    cm.orbit = { a: 1e3 * C.AU, e: 0.999, inc: 0, node: 0, argp: 0, M0: 0, period: 1e9 * C.YEAR };
+    cm.surface = surfacePreset('asteroid', rng, cm); addChild(sun, cm); sys.longComets.push(cm);
+  }
 }
 
 // ---------- Procedural systems ----------

@@ -177,6 +177,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   (35 kpc), a second at 5.2 Gyr and a merger at 5.9 Gyr, close to van der Marel et al. 2012. From 2.6 Gyr the
   two galaxies are a 65,536 particle restricted N-body simulation on the GPU (leapfrog, time reversible); the
   Sun is a tracer particle, so you can watch the sky from the Solar System as Andromeda arrives.
+- **Comets:** besides Halley, long-period comets from the Oort cloud swing past the Sun every year or two on
+  near-parabolic orbits (invented ones, so only more than a century from the present).
 - **Moons and rings:** Phobos spirals in and breaks into a ring around Mars in ~40 Myr; Triton is torn apart into a
   ring around Neptune in ~3.6 Gyr; Saturn's rings rain onto the planet and are gone in ~300 Myr.
 - **The end of the stellar era:** once star formation stops, the brightest stars burn out first; after tens of
