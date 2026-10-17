@@ -547,7 +547,10 @@ export class Nav {
 export function findByName(nav, name) {
   const n = name.trim().toLowerCase(); if (!n) return null;
   if (nav.system) { const b = nav.system.bodies.find(b => b.name.toLowerCase() === n) || nav.system.bodies.find(b => b.name.toLowerCase().startsWith(n)); if (b) return { type: 'body', body: b }; }
-  const sol = solSystem(); const b = sol.bodies.find(b => b.name.toLowerCase() === n) || (n.length > 2 && sol.bodies.find(b => b.name.toLowerCase().startsWith(n)));
+  const sol = solSystem();
+  // (a Solar System body that does not exist at this time: don't fall through to a similarly named star)
+  if ((sol._all || sol.bodies).some(b => b.gone && b.name.toLowerCase() === n)) return null;
+  const b = sol.bodies.find(b => b.name.toLowerCase() === n) || (n.length > 2 && sol.bodies.find(b => b.name.toLowerCase().startsWith(n)));
   if (b) return { type: 'body', body: b };
   if (catalog.ready) {
     const cf = fieldFor(MILKY_WAY), cell = cf.cells.get('catalog');

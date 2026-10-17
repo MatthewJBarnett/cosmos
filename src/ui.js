@@ -339,7 +339,8 @@ export class UI {
     if (ev) { this.timeline.go(ev); return; }
     const y = /\d/.test(q) ? parseTimeSpec(q) : null;
     if (y !== null) { this.nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; this.timeline.lastTyr = this.nav.time / YEAR; this.toast(fmtSimDate(this.nav.time)); return; }
-    this.toast('Nothing found for "' + text + '"');
+    const sol = solSystem(), gone = (sol._all || []).find(b => b.gone && b.name.toLowerCase() === q);
+    this.toast(gone ? gone.name + ' does not exist at this time' : 'Nothing found for "' + text + '"');
   }
   // travel to a random interesting place
   // kind: 'star' | 'earthlike' | 'rings' | 'giant-star' | 'galaxy'
@@ -602,6 +603,8 @@ export class UI {
     nav.goto = null; nav.onArrive = null; nav.lookTarget = null; nav.orbit = null; nav.fov = 55 * Math.PI / 180;
     // events happen in the real universe: leave the sandbox (whose bodies may share names with real ones)
     if (nav.system && nav.system.sandbox) { nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; nav.selected = null; if (this.sbui) this.sbui.panel.classList.add('hidden'); }
+    // (bring the Solar System to the new date before looking anything up: which bodies exist depends on it)
+    sol.update(nav.time);
     this.caption(e.title, e.text + (e.est ? ' <span class="dim">Date is an estimate.</span>' : ''), '', '');
     clearTimeout(this.capTimer); this.capTimer = setTimeout(() => { if (!this.tour.active) this.caption(null); }, 14000);
     if (v.star) {
