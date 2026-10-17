@@ -414,9 +414,15 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
 - Andromeda: the tangential velocity is uncertain (Gaia-era estimates even allow a ~50% chance of no merger within
   10 Gyr, Sawala et al. 2025); 30 km/s was chosen to follow van der Marel et al. 2012. The N-body is restricted
   (particles feel both galaxies' analytic potentials, not each other), with no gas.
-- Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified. Continents move rigidly
-  with today's plate velocities (no subduction, mountain building or plate reorganisation; held after 100 Myr).
-  Ice sheets are colour on the surface (their 3 km thickness is not added to the terrain).
+- Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified. Within ±3 Myr of today
+  (and into the future) continents move rigidly with today's plate velocities (no subduction, mountain building or
+  plate reorganisation; held after +100 Myr); further back the PALEOMAP reconstructions take over. Ice sheets are
+  colour on the surface (their 3 km thickness is not added to the terrain).
+- Deep-time models are deliberately simple and cited in the code: global temperature (Scotese et al. 2021), oxygen
+  and CO2 histories, the polarity timescale, the sunspot record, star formation history (Madau & Dickinson 2014),
+  the timing argument for Andromeda, the LMC orbit with dynamical friction. Uncertain dates are marked "estimate".
+- The Milky Way-Andromeda timing argument needs 4.9e12 solar masses, more than the ~2.7e12 in the forward collision
+  model; the two are joined at the present (the forward orbit includes dynamical friction, the past one does not).
 - Relativistic flight (M) transforms the sky (stars, galaxies, the Milky Way); nearby planets are not aberrated, and
   go-to remains a faster-than-light jump.
 
