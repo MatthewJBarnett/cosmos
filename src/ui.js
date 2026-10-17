@@ -608,7 +608,7 @@ export class UI {
     }
     if (v.pole) {
       const earth = sol.find('Earth'); sol.update(nav.time);
-      nav.landAt(earth, 48, 0, { hour: 0 });
+      nav.landAt(earth, 52, -112, { hour: 0 });   // a dark site on the Canadian prairie
       nav.onArrive = () => { nav.lookTarget = { type: 'dir', dir: Q.rot(earth.wrot, [0, 1, 0]) }; };
       return;
     }
