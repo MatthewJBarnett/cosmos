@@ -22,6 +22,7 @@ export class SandboxUI {
         <input id="sbMass" type="number" min="0.001" step="any" value="30"><span id="sbUnit">M☉</span><button id="sbPlace" title="Click in the view to place; drag to set its velocity">Place</button></div>
       <div class="sbrow"><label><input type="checkbox" id="sbGrid" checked> Spacetime grid</label><label><input type="checkbox" id="sbTrails" checked> Trails</label><label><input type="checkbox" id="sbFollow" checked> Follow</label><label><input type="checkbox" id="sbAudio"> Sound</label></div>
       <div class="sbrow"><button id="sbSlow" title="Slow motion">½× speed</button><button id="sbFast" title="Faster">2× speed</button><span class="dim" id="sbClock"></span></div>
+      <div id="sbBodies" class="sbbodies"></div>
       <canvas id="sbScope" width="380" height="96"></canvas>
       <div id="sbStats" class="sbstats"></div>`;
     const q = (id) => p.querySelector('#' + id);
@@ -117,6 +118,18 @@ export class SandboxUI {
       this.audio.g.gain.setTargetAtTime(audible && this.ampMax > 0 ? 0.25 * a / this.ampMax : 0, t, 0.02);
     }
     if (this.panel.classList.contains('hidden') || !inside) return;
+    // body list: select or remove
+    const key = sb.sim.bodies.map(b => b.id).join(',');
+    if (key !== this.bodyKey) {
+      this.bodyKey = key;
+      const box = this.q('sbBodies');
+      box.innerHTML = sb.sim.bodies.map(b => `<div class="sbb" data-id="${b.id}"><span class="nm">${b.name}</span><span class="dim">${b.m > 1e28 ? (b.m / MSUN).toPrecision(3) + ' M☉' : (b.m / C.Mearth).toPrecision(3) + ' M⊕'}</span><button title="Remove">×</button></div>`).join('');
+      box.querySelectorAll('.sbb').forEach(row => {
+        const id = +row.dataset.id;
+        row.querySelector('.nm').onclick = () => { const r = sb.map.get(id); if (r) { nav.selected = { type: 'body', body: r }; } };
+        row.querySelector('button').onclick = () => { const pb = sb.sim.bodies.find(b => b.id === id); if (pb) { sb.sim.remove(pb); sb.sync(); sb.snapshot(); sb.gridR = null; } };
+      });
+    }
     const st = sb.stats();
     this.q('sbClock').textContent = 'T = ' + fmtT(st.t) + (sb.lag ? ' · simulation can\'t keep up' : '');
     let html = '';

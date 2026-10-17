@@ -182,6 +182,8 @@ export class NBody {
       this.gw.ringdown(ev, this);
     }
     if (ev.kilonova) nb.kilonova = { t, x: xcm.slice() };
+    // a short gamma ray burst: a relativistic jet along the remnant's spin (the orbital angular momentum)
+    if ((a.kind === 'ns' || b.kind === 'ns') && kind === 'bh') nb.grb = { t, axis: [nrm[0] / nl, nrm[1] / nl, nrm[2] / nl] };
     this.events.push(ev);
     if (this.onEvent) this.onEvent(ev);
   }

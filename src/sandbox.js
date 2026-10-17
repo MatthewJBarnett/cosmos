@@ -10,6 +10,7 @@ import { makeStarBody, body as mkBody, surfacePreset } from './system.js';
 import { MILKY_WAY, SUN_POS } from './universe.js';
 import { galQuat0, toPattern, world, YEAR } from './galdyn.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS } from './planet.js';
+import { beam } from './exotic.js';
 import { NBody, makeBody, binary, separationForTime, circularBinary, petersTime, MSUN } from './nbody.js';
 
 const G = C.G, c = C.c, AU = C.AU, DAY = 86400;
@@ -32,6 +33,8 @@ export const PRESETS = [
     setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉)', n2: 'Black hole B (29 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
   { id: 'unequal', name: 'Unequal black holes (8 : 1)', text: 'A 40 and a 5 solar mass black hole. Unequal masses radiate momentum asymmetrically: the remnant is kicked at tens of km/s.',
     setup(sim) { const a = separationForTime(40 * MSUN, 5 * MSUN, 10); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, a, { n1: 'Black hole (40 M☉)', n2: 'Black hole (5 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
+  { id: 'eccentric', name: 'Eccentric black hole binary', text: 'Two 20 solar mass black holes on an eccentric orbit. General relativity turns the ellipse into a rosette (periastron precession), and each close passage emits a burst of gravitational waves before the orbit circularises.',
+    setup(sim) { const rp = 1000e3; binary(sim, 'bh', 20 * MSUN, 'bh', 20 * MSUN, rp, { n1: 'Black hole A (20 M☉)', n2: 'Black hole B (20 M☉)', e: 0.6 }); return { rate: 0.25, scale: rp * 2.5, grid: true }; } },
   { id: 'gw170817', name: 'Neutron star merger (like GW170817)', text: 'Neutron stars of 1.46 and 1.27 solar masses spiral in at a third of the speed of light. The merger collapses to a black hole and throws out a kilonova.',
     setup(sim) { const a = separationForTime(1.46 * MSUN, 1.27 * MSUN, 6); binary(sim, 'ns', 1.46 * MSUN, 'ns', 1.27 * MSUN, a, { n1: 'Neutron star A', n2: 'Neutron star B' }); return { rate: 0.1, scale: a, grid: true }; } },
   { id: 'smbh', name: 'Supermassive black hole binary', text: 'Two million solar mass black holes, the kind LISA will hear: millihertz waves, merging in about a day.',
@@ -276,6 +279,7 @@ function initGrid() {
 }
 const waveData = new Float32Array(NW * 2 * 4);
 
+export function initSandboxPrograms() { initTrail(); if (!pGrid) initGrid(); }
 function initTrail() {
   if (pTrail) return;
   pTrail = new Program('trails', TRAIL_VS, TRAIL_FS);
@@ -359,6 +363,15 @@ export function drawSandbox(sb, nav, o) {
     // the grid glows at about the brightness of a dark sky, so it never drives the exposure
     pGrid.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uCen: V.sub(cm, camS), uR0: R0, uRmax: Rmax, uAmp: ref * 1.6, uWell: ref * 0.9, uRef: ref, uWave: waveTex, uM: um, uNM: n, uBright: 0.16 * Math.min(1, o.exposure / o.maxExposure) });
     gl.bindVertexArray(gridVAO.vao); gl.drawArrays(gl.LINES, 0, gridCount);
+  }
+  // gamma ray burst jets: a couple of seconds of relativistic outflow along the spin axis
+  for (const b of sb.bodies) {
+    const g = b.phys && b.phys.grb; if (!g) continue;
+    const age = sb.sim.t - g.t; if (age < 0 || age > 2.5) continue;
+    const len = Math.min(c * age, 3e8) + 1e5, I = 4e5 * Math.exp(-age / 0.5);
+    const rel = V.sub(b.wpos, camS);
+    beam(Object.assign({}, o), rel, g.axis, len, 2e3, len * 0.04, [0.75, 0.85, 1.0], I, 0.6);
+    beam(Object.assign({}, o), rel, V.mul(g.axis, -1), len, 2e3, len * 0.04, [0.75, 0.85, 1.0], I, 0.6);
   }
   gl.disable(gl.DEPTH_TEST);
 }

@@ -77,6 +77,8 @@ export function updateSupernovae(field, camLocal, gq) {
     field.cellPhase(cell);
     const d = cell.data;
     for (const i of cell.prog) {
+      // stars standing in for the real catalogue near the Sun don't explode while the catalogue is shown
+      if (d[i * 5 + 4] < 0 && world.catW > 0.5) continue;
       const k = snClassOf(d[i * 5 + 3], Math.abs(d[i * 5 + 4])); if (k < 0) continue;
       const tau = SN_CLASSES[k].tau, h = cell.vel[i * 4 + 3];
       field.posOf(cell, i, q);

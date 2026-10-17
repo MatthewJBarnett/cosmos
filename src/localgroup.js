@@ -110,6 +110,7 @@ export class LocalGroup {
   constructor() { this.ready = false; this.t = null; this.cubeT = -1e9; this.active = false; }
   initGL() {
     if (this.pStep) return;
+    // (programs first so they compile in parallel with the others at start-up)
     this.pStep = new Program('lgstep', FS_VS, STEP_FS);
     this.pPart = new Program('lgparts', PART_VS, PART_FS);
     this.pCube = new Program('lgcube', FS_VS, CUBEDRAW_FS);
@@ -253,3 +254,4 @@ export function lgWeights(tyr) {
   const lmc = clamp(1 - (t - 2300) / 200, 0, 1);
   return { m31, mw, lmc, tMyr: t };
 }
+export function initLocalGroupPrograms() { LG.initGL(); }

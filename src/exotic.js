@@ -277,7 +277,7 @@ void main(){ float t = aPos.y*0.5 + 0.5; vec3 c = uRel + uAxis*(t*uLen); vec3 si
 const BEAM_FS = `in vec2 vP; out vec4 o; uniform vec3 uCol; uniform float uI, uFall, uExposure; ${LOGDEPTH_FS}
 void main(){ logDepth(); float w = 1. - vP.x*vP.x; float a = exp(-vP.x*vP.x*7.)*w*w*pow(1. - vP.y, uFall)*smoothstep(0., 0.04, vP.y); o = vec4(uCol*a*uI*uExposure, 0.); }`;
 let pBeam;
-function beam(o, rel, axis, len, w0, w1, col, I, fall) {
+export function beam(o, rel, axis, len, w0, w1, col, I, fall) {
   if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
   pBeam.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: rel, uAxis: axis, uLen: len, uW0: w0, uW1: w1, uCol: col, uI: I, uFall: fall, uExposure: o.exposure });
   gl.bindVertexArray(quad()); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
