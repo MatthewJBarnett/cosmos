@@ -357,7 +357,7 @@ export class Debris {
         const ur = u[0] * rh[0] + u[1] * rh[1] + u[2] * rh[2], ut = u.map((c, j) => c - ur * rh[j]), utl = Math.hypot(...ut) || 1, vc = Math.sqrt(G * (host.m + m) / r);
         const mx = rh.map((c, j) => host.x[j] + c * r), mv = ut.map((c, j) => host.v[j] + c / utl * vc);
         host.m -= m;
-        const moon = makeBody('planet', m, mx, mv, { name: 'Moon' });
+        const moon = makeBody('planet', m, mx, mv, { name: 'Moon', magma: { t: sim.t } });
         sim.add(moon);
         const ev = { t: sim.t, note: `The Moon has formed: ${(m / 7.35e22).toFixed(2)} lunar masses gathered just outside the Roche limit (${(r / host.R).toFixed(1)} planetary radii)`, body: moon };
         sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev);
