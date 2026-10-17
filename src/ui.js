@@ -14,9 +14,9 @@ import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU, galaxyInfo } from './cosmology.js';
-import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights } from './localgroup.js';
+import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights, LMC_MERGE } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
-import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt } from './lgorbit.js';
+import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, orbitEvents } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
 import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
 
@@ -495,6 +495,12 @@ export class UI {
       if (sun && !sun.gone) for (const b of all) if (b.kind === 'comet' && !b.gone && b.wpos && V.dist(b.wpos, sun.wpos) < 1.5 * C.AU && b.name !== 'Comet') now.push(b.name + ' near the Sun');
       const sn = r.supernovae && r.supernovae.points ? r.supernovae.points.filter(p => p.m < 3 && p.name).slice(0, 2) : [];
       for (const p of sn) now.push(p.name + ' at magnitude ' + p.m.toFixed(1));
+      // galactic encounters (from the orbit models)
+      const tMyrN = (tyrN - 26.8) / 1e6, lgEv = this._lgEv || (this._lgEv = orbitEvents()), p = lgEv.pericentres;
+      if (p[0] && Math.abs(tMyrN - p[0].t) < 150) now.push('Andromeda\'s first passage through the Milky Way');
+      else if (p[1] && Math.abs(tMyrN - p[1].t) < 150) now.push('Andromeda\'s second passage');
+      else if (lgEv.merged > 0 && tMyrN > lgEv.merged - 200 && tMyrN < lgEv.merged + 300) now.push('the Milky Way and Andromeda merging');
+      if (tMyrN > LMC_MERGE - 250 && tMyrN < LMC_MERGE + 50) now.push('the Large Magellanic Cloud falling into the Milky Way');
       if (now.length) deep += `<div><b>Now</b> ${now.slice(0, 3).join(' · ')}</div>`;
     }
     const watch = nav.paused ? '' : this.watchHint(nav);
