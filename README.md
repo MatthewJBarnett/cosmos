@@ -7,7 +7,9 @@ surface out to intergalactic space without a loading screen.
 It is also a physics simulation across all of time: merge black holes and hear the gravitational waves, form the
 Moon in a giant impact, detonate white dwarfs (V for the sandbox); fast-forward to watch ice ages come and go, the
 continents drift, Betelgeuse explode, the Sun circle the Galaxy, Andromeda collide with the Milky Way, the Sun become
-a red giant and the other galaxies recede beyond our horizon (U for the timeline).
+a red giant and the other galaxies recede beyond our horizon (U for the timeline). Rewind and it all runs backwards:
+Pangaea reassembles, the magnetic field flips, Andromeda recedes towards its turnaround, stars and nebulae return to the
+clouds they formed from, and the young galaxies light up with quasars. PgUp and PgDn step through the events.
 
 **Play it:** https://matthewjbarnett.github.io/cosmos/ (press T for a guided tour, H for help)
 
