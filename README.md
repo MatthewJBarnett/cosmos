@@ -198,6 +198,13 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   1572 (Tycho) and 1604 (Kepler) light up on their dates at their recorded brightness, and their remnants (plus
   Cassiopeia A) appear and expand from then on. Halley's comet returns on its real perihelion dates from 240 BC to
   2134 (1066 on the Bayeux Tapestry). Scholz's Star passes 51,000 AU from the Sun 80,000 years ago.
+- **Novae:** ~10 a year reach magnitude 9 and one every year or two is visible to the eye, mostly towards the bulge,
+  rising in days and fading over weeks; Nova Persei 1901, Nova Aquilae 1918, Nova Puppis 1942 and Nova Cygni 1975 on
+  their dates.
+- **Seasons on Earth:** besides snow and sea ice, mid-latitude forests and grasslands brown in their winter.
+- **The Milky Way's own history:** its young blue population and H II regions follow its star formation rate (about
+  twice today's 10 Gyr ago, dying away in the future); after the merger it is an elliptical. Earth's life row notes
+  the recovery after each of the Big Five mass extinctions.
 - **Mars weather:** global dust storms on their real dates (1971, 1977 twice, 1982, 2001, 2007, 2018) hide the surface
   for months, leaving only the Tharsis volcanoes; outside the record about one Mars year in three, near perihelion.
 - **Stellar remnants age:** pulsars spin down by magnetic braking and fall silent after ~10 Myr, white dwarfs

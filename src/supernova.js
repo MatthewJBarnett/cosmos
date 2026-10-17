@@ -88,6 +88,30 @@ function dmHist(day, ia) {
   return magIIP(day + 12) + 17.1;
 }
 
+// Classical novae: thermonuclear flashes on accreting white dwarfs, ~30-50 a year in the Galaxy. A statistical
+// population (10 a year reach magnitude 9, ~0.6 a year naked-eye; concentrated towards the bulge and the plane), each
+// rising in a couple of days and fading by 2 magnitudes in t2 = 5-60 days, plus famous ones on their real dates.
+const NOVAE = [['Nova Persei 1901', 150.1, -10.1, 1901.15, 0.2, 7], ['Nova Aquilae 1918', 33.2, 0.8, 1918.44, -0.5, 4],
+  ['Nova Puppis 1942', 252.5, -0.3, 1942.87, 0.4, 6], ['Nova Cygni 1975', 89.1, -0.2, 1975.66, 1.8, 2]];
+const hash1 = (n) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+function novaMag(day, mPeak, t2) { if (day < -2.5) return 99; if (day < 0) return mPeak + 4 * (day / 2.5) ** 2; return day < 2 * t2 ? mPeak + 2 * day / t2 : mPeak + 4 + 1.2 * Math.log2(day / (2 * t2) + 1) * 2; }
+function addNovae(out, tyr, win, gq, camLocal) {
+  if (win > 0.1 || Math.abs(tyr) > 3000 || V.dist(camLocal, world.sunP) > 30) return;
+  const novaColor = (day) => colorAt(day < 3 ? 15 : 160, false);
+  const push = (name, dir, m, day) => { if (m < 9) out.points.push({ dir: Q.rot(gq, dir), color: novaColor(day), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist: 3000, name }); };
+  for (const [name, l, b, year, mPeak, t2] of NOVAE) { const day = (tyr - (year - 2000)) * 365.25; if (day > -3 && day < 400) push(name, galDir(l, b), novaMag(day, mPeak, t2), day); }
+  if (Math.abs(tyr) < 60) return;     // (the recent sky has only the real ones)
+  const y0 = Math.floor(tyr);
+  for (let y = y0 - 1; y <= y0; y++) for (let k = 0; k < 10; k++) {
+    const h = y * 31 + k * 7.13, tp = y + hash1(h), day = (tyr - tp) * 365.25; if (day < -3 || day > 365) continue;
+    const g1 = hash1(h + 1), g2 = hash1(h + 2), g3 = hash1(h + 3), g4 = hash1(h + 4);
+    // direction: towards the bulge (l ~ 0, |b| < ~5) for most, the disk for the rest
+    const gl = (Math.sqrt(-2 * Math.log(g1 + 1e-9)) * Math.cos(6.2832 * g2)) * (g3 < 0.6 ? 12 : 70), gb = Math.sqrt(-2 * Math.log(g3 + 1e-9)) * Math.sin(6.2832 * g2) * 4;
+    const mPeak = 9 + 2.5 * Math.log10(g4 + 1e-4), t2 = 5 + 55 * hash1(h + 5) ** 2;
+    push('Nova', galDir(gl, gb), novaMag(day, mPeak, t2), day);
+  }
+}
+
 const remnantCache = new Map();
 function remnant(key, pos, age, seed) {
   // radius: free expansion at ~5,000 km/s, then the Sedov-Taylor blast wave R = 12.5 pc (t / 10^4 yr)^0.4
@@ -169,6 +193,7 @@ export function updateSupernovae(field, camLocal, gq) {
     const m = h.mPeak + dmHist(day, h.ia) + 5 * Math.log10(Math.max(dist, 1e-6) / h.d);
     if (m < 9) out.points.push({ dir: Q.rot(gq, [rx, ry, rz]), color: colorAt(Math.max(day, 0) + (h.ia ? 20 : 12), false), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist, name: h.name });
   }
+  addNovae(out, tyr, win, gq, camLocal);
   out.points.sort((a, b) => a.m - b.m);
   if (out.points.length > 64) out.points.length = 64;
   return out;
