@@ -240,7 +240,10 @@ export class UI {
     $('search').addEventListener('change', e => { this.search(e.target.value); });
     const groups = { 'Solar System': ['Sun', 'Mercury', 'Venus', 'Earth', 'Moon', 'Mars', 'Jupiter', 'Io', 'Europa', 'Saturn', 'Titan', 'Enceladus', 'Uranus', 'Neptune', 'Triton', 'Pluto', "Halley's Comet"],
       'Exoplanets': ['Proxima Centauri', 'TRAPPIST-1', 'Helvetios', 'Ran', 'Tau Ceti', "Barnard's Star", 'Sirius'],
-      'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'], 'Black holes and pulsars': ['Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar'],
+      'Nebulae': ['Orion Nebula', 'Lagoon Nebula', 'Carina Nebula', 'Ring Nebula', 'Crab Nebula', 'Veil Nebula'],
+      'Supernova remnants': ['Crab Nebula', 'Cassiopeia A', "Tycho's supernova remnant", "Kepler's supernova remnant", 'SN 1006 remnant', 'RCW 86 (SN 185)'],
+      'Black holes and pulsars': ['Sagittarius A*', 'Cygnus X-1', 'Crab Pulsar'],
+      'Stars passing the Sun': ["Scholz's Star", "Barnard's Star", 'Gliese 710', 'Rigil Kentaurus'],
       'Star clusters': ['Omega Centauri', '47 Tucanae', 'M13 (Hercules Cluster)', 'M22', 'M4'],
       'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };
     $('places').innerHTML = '<option value="">Places…</option>' + Object.entries(groups).map(([g, l]) => `<optgroup label="${g}">${l.map(n => `<option>${n}</option>`).join('')}</optgroup>`).join('');

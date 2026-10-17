@@ -399,7 +399,8 @@ export class StarSystem {
         } else jup.scars = null;
       }
       const sat = all.find(b => b.name === 'Saturn');
-      if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
+      // (and young: Cassini's dust-pollution clock says they formed 100-400 Myr ago, Kempf et al. 2023)
+      if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1) * clamp((tyr + 4e8) / 2.5e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
       // surfaces heated by the giant Sun glow
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }
