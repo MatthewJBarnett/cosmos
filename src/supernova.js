@@ -2,7 +2,7 @@
 // and expanding remnants. Procedural massive stars explode at the end of their life cycles (galdyn.SN_CLASSES);
 // a few real stars have scheduled explosions.
 import { V, Q, C } from './math.js';
-import { world, SN_CLASSES, SN_LIVE, YEAR, KMS_PCYR } from './galdyn.js';
+import { world, SN_CLASSES, SN_LIVE, YEAR, KMS_PCYR, popLmax } from './galdyn.js';
 import { catalog } from './assets.js';
 import { bbColor } from './stars.js';
 import { galDir } from './universe.js';
@@ -129,7 +129,7 @@ function remnant(key, pos, age, seed) {
 export function updateSupernovae(field, camLocal, gq) {
   const out = { points: [], remnants: [] };
   if (!field) return out;
-  const tyr = world.tyr, win = Math.abs(world.dtyr) || 0, q = [0, 0, 0];
+  const tyr = world.tyr, win = Math.abs(world.dtyr) || 0, q = [0, 0, 0], Lmax = popLmax(tyr);
   // procedural progenitors in loaded cells
   for (const cell of field.cells.values()) {
     if (!cell.prog || !cell.prog.length) continue;
@@ -139,6 +139,8 @@ export function updateSupernovae(field, camLocal, gq) {
       // stars standing in for the real catalogue near the Sun don't explode while the catalogue is shown
       if (d[i * 5 + 4] < 0 && world.catW > 0.5) continue;
       const k = snClassOf(d[i * 5 + 3], Math.abs(d[i * 5 + 4])); if (k < 0) continue;
+      // (once star formation has stopped there are no massive stars left to explode)
+      if (Lmax < 1e30 && Math.pow(10, -0.4 * (d[i * 5 + 3] - 4.83)) > Lmax) continue;
       const tau = SN_CLASSES[k].tau, h = cell.vel[i * 4 + 3];
       field.posOf(cell, i, q);
       const rx = q[0] - camLocal[0], ry = q[1] - camLocal[1], rz = q[2] - camLocal[2], dist = Math.hypot(rx, ry, rz);
