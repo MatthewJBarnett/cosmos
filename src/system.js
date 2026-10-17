@@ -202,6 +202,22 @@ export class StarSystem {
   }
   // t: seconds since J2000
   // move this system's stars along their evolutionary tracks; returns how much the planets' orbits have widened
+  // red dwarf flares: magnetic reconnection on fully convective M dwarfs (Proxima Centauri flares several times a day;
+  // a few times a year one brightens the star many-fold in visible light for minutes). Brightness multiplier at t (s).
+  flareBoost(s, t, dt) {
+    if (!(s.temp < 3900 && s.mass < 0.6 * C.Msun) || s.blackHole || s.neutron) return 1;
+    if (Math.abs(dt) > 3 * 3600) return 1;            // faster than a few hours a frame: flares average out
+    const seed = (s.uid || 1) * 0.6180339, bin = 3600 * 3, k = Math.floor(t / bin);
+    let boost = 1;
+    for (let j = k - 1; j <= k; j++) {
+      const h = Math.abs(Math.sin((j + seed) * 12.9898) * 43758.5453) % 1;
+      if (h > 0.55) continue;                         // ~45% of 3-hour bins hold a flare
+      const t0 = (j + ((h * 977.3) % 1)) * bin, age = t - t0; if (age < 0) continue;
+      const amp = 0.08 * Math.pow((h * 31.7) % 1 + 1e-3, -1.1);   // power law: mostly small, rarely huge
+      boost += Math.min(amp, 70) * (age < 60 ? age / 60 : Math.exp(-(age - 60) / 600));
+    }
+    return boost;
+  }
   evolveStars(tyr) {
     let scale = 1, changed = false;
     for (const s of this.stars) {
@@ -302,9 +318,12 @@ export class StarSystem {
     } else if (!this.sandbox && !this._snFixed) {
       // every other star ages too: main sequence, giant, then white dwarf, neutron star or black hole
       if (!this._evoInit) { this._evoInit = true; this.stars.forEach((s, i) => initEvolution(s, (this.seed || 1) + i * 977)); this._snFixed = this.desc.catIndex !== undefined && SCHEDULED.some(x => x.i === this.desc.catIndex); }
-      if (!this._snFixed && this._evoT !== tyr) { this._evoT = tyr; oScale = this.evolveStars(tyr); this._evoScale = oScale; }
+      const ran = !this._snFixed && this._evoT !== tyr;
+      if (ran) { this._evoT = tyr; oScale = this.evolveStars(tyr); this._evoScale = oScale; }
       else oScale = this._evoScale || 1;
       this.oScale = oScale;
+      for (const s of this.stars) { if (s._lumBase === undefined || ran) s._lumBase = s.lum; const f = this.flareBoost(s, t, (t - (this._lastT || t))); s.lum = s._lumBase * f; s.flaring = f > 1.05 ? f : 0; }
+      this._lastT = t;
     }
     const rec = (b) => {
       if (b.ephem === 'planet' && b.parent) {

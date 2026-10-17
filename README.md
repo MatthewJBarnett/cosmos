@@ -156,6 +156,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   first ~10 Myr the Sun sits in a flared protoplanetary disk with planet-carved gaps (like HL Tauri); the young
   Sun is fainter, the day shorter and the Moon closer. (Continents keep today's shapes beyond 50 Myr back.) Mars has
   an ocean in its northern lowlands ~4.1-3.0 Gyr ago, filled to the -3,800 m shoreline on the real MOLA terrain.
+- **Flares:** red dwarfs (Proxima Centauri included) flare several times a day, mostly small, rarely many-fold,
+  lighting their planets for minutes.
 - **Variable stars everywhere:** besides the named ones, about one luminous cool giant in ten is a Mira (150-500 day
   periods, several magnitudes) and a third of yellow supergiants are Cepheids (3-50 days).
 - **Drifting continents:** Earth's plates (Bird 2003 outlines) turn about their present Euler poles (NNR-NUVEL-1A):
