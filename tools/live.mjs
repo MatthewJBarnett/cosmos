@@ -5,7 +5,7 @@ const page = await browser.newPage(); await page.setViewport({ width: 640, heigh
 let errors = 0;
 page.on('console', m => { if (m.type() === 'error') { console.log('[error]', m.text().slice(0, 800)); errors++; } });
 page.on('pageerror', e => { console.log('[pageerror]', e.message); errors++; });
-await page.goto('http://localhost:8642/?tex=49&cube=64&cloudres=128&galr=0.2&asteps=8&csteps=8&scale=0.5', { waitUntil: 'load' });
+await page.goto((process.env.BASE || 'http://localhost:8642/') + '?tex=49&cube=64&cloudres=128&galr=0.2&asteps=8&csteps=8&scale=0.5', { waitUntil: 'load' });
 await new Promise(r => setTimeout(r, 12000));
 await page.mouse.move(320, 180); await page.mouse.down(); await page.mouse.move(360, 200, { steps: 4 }); await page.mouse.up();
 await page.mouse.wheel({ deltaY: -200 });
