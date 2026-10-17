@@ -183,6 +183,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   star-forming) as seen at their light's emission time, then vanish before ~300 Myr; the Milky Way fades out
   before ~13 Gyr ago. The cosmic background (radiation era included) is hot enough to see for the first few million
   years: dull red, then orange, then white before recombination at 380,000 years. The HUD names the era.
+- **Supernovae in other galaxies:** each galaxy has its own supernova rate (~1 per 60 years for a Milky Way, more
+  when young); for a few weeks one can rival its galaxy, a new point of light beside the core. Run time at days to
+  months per second at the galaxy level of the universe view to see them come and go.
 - **Expanding universe:** flat ΛCDM (Planck 2018). Galaxies beyond the Local Group are seen with light travel
   time: they shrink, redden and dim with (1+z)⁴ as they recede, and freeze at our event horizon; after ~150 Gyr
   nothing beyond the Local Group is visible. The HUD shows the age of the universe and the CMB temperature.

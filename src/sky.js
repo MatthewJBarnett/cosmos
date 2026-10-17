@@ -153,8 +153,8 @@ void main(){
 const GAL_VS = `
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum;
-uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr; uniform vec3 uSkip;
-out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE;
+uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr, uYrs, uDtYrs; uniform vec3 uSkip;
+out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE; flat out vec3 vSN;
 ${COSMO_GLSL}
 ${REL_GLSL}
 void main(){
@@ -166,6 +166,18 @@ void main(){
   // the galaxy as it was when this light left it: none before ~300 Myr, then small, blue and star-bursting
   float chi = length(wp);
   vTauE = chi < 3. ? uTauObs : cosmoTau(exp(cosmoLnA(uUobs + chi)));
+  // supernovae: roughly one per 60 years in a Milky Way sized galaxy (more while young and star forming); at peak one
+  // can rival its whole galaxy for a few weeks. Too short to see once a frame spans more than a few months.
+  vSN = vec3(0.);
+  if (uDtYrs < 0.25) {
+    float h = fract(sin(dot(aCen.xyz, vec3(12.9898, 78.233, 37.719)))*43758.5453);
+    float rate = 0.016*clamp(aLum, 0.05, 6.)*(1. + 2.*(1. - smoothstep(1., 6., vTauE)));
+    float x = uYrs*rate + h*97.;
+    float age = fract(x)/rate, k = floor(x);
+    float lc = age < 0.06 ? age/0.06 : exp(-(age - 0.06)/0.12);       // ~3 week rise, months of decline
+    float ang = fract(sin(k*91.7 + h*13.1)*4375.85)*6.2832, rr = 0.15 + 0.5*fract(sin(k*17.3 + h*7.7)*9631.3);
+    vSN = vec3(cos(ang)*rr, sin(ang)*rr, 0.25*lc*step(age, 2.));
+  }
   float young = 1. - smoothstep(1., 6., vTauE);
   float rad = aCen.w*1.08*mix(1., 0.45, young);
   float px = rad/d*uPxPerRad;
@@ -183,7 +195,7 @@ void main(){
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
 const GAL_FS2 = `
-in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE;
+in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN;
 // cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
 // Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
 vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
@@ -213,7 +225,14 @@ void main(){
     float t = sqrt(t2);
     float tot = (g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)/(vLum.y*vLum.y)*1.6;
     vec3 col = mix(vec3(1.0, 0.82, 0.6), vec3(0.8, 0.86, 1.0), clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.));
-    o = vec4(col*tot*gsn*g.lum*uScale*zTint(), 1.); return;
+    // a supernova in this galaxy: a point (one pixel wide) at its position in the disk
+    vec3 sn = vec3(0.);
+    if (vSN.z > 0.001) {
+      vec2 sp = vSN.xy/(1.08*vLum.y); float sg = 0.7/max(vPx*1.08*vLum.y, 1e-3);
+      vec2 dd = vec2(x, y) - vec2(sp.x, sp.y*ratio);
+      sn = vec3(0.85, 0.9, 1.0)*vSN.z*tot*0.98*exp(-dot(dd, dd)/(2.*sg*sg))/(6.2832*sg*sg);
+    }
+    o = vec4((col*tot*gsn + sn)*g.lum*uScale*zTint(), 1.); return;
   }
   vec4 qi = vec4(-vQuat.xyz, vQuat.w);
   vec3 ro = qrot(qi, -vCen)/vRad, rd = qrot(qi, rdW);
@@ -368,7 +387,7 @@ export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
   // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uYrs: world.tyr % 1e4, uDtYrs: Math.abs(world.dtyr), uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
