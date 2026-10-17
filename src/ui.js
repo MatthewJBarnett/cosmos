@@ -620,7 +620,19 @@ export class UI {
       nav.S = V.add(b.wpos, V.mul(d, b.radius * 3.4)); nav.q = Q.look(V.mul(d, -1), Q.rot(b.wrot, [0, 1, 0])); nav.selected = t; nav.anchor = b;
       return;
     }
-    if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }
+    if (v.body) {
+      const t = findByName(nav, v.body); if (!t) return;
+      nav.selected = t;
+      if (v.far && t.type === 'body') {
+        // from outside the planet's orbit and above the ecliptic, looking back past it at the (giant) Sun
+        const b = t.body, sun = sol.find('Sun'); sol.update(nav.time);
+        nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
+        const out = V.norm(V.sub(b.wpos, sun.wpos)), dir = V.norm(V.add(out, [0, 0.45, 0]));
+        nav.S = V.add(b.wpos, V.mul(dir, Math.max(C.AU * 1.2, V.dist(b.wpos, sun.wpos) * 0.9)));
+        nav.q = Q.look(V.sub(V.mul(V.add(b.wpos, sun.wpos), 0.5), nav.S), [0, 1, 0]); nav.fov = 70 * Math.PI / 180;
+      } else nav.goTo(t, {});
+      return;
+    }
     if (v.land) { const t = findByName(nav, v.land); if (t && t.type === 'body') { nav.landAt(t.body, 10, -60, { hour: v.hour || 12 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: sol.find('Sun') }; nav.fov = 80 * Math.PI / 180; }; } return; }
     if (v.pn) {
       // from about a parsec away, looking back at the Sun (later than the jump point so the shell is lit). After the
