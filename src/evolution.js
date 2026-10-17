@@ -304,3 +304,5 @@ export function solarActivity(tyr) {
   const shape = x < xp ? Math.sin(Math.PI / 2 * x / xp) ** 2 : Math.cos(Math.PI / 2 * (x - xp) / (1 - xp)) ** 2;
   return amp / 180 * shape;
 }
+// the numbered solar cycle at a date (cycle 1 began in 1755), or 0 outside the record
+export function solarCycle(tyr) { const y = 2000 + tyr; for (let k = CYCLES.length - 1; k >= 0; k--) if (y >= CYCLES[k][0]) return y < (k < CYCLES.length - 1 ? CYCLES[k + 1][0] : 2031) ? k + 1 : 0; return 0; }

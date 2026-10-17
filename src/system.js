@@ -8,7 +8,7 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle } from './evolution.js';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START } from './paleo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
@@ -343,7 +343,7 @@ export class StarSystem {
       const youth = ss.age > 0.01 && ss.age < 10 ? 4.57 / ss.age : 1;
       if (ss.age > 0.01 && ss.age < 10) sun.rotPeriod = 25.38 * 86400 / Math.sqrt(youth);
       const act = solarActivity(tyr) * Math.min(youth, 4) + (youth > 1.5 ? 0.3 * Math.min(youth - 1, 3) : 0);
-      this.activity = act;
+      this.activity = act; this.tyr = tyr;
       sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : Math.min(1.4, 0.06 + 0.88 * act); sun.whiteDwarf = ss.R < 0.05;
       const earthB = this.root.children.find(b => b.name === 'Earth');
       if (earthB) {
@@ -974,6 +974,9 @@ export function describeBody(b) {
     rows.push(['Luminosity', fmt(b.lum) + ' L<sub>Sun</sub>']);
     if (b.star && !b.evoPhase) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
     if (b.evoPhase) rows.push(['Stage', b.evoPhase]);
+    if (b.system && b.system.desc && b.system.desc.sol && b === b.system.root && b.system.activity !== undefined && b.radius < 3 * C.Rsun) {
+      const n = solarCycle(b.system.tyr || 0); rows.push(['Sunspot number', '~' + Math.round(b.system.activity * 180) + (n ? ' (solar cycle ' + n + ')' : '')]);
+    }
     if (b.ageYr > 0 && !b.unborn) rows.push(['Age', b.ageYr >= 1e9 ? (b.ageYr / 1e9).toFixed(2) + ' billion years' : b.ageYr >= 1e6 ? (b.ageYr / 1e6).toFixed(1) + ' million years' : Math.round(b.ageYr).toLocaleString('en') + ' years']);
     if (b.blackHole) {
       // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
