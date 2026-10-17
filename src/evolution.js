@@ -257,6 +257,8 @@ const hash01 = (n) => { let h = (n * 2654435761) >>> 0; h ^= h >>> 15; h = Math.
 // random chrons of mean length ~L Myr between a known epoch m0 (polarity normal0) and m (Myr ago; negative = future):
 // cells of 0.4 L Myr each hold a reversal at a random point with probability 0.4
 function randomPolarity(m, L, m0, normal0) {
+  // (far from the record, start from a 20 Myr grid point with a random polarity, so the cost stays fixed)
+  if (Math.abs(m - m0) > 20) { const k = Math.floor(m / 20); m0 = m > m0 ? Math.max(m0, k * 20) : Math.min(m0, (k + 1) * 20); if (Math.abs(m - m0) <= 20 && m0 % 20 === 0) normal0 = hash01(k + 31337) < 0.5; }
   const cell = 0.4 * L, lo = Math.min(m, m0), hi = Math.max(m, m0);
   const at = (j) => hash01(j + 7919) < 0.4 ? (j + hash01(j * 31 + 5)) * cell : null;
   let flips = 0, near = Infinity;
