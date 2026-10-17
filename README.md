@@ -65,6 +65,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
 | U | Timeline of future events (Betelgeuse, Andromeda, the Sun's death...) with Go buttons |
 | V | Physics sandbox: black holes, neutron stars, stars and planets under full gravity |
+| M | Relativistic flight: speed below c, with aberration, Doppler shift, beaming and time dilation |
 | B | Save the current view (Saved menu) |
 | Tab | System browser |
 | O, N, K | Orbits, labels, constellation figures |
@@ -94,6 +95,10 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   by the black holes' lensing. Neutron star mergers collapse to a black hole and make a kilonova; stars that pass
   inside a black hole's tidal radius are shredded into debris that falls back at the t^−5/3 rate and lights an
   accretion disk. Stars that touch merge. Time runs backwards too (snapshots, then re-integration).
+  Scenarios: GW150914-like merger, unequal masses (recoil), black holes released from rest (head-on), an
+  eccentric binary (GR rosette, wave bursts), neutron star merger with kilonova and gamma-ray burst jet,
+  a supermassive pair (LISA band), a tidal disruption, a rogue black hole through the real Solar System,
+  the figure-eight and Pythagorean three-body problems, a circumbinary planet, or empty space.
 - **Moving stars:** catalogue stars follow their measured space velocities (Barnard's Star passes 3.75 ly from
   the Sun in 11,700 years, Alpha Centauri 2.9 ly in 27,600 years, Gliese 710 crosses the Oort cloud in 1.3 Myr),
   so constellations distort; procedural stars stream through the rotating spiral pattern with the Galaxy's
@@ -120,6 +125,12 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   (35 kpc), a second at 5.2 Gyr and a merger at 5.9 Gyr, close to van der Marel et al. 2012. From 2.6 Gyr the
   two galaxies are a 65,536 particle restricted N-body simulation on the GPU (leapfrog, time reversible); the
   Sun is a tracer particle, so you can watch the sky from the Solar System as Andromeda arrives.
+- **Moons and rings:** Phobos spirals in and breaks into a ring around Mars in ~40 Myr; Triton is torn apart into a
+  ring around Neptune in ~3.6 Gyr.
+- **The end of the stellar era:** once star formation stops, the brightest stars burn out first; after tens of
+  billions of years only red dwarfs and white dwarfs remain, and by 100 trillion years the last stars fade.
+- **Relativistic flight (M):** flying below light speed, the sky aberrates towards the direction of travel,
+  blueshifts and brightens ahead (Doppler beaming), reddens behind; the outside clock runs fast by γ.
 - **Expanding universe:** flat ΛCDM (Planck 2018). Galaxies beyond the Local Group are seen with light travel
   time: they shrink, redden and dim with (1+z)⁴ as they recede, and freeze at our event horizon; after ~150 Gyr
   nothing beyond the Local Group is visible. The HUD shows the age of the universe and the CMB temperature.
