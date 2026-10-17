@@ -257,8 +257,8 @@ function cubeViewProj(m, k = 1) {
 // ---- time-dependent positions of Local Group galaxies (universe frame, Mpc, Milky Way centre at the origin) ----
 export function updateLocalGroupPositions(tyr) {
   const tMyr = (tyr - NOW_TYR) / 1e6;
-  // before the present, run the measured motion backwards in a straight line (fine for the last few Gyr at 100 km/s)
-  const now = relAt(0), r = tMyr >= 0 ? relAt(tMyr).r : now.r.map((x, i) => x + now.v[i] * Math.max(tMyr, -8000));
+  // (before the present relAt runs the timing-argument orbit backwards: apart, turnaround, back to the Big Bang)
+  const r = relAt(tMyr).r;
   const p = r.map(x => x * 1e-3);
   const moved = V.dist(p, M31.posU) > 1e-5;
   M31.posU = p;

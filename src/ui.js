@@ -14,9 +14,9 @@ import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
-import { LG, LG_START, updateLocalGroupPositions } from './localgroup.js';
+import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
-import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
+import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
 import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
 
@@ -535,7 +535,9 @@ export class UI {
       }
       if (nav.level !== 'system' || (nav.system && V.len(nav.S) > 3e13)) {
         const cu = nav.camU();
-        for (const g of REAL_GALAXIES) { const gv = galaxyView(V.len(g.posU)); if (gv.f < 1e-3) continue; const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, g.name + (gv.z > 0.05 && Math.abs(nav.time) > 3e16 ? ' (z = ' + gv.z.toFixed(gv.z < 1 ? 2 : 1) + ')' : ''), 'galaxy', 10); }
+        const selG = nav.selected && nav.selected.galaxy, merged = LG_ORBIT.merged > 0 && world.tyr > 27 + LG_ORBIT.merged * 1e6, lmcGone = lgWeights(world.tyr).lmc < 0.5;
+        for (const g of REAL_GALAXIES) { const gv = galaxyView(V.len(g.posU)); if (gv.f < 1e-3 || g === selG) continue; const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (merged && g === M31 || lmcGone && /Magellanic/.test(g.name)) continue;
+          if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, (merged && g === MILKY_WAY ? 'Milkomeda (Milky Way + Andromeda)' : g.name) + (gv.z > 0.05 && Math.abs(nav.time) > 3e16 ? ' (z = ' + gv.z.toFixed(gv.z < 1 ? 2 : 1) + ')' : ''), 'galaxy', 10); }
       }
       // star, constellation and nebula labels only when the sky is dark enough to show them
       const darkSky = r.exposure > 2000;
@@ -698,7 +700,7 @@ export class UI {
         const n = V.norm(V.cross(LG_R0, LG_V0));
         nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null;
         const mid = t ? V.mul(t.galaxy.posU, 0.5) : [0, 0, 0];
-        nav.U = V.add(mid, V.mul(n, 0.16)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
+        nav.U = V.add(mid, V.mul(n, v.d || 0.16)); nav.q = Q.look(V.sub(mid, nav.U), [0, 1, 0]);
         if (t) nav.selected = t;
       } else {
         // from the Solar System, looking at Andromeda

@@ -4,7 +4,7 @@ import { V, Q, C, clamp } from './math.js';
 import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
 import { galDir } from './universe.js';
 import { EXTRA_STARS } from './realsystems.js';
-import { orbitEvents, R0, V0 } from './lgorbit.js';
+import { orbitEvents, R0, V0, PAST } from './lgorbit.js';
 import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed, nextGlacial } from './evolution.js';
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -78,6 +78,7 @@ export function buildEvents() {
   add({ id: 'cmb', t: BB + 3.8e5, title: 'The universe becomes transparent', text: 'At about 3,000 K electrons join nuclei to make atoms and light travels freely for the first time. Stretched by expansion, that orange glow is the cosmic microwave background we see today at 2.7 K.', view: { cosmos: true }, rate: YEAR * 2e4 });
   add({ id: 'dawn', t: BB + 4.0e8, est: true, title: 'Cosmic dawn', text: 'After a hundred million dark years the first stars ignite in small dark matter halos; by now the first small, blue galaxies are lighting up (the James Webb Space Telescope sees them at redshifts above 10), and their ultraviolet light is reionizing the universe.', view: { cosmos: true }, rate: YEAR * 3e7 });
   add({ id: 'mwform', t: -13.0e9, est: true, title: 'The Milky Way forms', text: 'Gas and smaller galaxies collect in our dark matter halo; the oldest stars of the Milky Way date from about now. The thin disk where the Sun will be born grows over the next few billion years.', view: { galaxy: 'top' }, rate: YEAR * 1e8 });
+  add({ id: 'lgturn', t: now - PAST.turn * 1e6, est: true, title: 'Andromeda turns around', text: `Born close together, the Milky Way and Andromeda flew apart with the expansion of the universe until their mutual gravity stopped them, ${(PAST.rTurn / 1000).toFixed(2)} Mpc apart. They have been falling towards each other ever since. (The "timing argument": it needs a combined mass of about 5 trillion Suns, most of it dark matter.)`, view: { lg: 'outside', d: 1.4 }, rate: YEAR * 2e7 });
   add({ id: 'sunborn', t: -4.5695e9, title: 'The Sun is born', text: 'A cloud of gas and dust collapses into a protostar, still contracting towards hydrogen fusion. Around it a disk of dust and gas reaches out a hundred AU; the planets are forming in it, clearing gaps, and within ten million years the young Sun\'s wind and light disperse what is left.', view: { ppd: true }, rate: YEAR * 2e4 });
   add({ id: 'moonform', t: -4.51e9, est: true, title: 'The Moon forms', text: 'A Mars-sized planet, Theia, strikes the young Earth. Opens the physics sandbox to watch the impact and the Moon gather from the debris.', view: { sandbox: 'theia' }, rate: 20 });
   add({ id: 'oxygen', t: -2.4e9, est: true, title: 'The Great Oxidation', text: 'Cyanobacteria have been releasing oxygen for hundreds of millions of years; now it finally accumulates in the air, rusting the oceans\' iron and making complex life possible.', view: { globe: 'Earth', lat: 0, lon: 20 }, rate: YEAR * 1e7 });

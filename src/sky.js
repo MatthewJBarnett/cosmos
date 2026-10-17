@@ -200,6 +200,9 @@ in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in ve
 // Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
 vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
   vec3 evo = smoothstep(0.18, 1.0, vTauE)*(1. + 1.2*young)*mix(vec3(1.), vec3(0.72, 0.88, 1.3), young*0.7);
+  // once star formation has run out of gas, the hot blue stars die first: galaxies yellow, then glow dull red (red dwarfs)
+  float old = smoothstep(14., 60., vTauE), dwarf = smoothstep(60., 2000., vTauE);
+  evo *= mix(vec3(1.), mix(vec3(1.15, 0.9, 0.68), vec3(1.35, 0.62, 0.32), dwarf), old);
   return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5))*evo; }
 uniform float uScale; uniform int uMaxSteps;
 out vec4 o;

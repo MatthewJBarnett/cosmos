@@ -72,8 +72,39 @@ export const ORBIT = (() => {
   tab.dt = dt * every; tab.merged = merged;
   return tab;
 })();
+// the past: the "timing argument" (Kahn & Woltjer 1959). The two galaxies formed close together, flew apart with the
+// Hubble flow, were slowed by their mutual gravity, turned around ~5 Gyr ago at ~1 Mpc and have been falling together since.
+// Run backwards from today as two point masses (their halos overlap at these separations) plus the dark-energy
+// repulsion H0^2 Omega_L r; the mass that brings them together at the Big Bang is 4.9e12 Msun (van der Marel et al. 2012: 4.93e12).
+export const M_TIMING = 4.9e12;
+export const PAST = (() => {
+  const H2L = (67.7 * KMS / 1000) ** 2 * 0.69, dt = -0.5, every = 8, N = 27600, tab = [];
+  const acc = (r) => { const s = Math.max(Math.hypot(...r), 5); const g = -G * M_TIMING / (s * s * s) + H2L; return r.map(x => x * g); };
+  let r = R0.slice(), v = V0.slice();
+  for (let i = 0; i <= N; i++) {
+    if (i % every === 0) tab.push([r[0], r[1], r[2], v[0], v[1], v[2]]);
+    const k1 = acc(r), r2 = r.map((x, j) => x + v[j] * dt / 2), v2 = v.map((x, j) => x + k1[j] * dt / 2);
+    const k2 = acc(r2), r3 = r.map((x, j) => x + v2[j] * dt / 2), v3 = v.map((x, j) => x + k2[j] * dt / 2);
+    const k3 = acc(r3), r4 = r.map((x, j) => x + v3[j] * dt), v4 = v.map((x, j) => x + k3[j] * dt);
+    const k4 = acc(r4);
+    r = r.map((x, j) => x + dt / 6 * (v[j] + 2 * v2[j] + 2 * v3[j] + v4[j]));
+    v = v.map((x, j) => x + dt / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+  }
+  tab.dt = -dt * every;
+  // turnaround: the widest separation
+  let im = 0; for (let i = 0; i < tab.length; i++) if (Math.hypot(tab[i][0], tab[i][1], tab[i][2]) > Math.hypot(tab[im][0], tab[im][1], tab[im][2])) im = i;
+  tab.turn = im * tab.dt;   // (Myr ago)
+  tab.rTurn = Math.hypot(tab[im][0], tab[im][1], tab[im][2]);
+  return tab;
+})();
+export function pastAt(tMyr) {
+  const f = Math.max(0, Math.min(PAST.length - 1.001, -tMyr / PAST.dt)), i = Math.floor(f), u = f - i;
+  const a = PAST[i], c = PAST[i + 1];
+  return { r: [a[0] + (c[0] - a[0]) * u, a[1] + (c[1] - a[1]) * u, a[2] + (c[2] - a[2]) * u], v: [a[3] + (c[3] - a[3]) * u, a[4] + (c[4] - a[4]) * u, a[5] + (c[5] - a[5]) * u] };
+}
 // relative vector MW -> M31 (kpc) and velocity (kpc/Myr) at tMyr from now
 export function relAt(tMyr) {
+  if (tMyr < 0) return pastAt(tMyr);
   const f = Math.max(0, Math.min(ORBIT.length - 1.001, tMyr / ORBIT.dt)), i = Math.floor(f), u = f - i;
   const a = ORBIT[i], c = ORBIT[i + 1];
   return { r: [a[0] + (c[0] - a[0]) * u, a[1] + (c[1] - a[1]) * u, a[2] + (c[2] - a[2]) * u], v: [a[3] + (c[3] - a[3]) * u, a[4] + (c[4] - a[4]) * u, a[5] + (c[5] - a[5]) * u] };

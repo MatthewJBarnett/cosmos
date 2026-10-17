@@ -106,6 +106,10 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
 {
   check("Sun's galactic period (Myr)", gd.SUN_ORBIT.periodYr / 1e6, '~220-240 Myr', (v) => v > 200 && v < 250);
   check("Sun's vertical oscillation amplitude (pc)", gd.SUN_ORBIT.AZ, '~85-100 pc', (v) => v > 70 && v < 110, ' pc');
+  { const P = lgo.PAST, near = Math.min(...P.slice(-200).map(e => Math.hypot(e[0], e[1], e[2])));
+    check('MW-M31 turnaround (Gyr ago)', P.turn / 1e3, '~5 Gyr (timing argument, Li & White 2008)', (v) => v > 4 && v < 7);
+    check('MW-M31 separation at turnaround (kpc)', P.rTurn, '~1000 kpc', (v) => v > 900 && v < 1200, ' kpc');
+    check('MW-M31 together near the Big Bang (kpc)', near, '< 100 kpc', (v) => v < 100, ' kpc'); }
   check("Sun's vertical period (Myr)", gd.SUN_ORBIT.verticalYr / 1e6, '~70-90 Myr', (v) => v > 60 && v < 95);
 }
 // --- the Sun's life ---
