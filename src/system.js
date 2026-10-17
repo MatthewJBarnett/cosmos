@@ -11,7 +11,7 @@ import { SCHEDULED, fireball } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic } from './evolution.js';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START } from './paleo.js';
-import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE } from './stellarevo.js';
+import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -265,6 +265,7 @@ export class StarSystem {
       const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
       if (!!s.blackHole !== bh) { s.blackHole = bh; if (bh) { s.accretion = 0; s.spin = s.spin || 0.7; s.rotPeriod = 0; } else s.rotPeriod = e.rot0 || s.rotPeriod; }
       if (!!s.neutron !== ns) { s.neutron = ns; s.pulsar = ns; if (ns) { e.rot0 = e.rot0 || s.rotPeriod; s.rotPeriod = 0.033; } else if (e.rot0) s.rotPeriod = e.rot0; }
+      if (ns) { s.rotPeriod = pulsarPeriod(st.snrAge); s.pulsar = st.snrAge < 1e7; }
       s.cls = st.kind === e.kind0 && Math.abs(Math.log10(Math.max(st.L, 1e-30) / e.L0)) < 0.25 ? e.cls0 : st.phase.charAt(0).toUpperCase() + st.phase.slice(1);
       if (s === this.root) scale = e.m / Math.max(st.m, 0.05);
     }
@@ -311,6 +312,8 @@ export class StarSystem {
             if (st.surface) { st.surface._orig = st.surface._orig || { gran: st.surface.gran, spots: st.surface.spots }; st.surface.gran = 0; st.surface.spots = 0; }
           } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, blackHole: false, _remnant: false }); if (st.surface && st.surface._orig) Object.assign(st.surface, st.surface._orig); }
         }
+        // (the new neutron star spins down and cools)
+        if (st && st._remnant && st.neutron) { const age = tyr - sn.tEm; st.rotPeriod = pulsarPeriod(age); st.pulsar = age < 1e7; st.temp = Math.max(3e4, 1e6 * Math.pow(1 + age / 1e5, -0.3)); st.lum = 4 * Math.PI * 12e3 ** 2 * C.sigma * st.temp ** 4 / C.Lsun; }
       }
     }
     // the Sun's evolution, mass loss widening the orbits, Earth's precession and the Moon's recession

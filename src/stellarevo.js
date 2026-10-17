@@ -40,9 +40,16 @@ export function stellarState(b, tyr) {
   if (e.kind0 === KIND.WD) {
     // a white dwarf cooling (Mestel: luminosity falls as age^-7/5, temperature as ~age^-0.35)
     const age = Math.max(e.wdAge0 + tyr, 1e6), T = Math.max(e.T0 * Math.pow(age / e.wdAge0, -0.38), 300);
-    return { L: e.L0 * Math.pow(T / e.T0, 4), R: e.R0, T, m, phase: T < 3000 ? 'black dwarf (a cold white dwarf)' : 'white dwarf, cooling', kind: KIND.WD };
+    return { L: e.L0 * Math.pow(T / e.T0, 4), R: e.R0, T, m, phase: wdPhase(T), kind: KIND.WD };
   }
-  if (e.x0 === null || e.kind0 === KIND.BD && m < 0.08) return { L: e.L0, R: e.R0, T: e.T0, m, phase: '', kind: e.kind0 };
+  if (e.kind0 === KIND.BD && m < 0.08) {
+    // a brown dwarf never fuses hydrogen: it cools for ever, L ~ age^-1.3 (Burrows et al. 2001), radius ~ fixed
+    const age0 = e.bdAge0 || (e.bdAge0 = 5e8 + 9e9 * hashf(e.L0 * 1e9, 3)), age = age0 + tyr;
+    if (age < 1e6) return { L: 0, R: e.R0, T: e.T0, m, phase: 'not yet formed', kind: e.kind0, unborn: true, nursery: age > -2e7 ? -age / 2e7 : -1 };
+    const L = e.L0 * Math.pow(age / age0, -1.3), T = e.T0 * Math.pow(age / age0, -1.3 / 4);
+    return { L, R: e.R0, T, m, phase: 'brown dwarf, cooling (' + (T > 2200 ? 'L' : T > 1300 ? 'T' : 'Y') + ' type)', kind: e.kind0 };
+  }
+  if (e.x0 === null) return { L: e.L0, R: e.R0, T: e.T0, m, phase: '', kind: e.kind0 };
   const x = e.x0 + tyr / e.life;
   if (x < 1) {
     if (x < 0) {
@@ -75,7 +82,7 @@ export function stellarState(b, tyr) {
     const tr = (g - 1) * 0.1 * e.life;    // years since the core collapsed
     if (m >= 20) return { L: 0, R: 2 * C.G * 0.4 * m * C.Msun / C.c ** 2, T: 0, m: 0.4 * m, phase: 'black hole (its core collapsed ' + fmtY(tr) + ' ago)', kind: KIND.BH, snrAge: tr };
     const T = Math.max(3e4, 1e6 * Math.pow(1 + tr / 1e5, -0.3));
-    return { L: 4 * Math.PI * 12e3 ** 2 * C.sigma * T ** 4 / C.Lsun, R: 12e3, T, m: 1.4, phase: 'neutron star (supernova ' + fmtY(tr) + ' ago)', kind: KIND.NS, snrAge: tr };
+    return { L: 4 * Math.PI * 12e3 ** 2 * C.sigma * T ** 4 / C.Lsun, R: 12e3, T, m: 1.4, phase: (tr < 1e7 ? 'pulsar' : 'neutron star, spun down below the pulsar death line') + ' (supernova ' + fmtY(tr) + ' ago)', kind: KIND.NS, snrAge: tr };
   }
   if (g < 1) {
     // subgiant, red giant branch, helium burning, asymptotic giant branch (luminosity up to ~1000x the end of the main sequence)
@@ -85,9 +92,13 @@ export function stellarState(b, tyr) {
   // white dwarf: the bare core, cooling (the ejected envelope glows as a planetary nebula for ~10,000 years)
   const mw = wdMass(m), R = 0.0127 * C.Rsun * Math.pow(mw / 0.6, -1 / 3), tc = (g - 1) * 0.1 * e.life + 1e4;
   const T = Math.max(300, Math.min(1.5e5, 2.5e4 * Math.pow(tc / 1e8, -0.38)));
-  return { L: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, R, T, m: mw, phase: tc < 3e4 ? 'planetary nebula nucleus' : T < 3000 ? 'black dwarf (a cold white dwarf)' : 'white dwarf, cooling', kind: KIND.WD, pnAge: tc };
+  return { L: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, R, T, m: mw, phase: tc < 3e4 ? 'planetary nebula nucleus' : wdPhase(T), kind: KIND.WD, pnAge: tc };
 }
 // initial-final mass relation (Cummings et al. 2018, simplified)
+// a white dwarf's carbon-oxygen core freezes as it cools (seen by Gaia as a pile-up near 6,000 K)
+const wdPhase = (T) => T < 3000 ? 'black dwarf (a cold, crystallized white dwarf)' : T < 6500 ? 'white dwarf, its core crystallizing' : 'white dwarf, cooling';
+// a pulsar spins down by magnetic braking: P = P0 sqrt(1 + t / tau) (the Crab: 33 ms now, tau ~ 1,300 years)
+export const pulsarPeriod = (ageYr) => 0.02 * Math.sqrt(1 + Math.max(ageYr, 0) / 1300);
 export const wdMass = (m) => clamp(0.08 * m + 0.47, 0.5, 1.35);
 export const wdProgenitor = (mwd) => clamp((mwd - 0.47) / 0.08, 0.9, 8);
 function fmtY(y) { return y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3) + ' thousand years' : y < 1e9 ? (y / 1e6).toFixed(0) + ' million years' : (y / 1e9).toFixed(1) + ' billion years'; }
