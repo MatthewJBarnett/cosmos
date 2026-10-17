@@ -212,7 +212,7 @@ export class StarSystem {
       const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
       if (!!s.blackHole !== bh) { s.blackHole = bh; if (bh) { s.accretion = 0; s.spin = s.spin || 0.7; s.rotPeriod = 0; } else s.rotPeriod = e.rot0 || s.rotPeriod; }
       if (!!s.neutron !== ns) { s.neutron = ns; s.pulsar = ns; if (ns) { e.rot0 = e.rot0 || s.rotPeriod; s.rotPeriod = 0.033; } else if (e.rot0) s.rotPeriod = e.rot0; }
-      s.cls = st.kind === e.kind0 && (st.kind !== KIND.MS || st.phase.startsWith('main')) ? e.cls0 : st.phase.charAt(0).toUpperCase() + st.phase.slice(1);
+      s.cls = st.kind === e.kind0 && Math.abs(Math.log10(Math.max(st.L, 1e-30) / e.L0)) < 0.25 ? e.cls0 : st.phase.charAt(0).toUpperCase() + st.phase.slice(1);
       if (s === this.root) scale = e.m / Math.max(st.m, 0.05);
     }
     // planets inside a swollen star are swallowed; planets near a giant are heated until they glow
