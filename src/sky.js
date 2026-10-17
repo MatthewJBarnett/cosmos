@@ -265,7 +265,7 @@ ${REL_GLSL}
 void main(){ vec3 rd = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.)); float Dop; rd = deaberrate(rd, Dop); vec4 c = texture(uCube, rd); c.rgb *= Dop == 1. ? 1. : vbandRatio(4500.*Dop, 4500.)*Dop; if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, mix(1., clamp(c.a, 0., 1.), uFade)); }`;
 
 let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
-export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); initSkyMapProgram(); }
+export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); initSkyMapProgram(); initZodiProgram(); }
 function init() {
   if (pStar) return;
   pStar = new Program('stars', STAR_VS, STAR_FS);
@@ -473,4 +473,29 @@ export function drawSkyMap(rotLocalFromView, tanFov, exposure, weight, betaLocal
   pMap.use().set({ uMap: e.tex, uRot: rotLocalFromView, uTanFov: tanFov, uScale: 1.6e-8 * skyCfg.galBoost * exposure * weight, uBeta: betaLocal || [0, 0, 0] });
   drawFS();
   return true;
+}
+
+// ----- zodiacal light: sunlight scattered by interplanetary dust (Leinert et al. 1998, simplified) -----
+// Brightness in S10 units (10th magnitude stars per square degree) as a function of elongation from the Sun and
+// ecliptic latitude, scaled as r^-2.3 with the observer's distance from the Sun; the gegenschein opposite the Sun.
+const ZODI_FS = `in vec2 vUV; out vec4 o;
+uniform mat3 uRot; uniform vec2 uTanFov; uniform vec3 uSun, uEclN; uniform float uScale;
+void main(){
+  vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  float ce = clamp(dot(d, uSun), -1., 1.), eps = degrees(acos(ce));
+  float beta = abs(degrees(asin(clamp(dot(d, uEclN), -1., 1.))));
+  if (eps < 12.) { o = vec4(0.); return; }
+  float zPlane = 260.*pow(1./max(sin(radians(eps)), 0.15), 1.6) + 70.*exp(-pow((180. - eps)/9., 2.));
+  float b0 = 12. + 25.*eps/180.;
+  float z = 60. + (zPlane - 60.)*exp(-beta/b0);
+  // S10 -> solar constants per steradian: 10^(-0.4 (10 + 26.74)) per square degree
+  o = vec4(vec3(1.0, 0.93, 0.82)*z*6.9e-12*uScale*smoothstep(12., 20., eps), 1.);
+}`;
+let pZodi = null;
+export function initZodiProgram() { if (!pZodi) pZodi = new Program('zodiacal', FS_VS, ZODI_FS); }
+export function drawZodiacal(rotWorldFromView, tanFov, exposure, sunDir, eclN, rAU) {
+  initZodiProgram();
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
+  pZodi.use().set({ uRot: rotWorldFromView, uTanFov: tanFov, uSun: sunDir, uEclN: eclN, uScale: exposure * skyCfg.galBoost * Math.pow(Math.max(rAU, 0.05), -2.3) });
+  drawFS();
 }

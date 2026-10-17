@@ -13,7 +13,7 @@ import { updateSupernovae } from './supernova.js';
 import { drawSandbox, sandboxPoints, drawLines, drawDebris } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
 import { updateMeteors } from './meteors.js';
-import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies } from './sky.js';
+import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies, drawZodiacal } from './sky.js';
 import { catalog } from './assets.js';
 import { MILKY_WAY, SUN_POS, REAL_GALAXIES } from './universe.js';
 import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
@@ -354,6 +354,14 @@ export class Renderer {
       const wModel = gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1;
       const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal, betaLocal);
       this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel, betaLocal);
+    }
+    // zodiacal light inside the Solar System (the dust disk ends a few AU out)
+    if (sys && sys.desc && sys.desc.sol && exposure > 3e3 && rcfg.realSky) {
+      const sun = sys.stars[0];
+      if (sun && !sun.gone) {
+        const toSun = V.sub(sun.wpos, nav.S), r = V.len(toSun) / C.AU;
+        if (r < 6) drawZodiacal(Q.mat3(nav.q), [tanX, tanY], exposure * Math.min(1, sun.lum), V.norm(toSun), Q.rot(sys.worldQ, [0, 1, 0]), r);
+      }
     }
     T('galsky');
     let nStars = 0;
