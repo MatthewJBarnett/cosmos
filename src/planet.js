@@ -312,7 +312,7 @@ void main(){
   // thermal glow of a surface heated by a giant Sun (dull red at ~1000 K, orange as rock melts)
   if (uHeatT > 700.) {
     // a glowing surface is patchy: cooler crust floats on hotter melt (visible light rises ~ T^11 in this range)
-    float pn = texture(uNoise3, dir*3.3).r*0.6 + texture(uNoise3, dir*13.).g*0.4;
+    float pn = texture(uNoise3, dir*1.3).r*0.6 + texture(uNoise3, dir*4.1).g*0.4;
     float tl = uHeatT*(0.9 + 0.2*pn), k = pow(tl/uHeatT, 11.);
     vec3 hc = bbColor(tl); col += hc/max(dot(hc, vec3(0.2126, 0.7152, 0.0722)), 1e-6) * uHeatK * k * 0.8;
   }
