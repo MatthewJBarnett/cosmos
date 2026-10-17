@@ -208,12 +208,13 @@ export class StarSystem {
         if (st && fb) {
           st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
           Object.assign(st, { radius: Math.max(fb.R, st._orig.radius), lum: fb.L, temp: fb.T, cls: 'Supernova (type II-P)', _remnant: false, neutron: false, pulsar: false });
-          if (st.surface) st.surface.gran = 0;
+          // no spots on an explosion: large clumps from Rayleigh-Taylor mixing instead
+          if (st.surface) { st.surface._orig = st.surface._orig || { gran: st.surface.gran, spots: st.surface.spots }; st.surface.gran = 3; st.surface.spots = 0; }
         } else if (st && dead !== !!st._remnant) {
           if (dead) { st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
             Object.assign(st, { radius: 12e3, lum: 4 * Math.PI * 12e3 ** 2 * C.sigma * 1e6 ** 4 / C.Lsun, temp: 1e6, cls: 'Neutron star (remnant of the supernova)', mass: 1.4 * C.Msun, neutron: true, pulsar: true, rotPeriod: 0.03, _remnant: true });
-            if (st.surface) st.surface.gran = 0;
-          } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, _remnant: false }); }
+            if (st.surface) { st.surface._orig = st.surface._orig || { gran: st.surface.gran, spots: st.surface.spots }; st.surface.gran = 0; st.surface.spots = 0; }
+          } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, _remnant: false }); if (st.surface && st.surface._orig) Object.assign(st.surface, st.surface._orig); }
         }
       }
     }
