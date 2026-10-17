@@ -105,7 +105,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   Scenarios: GW150914-like merger, rapidly spinning black holes, unequal masses (recoil), black holes released from rest (head-on), an
   eccentric binary (GR rosette, wave bursts), neutron star merger with kilonova and gamma-ray burst jet,
   a supermassive pair (LISA band), a tidal disruption, a rogue black hole through the real Solar System,
-  the figure-eight and Pythagorean three-body problems, a circumbinary planet, the Moon-forming impact, or empty space.
+  the figure-eight and Pythagorean three-body problems, a circumbinary planet, the Moon-forming impact, colliding
+  white dwarfs, or empty space. White dwarfs that collide above 1.2 M☉ detonate as a Type Ia supernova whose light
+  is the decay of nickel-56 and cobalt-56 (peak magnitude −19.1 for 0.6 M☉ of nickel).
   Giant impacts between rocky planets merge them into a molten, fast-spinning body and throw a hot debris disk
   into orbit (about 2% of the mass, after SPH results); material outside the Roche limit gathers into a moon
   within weeks (Ida et al. 1997) while the inner disk spreads and rains back. Selecting a black hole shows its
@@ -180,7 +182,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   through Earth's atmosphere.
 - **Ephemerides:** planets from JPL approximate elements with secular rates, the Moon from Meeus' lunar theory,
   Jupiter's Galilean moons from Meeus ch. 44, IAU pole directions and prime meridians, Earth rotation from sidereal
-  time. Phases and eclipses happen when they really do: eclipse paths land within ~20 to 65 km of NASA's
+  time; beyond ±5,000 years the orbits evolve by Laplace-Lagrange secular theory. Phases and eclipses happen when they really do: eclipse paths land within ~20 to 65 km of NASA's
   greatest-eclipse points for 2017, 2024, 2026 and 2027.
 - **Exoplanets:** observed systems at Proxima Centauri, TRAPPIST-1, Barnard's Star, 51 Pegasi, Epsilon Eridani and
   Tau Ceti; Sirius B; asteroids and dwarf planets (Vesta, Pallas, Hygiea, Juno, Eros, Bennu, Makemake, Haumea, Sedna).
@@ -207,7 +209,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Seeing from the ground:** astronomical refraction lifts and flattens the setting Sun and Moon and raises stars
   near the horizon; stars twinkle more near the horizon; light pollution from the real night-lights map glows over
   cities; airglow at 95 km; aurora around the real geomagnetic pole.
-- **Seasons:** Earth's snow cover follows the date (continental interiors first, forests show through the snow).
+- **Seasons and ages:** Earth's snow cover follows the date (continental interiors first, forests show through the
+  snow); ice sheets and sea level follow the Milankovitch cycles; the continents drift with the plates.
 - **Orbit mode (Y):** Newtonian two-body flight with thrusters; a 400 km orbit around Earth takes 92.4 minutes.
 - **Lighting:** eclipses with penumbra, ring shadows, terrain self-shadowing and baked ambient occlusion, planetshine
   (earthshine on the Moon, moonlight at night), Lommel-Seeliger scattering on airless bodies.
@@ -257,9 +260,11 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 42 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 55 checks of the physics against published values (no browser needed)
     node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
     node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
+    node tools/glcheck.mjs            # checks every WebGL draw call for errors across events and scenarios
+    node tools/lapsetest.mjs          # fast-forward at a planet: the Sun must hold still from frame to frame
 
 The physics checks cover: a GW150914-like merger (final mass 61.9 M☉, spin 0.68, 3.1 M☉ radiated, ringdown
 275 Hz vs LIGO's 62 M☉, 0.67, 3.0 M☉), aligned spins (remnant spin 0.94, 9% radiated, later merger), the recoil of a q = 1/8 merger, orbital decay against the Peters formula
@@ -267,7 +272,10 @@ The physics checks cover: a GW150914-like merger (final mass 61.9 M☉, spin 0.6
 figure-eight choreography, tidal disruption (half the debris bound, first fallback at the theoretical t_min of
 41 days), Barnard's Star and Gliese 710 encounters, the Sun's galactic orbit, the solar track (RGB tip 2,730 L☉,
 256 R☉, 0.668 M☉; white dwarf 0.54 M☉), lunar recession (3.82 cm/yr), the lengthening day, Vega as pole star,
-ΛCDM numbers (CMB 2.7255 K, event horizon 5.1 Gpc), and the Andromeda orbit against van der Marel et al. 2012.
+ΛCDM numbers (CMB 2.7255 K, event horizon 5.1 Gpc), the Andromeda orbit against van der Marel et al. 2012, the
+secular frequencies of the planets (g3 17.38"/yr vs 17.33, s3 −18.75 vs −18.74), Earth's eccentricity range,
+summer insolation at 65° N (478 W/m² today, 533 W/m² 11,000 years ago), the timing of the Last Glacial Maximum
+and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and a Type Ia supernova (peak −19.1).
 
 ## Decisions and limits
 

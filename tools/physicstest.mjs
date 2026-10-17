@@ -163,5 +163,15 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('Theia impact speed (km/s)', impact ? +impact.note.match(/at ([\d.]+) km\/s/)[1] : 0, '~9-10 km/s (Canup 2004)', 1.5);
   check('Moon mass from the debris disk (lunar masses)', moon ? moon.body.m / 7.35e22 : 0, '~0.6-1.2 (Canup 2004, Ida et al. 1997)', (v) => v > 0.4 && v < 1.4);
 }
+// --- Type Ia supernova from colliding white dwarfs ---
+{
+  const sbm = await imp('sandbox.js'); const sim = new NBody(); sbm.PRESETS.find(p => p.id === 'wdia').setup(sim);
+  while (sim.t < 100 && sim.bodies.length) sim.advance(0.5, 100000);
+  const bl = (sim.blasts || [])[0], ni = bl ? bl.ni / MSUN : 0;
+  // Arnett's rule with the 56Ni -> 56Co -> 56Fe decay energy, at peak (~18 days)
+  let Lpk = 0; for (let td = 5; td < 40; td += 0.5) Lpk = Math.max(Lpk, ni * (6.41e43 * Math.exp(-td / 8.8) + 1.35e43 * Math.exp(-td / 111.3)) * (1 - Math.exp(-((td / 15) ** 2) * 2.3)));
+  check('Type Ia: nickel mass (M☉)', ni, '0.3-0.8 M☉ (normal SNe Ia)', (v) => v >= 0.3 && v <= 0.8);
+  check('Type Ia: peak bolometric magnitude', 4.74 - 2.5 * Math.log10(Lpk / 3.828e33), '-19.1 ± 0.3 (Phillips relation)', 0.5);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

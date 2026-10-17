@@ -198,6 +198,18 @@ export class NBody {
     } else if (compact(a) || compact(b)) { kind = compact(a) ? a.kind : b.kind; note = (compact(a) ? b : a).name + ' was swallowed'; }
     else if (a.kind === 'star' || b.kind === 'star') { kind = 'star'; note = 'Stellar collision: the stars merged'; }
     else { note = 'Collision: the bodies merged'; }
+    // two white dwarfs that collide or merge above ~1.2 solar masses detonate their carbon and oxygen: a Type Ia
+    // supernova that unbinds everything (Rosswog et al. 2009, Kushnir et al. 2013, Pakmor et al. 2010)
+    const sn1a = a.kind === 'wd' && b.kind === 'wd' && M > 1.2 * MSUN;
+    if (sn1a) {
+      this.remove(a); this.remove(b);
+      const ni = Math.min(0.9, Math.max(0.2, (M / MSUN - 1.0) * 1.0)) * MSUN;    // radioactive nickel made
+      this.blasts = (this.blasts || []).concat([{ t, x: xcm, v: vcm, kind: 'Ia', ni }]);
+      const ev = { t, a: a.name, b: b.name, note: `The white dwarfs collided (${(M / MSUN).toFixed(2)} M☉) and detonated: a Type Ia supernova. ${(ni / MSUN).toFixed(2)} M☉ of radioactive nickel powers the light; nothing is left behind`, sn1a: true };
+      this.events.push(ev); if (this.onEvent) this.onEvent(ev);
+      return;
+    }
+    if (a.kind === 'wd' && b.kind === 'wd') note = 'The white dwarfs merged into one heavier white dwarf';
     const rocky = (x) => x.kind === 'planet' && x.m < 20 * 5.972e24;
     const giantImpact = rocky(a) && rocky(b) && Math.min(a.m, b.m) > 0.01 * M;
     // recoil in the orbital plane, perpendicular to the separation at merger (direction depends on the phase)
@@ -254,7 +266,7 @@ export class NBody {
   clone() {
     const o = new NBody(); o.t = this.t; o.pn = this.pn; o.Erad = this.Erad;
     o.bodies = this.bodies.map(b => Object.assign({}, b, { x: b.x.slice(), v: b.v.slice() }));
-    o.events = this.events.slice(); o.particles = this.particles ? this.particles.clone() : null; o.gw = this.gw;
+    o.events = this.events.slice(); o.blasts = this.blasts ? this.blasts.slice() : undefined; o.particles = this.particles ? this.particles.clone() : null; o.gw = this.gw;
     return o;
   }
 }

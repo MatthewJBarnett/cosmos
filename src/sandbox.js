@@ -112,6 +112,14 @@ export const PRESETS = [
       sim.add(makeBody('planet', m2, r.map(x => x * m1 / M), u.map(x => x * m1 / M), { name: 'Theia' }));
       return { rate: 20, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
     } },
+  { id: 'wdia', name: 'White dwarfs collide (Type Ia supernova)', text: 'Two carbon-oxygen white dwarfs of 0.9 and 0.7 solar masses fall together, as can happen in triple systems and dense star clusters. The collision detonates the carbon: a Type Ia supernova, billions of times brighter than the Sun for weeks, its light coming from radioactive nickel decaying to cobalt and iron. Nothing is left behind.',
+    setup(sim) {
+      const m1 = 0.9 * MSUN, m2 = 0.7 * MSUN, M = m1 + m2, d = 6e7, vt = 0.12 * Math.sqrt(G * M / d);
+      sim.pn = false;
+      sim.add(makeBody('wd', m1, [-d * m2 / M, 0, 0], [0, 0, -vt * m2 / M], { name: 'White dwarf A (0.9 M☉)' }));
+      sim.add(makeBody('wd', m2, [d * m1 / M, 0, 0], [0, 0, vt * m1 / M], { name: 'White dwarf B (0.7 M☉)' }));
+      return { rate: 3, scale: d * 0.5, grid: true, later: [{ t: 30, rate: 0.5 }, { t: 40, rate: 3600 }, { t: 3 * 3600, rate: DAY }] };
+    } },
   { id: 'empty', name: 'Empty space (place your own)', text: 'Choose a body type and mass, then click to place it. Drag while placing to give it a velocity; a plain click puts it on a circular orbit.',
     setup(sim) { return { rate: 1, scale: 2e6, grid: true }; } },
 ];
@@ -438,6 +446,18 @@ export function drawDebris(sb, nav, o) {
     const rel = V.sub(b.wpos, nav.S), d = Math.max(V.len(rel), b.knR * 1.2), dAU = d / AU, col = bbColor(b.knT), y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2];
     const dir = V.len(rel) > 1 ? V.norm(rel) : Q.rot(nav.q, [0, 0, -1]);
     blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, b.knL / (dAU * dAU), b.knR]);
+  }
+  // Type Ia supernovae: ejecta at ~10,000 km/s; the light is radioactive decay of nickel-56 (6.1 d) and cobalt-56
+  // (111 d) leaking out of the expanding ejecta (Arnett's rule: peak luminosity ~ 2e43 erg/s per solar mass of nickel,
+  // ~18 days after the explosion)
+  for (const bl of sb.sim.blasts || []) {
+    const age = sb.sim.t - bl.t; if (age < 0) continue;
+    const x = bl.x.map((c, k) => c + bl.v[k] * age), R = 1e7 * age + 1e7, td = age / DAY;
+    const dec = 6.41e43 * Math.exp(-td / 8.8) + 1.35e43 * Math.exp(-td / 111.3);     // erg/s per M_sun of 56Ni
+    const L = (bl.ni / MSUN) * dec * 1e-7 / C.Lsun * (1 - Math.exp(-((td / 15) ** 2) * 2.3)) + 1e9 * Math.exp(-age / 2);
+    const T = clamp(16000 * Math.pow(Math.max(td, 0.5) / 5, -0.45), 4500, 30000), col = bbColor(T), y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2];
+    const rel = V.sub(Q.rot(sb.worldQ, x), nav.S), d = Math.max(V.len(rel), R * 1.2), dir = V.len(rel) > 1 ? V.norm(rel) : Q.rot(nav.q, [0, 0, -1]);
+    blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, L / ((d / AU) ** 2), R]);
   }
   if ((!P || !P.n) && !blobs.length) return;
   if (!pDeb) pDeb = new Program('debris', DEB_VS, DEB_FS);
