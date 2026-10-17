@@ -315,6 +315,17 @@ export class StarSystem {
         mars.caps = [72 + 12 * ns, -(72 - 14 * ns)];
       }
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
+      // Comet Shoemaker-Levy 9's fragments (G, K, L, H, Q1, R hit hardest) struck Jupiter at 44 S on 16-22 July 1994;
+      // their dark scars, larger than Earth, spread and faded over months (System II longitudes; fresh scar w -> 0)
+      const jup = all.find(b => b.name === 'Jupiter');
+      if (jup) {
+        const t94 = (t / 86400) - (Date.UTC(1994, 6, 16) - Date.UTC(2000, 0, 1, 12)) / 864e5;    // days since 16 July 1994
+        if (t94 > -1 && t94 < 400) {
+          const hits = [[2.0, 25], [2.8, 55], [3.0, 120], [1.6, 160], [4.2, 230], [5.5, 300]];
+          jup.scars = hits.filter(([d]) => t94 > d).map(([d, lon]) => { const la = -44 * D2R, lo = lon * D2R, age = t94 - d; return [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), Math.min(0.95, age / 300)]; });
+          if (!jup.scars.length) jup.scars = null;
+        } else jup.scars = null;
+      }
       const sat = all.find(b => b.name === 'Saturn');
       if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
