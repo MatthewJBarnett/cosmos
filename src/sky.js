@@ -171,7 +171,7 @@ void main(){
   vSN = vec3(0.);
   if (uDtYrs < 0.25) {
     float h = fract(sin(dot(aCen.xyz, vec3(12.9898, 78.233, 37.719)))*43758.5453);
-    float rate = 0.016*clamp(aLum, 0.05, 6.)*(1. + 2.*(1. - smoothstep(1., 6., vTauE)));
+    float rate = 0.016*clamp(aLum, 0.05, 6.)*(1. + 2.*(1. - smoothstep(1., 6., vTauE)))*mix(1., 0.25, smoothstep(14., 25., vTauE));   // (only Type Ia once star formation ends)
     float x = uYrs*rate + h*97.;
     float age = fract(x)/rate, k = floor(x);
     float lc = age < 0.06 ? age/0.06 : exp(-(age - 0.06)/0.12);       // ~3 week rise, months of decline
