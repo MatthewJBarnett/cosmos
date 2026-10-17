@@ -18,6 +18,7 @@ import { LG, LG_START, updateLocalGroupPositions } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
+import { sunState, earthDay, moonScale, engulfed } from './evolution.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -420,12 +421,14 @@ export class UI {
         deep += `<div><b>Climate</b> ${ice > 0.05 ? 'ice age: ' + Math.round(ice * 100) + '% of the last glacial maximum, sea level −' + Math.round(125 * Math.min(ice, 1.1)) + ' m' : 'interglacial'} · Earth's orbit e = ${(e.orbitE || 0).toFixed(4)}</div>`; }
     }
     if (Math.abs(tyr) > 1e5) {
-      const ss = solSystem().sunState;
-      if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), mo = sol.find('Moon');
-        if (e && !e.gone) deep += `<div><b>Earth</b> day ${(e.rotPeriod / 3600 * 1.0027).toFixed(2)} h${mo && !mo.gone ? ' · Moon ' + Math.round(V.dist(mo.pos, e.pos) / 1e3).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
-      if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
+      // (computed from the models directly: the Solar System is not updated while you are elsewhere)
+      const ss = sunState(tyr), sunAge = ss.age;
+      if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), eGone = engulfed('Earth', tyr), mGone = engulfed('Moon', tyr);
+        if (e && !eGone) deep += `<div><b>Earth</b> day ${(earthDay(tyr) / 3600 * 1.0027).toFixed(2)} h${!mGone ? ' · Moon ' + Math.round(384400 * moonScale(tyr)).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
+      if (sunAge < 0) deep += `<div><b>Sun</b> not yet formed: its gas is still part of a molecular cloud</div>`;
+      else if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
       const ageY = cosmo.tau * 1e9, ageS = ageY < 1 ? (ageY * 365.25 * 24).toFixed(1) + ' hours' : ageY < 1e4 ? Math.round(ageY).toLocaleString('en') + ' years' : ageY < 1e7 ? (ageY / 1e3).toFixed(ageY < 1e5 ? 1 : 0) + ' thousand years' : ageY < 1e9 ? (ageY / 1e6).toFixed(ageY < 1e8 ? 1 : 0) + ' million years' : cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0) + ' Gyr';
-      const era = ageY < 1 / 30 ? 'Big Bang nucleosynthesis: helium and deuterium nuclei are forming' : ageY < 5e4 ? 'Radiation era: an opaque plasma of nuclei, electrons and light' : ageY < 3.7e5 ? 'An opaque glowing plasma: light cannot travel far' : ageY < 1.2e6 ? 'Recombination: atoms form and the universe turns transparent; this light is the cosmic microwave background' : ageY < 1.5e8 ? (cosmo.T > 500 ? 'Dark ages: no stars yet; the background still glows dull red' : 'Dark ages: no stars yet') : ageY < 1e9 ? 'Cosmic dawn: the first stars and galaxies light up and reionize the gas' : ageY < 3.5e9 ? 'Cosmic noon: galaxies are forming stars faster than at any other time' : '';
+      const era = ageY < 1 / 30 ? 'Big Bang nucleosynthesis: helium and deuterium nuclei are forming' : ageY < 5e4 ? 'Radiation era: an opaque plasma of nuclei, electrons and light' : ageY < 3.7e5 ? 'An opaque glowing plasma: light cannot travel far' : ageY < 1.2e6 ? 'Recombination: atoms form and the universe turns transparent; this light is the cosmic microwave background' : ageY < 1.5e8 ? (cosmo.T > 500 ? 'Dark ages: no stars yet; the background still glows dull red' : 'Dark ages: no stars yet') : ageY < 1e9 ? 'Cosmic dawn: the first stars and galaxies light up and reionize the gas' : ageY < 2e9 ? 'Young galaxies grow fast through mergers and streams of cold gas' : ageY < 4.5e9 ? 'Cosmic noon: galaxies are forming stars faster than at any other time' : '';
       deep += `<div class="dim">Universe ${ageS} old · background ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T < 1e4 ? cosmo.T.toFixed(cosmo.T < 100 ? 3 : 0) : cosmo.T.toExponential(2)} K${era ? '</div><div><b>Era</b> ' + era : ''}</div>`;
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
     }

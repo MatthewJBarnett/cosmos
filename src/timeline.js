@@ -16,8 +16,9 @@ export function fmtSpan(yr) {
   if (a < 1) return (a * 365.25).toFixed(0) + ' days';
   if (a < 1e4) return a.toFixed(a < 10 ? 1 : 0) + ' years';
   if (a < 1e6) return Math.round(a).toLocaleString('en') + ' years';
-  if (a < 1e9) return (a / 1e6).toPrecision(4) + ' million years';
-  if (a < 1e12) return (a / 1e9).toPrecision(4) + ' billion years';
+  // (thresholds just below the next unit so rounding never prints "1000 million")
+  if (a < 9.9995e8) return (a / 1e6).toPrecision(4) + ' million years';
+  if (a < 9.9995e11) return (a / 1e9).toPrecision(4) + ' billion years';
   return (a / 1e12).toPrecision(4) + ' trillion years';
 }
 // simulation time (s since J2000) -> readable date

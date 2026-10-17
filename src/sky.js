@@ -221,7 +221,7 @@ void main(){
     vec3 offp = off - f*dot(off, f);
     float x = dot(offp, major), y = length(offp - major*x);
     float t2 = x*x + (y*y)/(ratio*ratio);
-    float gsn = exp(-t2*3.2)/ratio;
+    float gsn = exp(-t2*3.2)/ratio*smoothstep(1., 0.7, length(offp));     // (round window: no square sprite edges)
     float t = sqrt(t2);
     float tot = (g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)/(vLum.y*vLum.y)*1.6;
     vec3 col = mix(vec3(1.0, 0.82, 0.6), vec3(0.8, 0.86, 1.0), clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.));
