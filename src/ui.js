@@ -533,9 +533,10 @@ export class UI {
       const dt = e.t - tyr, past = dt < 0;
       return `<div class="row${past ? ' past' : ''}${e === nx ? ' sel' : ''}" data-i="${i}" title="${e.text.replace(/"/g, '&quot;')}"><span class="nm">${e.title}${e.est ? ' <span class="dim">(estimate)</span>' : ''}</span><span class="ds">${past ? fmtSpan(dt) + ' ago' : 'in ' + fmtSpan(dt)}</span><button data-i="${i}">Go</button></div>`;
     }).join('');
-    this.linePanel.innerHTML = `<h3>Timeline</h3><div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label>
-      <div class="tljump">Jump to <input id="tlYears" placeholder="years from now, e.g. 5e9 or -65e6" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
+    this.linePanel.innerHTML = `<h3>Timeline</h3>
       <div class="tlslider"><input type="range" id="tlSlide" min="-100" max="140" step="0.1" value="${this.sliderPos(tyr)}"><div class="tlticks">${[[-100, 'Big Bang'], [-60, '−1 Myr'], [0, 'now'], [60, '+1 Myr'], [90, '+1 Gyr'], [140, '+10¹⁴ yr']].map(([x, l]) => `<span style="left:${((x + 100) / 240 * 100).toFixed(1)}%">${l}</span>`).join('')}</div></div>
+      <div class="tljump">Jump to <input id="tlYears" placeholder="years from now, e.g. 5e9 or -65e6" value="${this.tlYears || ''}"> <button id="tlGo">Go</button></div>
+      <div class="list">${rows}</div><label class="dim"><input type="checkbox" id="tlAuto" ${tl.auto ? 'checked' : ''}> Slow down for events</label>
       <p class="dim">Go jumps to just before the event. Times are from the simulation's own models; "estimate" marks dates that are uncertain.</p>`;
     this.linePanel.querySelectorAll('button').forEach(b => { b.onclick = () => { tl.go(tl.events[+b.dataset.i]); this.lineKey = null; }; });
     this.linePanel.querySelector('#tlAuto').onchange = (e) => { tl.auto = e.target.checked; };
