@@ -30,7 +30,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Mars sunset](docs/mars_sunset.jpg) Blue sunset at Gale crater, Mars | ![Milky Way](docs/milkyway.jpg) The Milky Way's core from the Solar System |
 | ![ISS view](docs/iss_view.jpg) From 400 km over the Atlantic | ![Deep field](docs/web.jpg) Intergalactic deep field |
 | ![Sahara dunes](docs/sahara_dunes.jpg) Grand Erg Oriental, Sahara, from 250 m | ![Binary black hole](docs/bbh.jpg) Sandbox: 36 + 29 M☉ black holes a second before merging, lensing their own trails and the spacetime grid |
-| ![Eccentric binary](docs/bbh_eccentric.jpg) An eccentric black hole binary: general relativity turns the orbit into a rosette | ![Tidal disruption](docs/tde.jpg) A Sun-like star shredded by a million solar mass black hole |
+| ![Eccentric binary](docs/bbh_eccentric.jpg) An eccentric black hole binary: general relativity turns the orbit into a rosette | ![Mars ring](docs/mars_ring.jpg) Mars 45 million years from now, ringed by the debris of Phobos |
 | ![Betelgeuse](docs/betelgeuse_sn.jpg) Betelgeuse goes supernova (~100,000 years from now), seen from Earth | ![Red giant from Mars](docs/red_giant_mars.jpg) The red giant Sun over Mars, 7.6 billion years from now |
 | ![Planetary nebula](docs/sun_pn.jpg) The Sun's planetary nebula around its newborn white dwarf | ![Collision](docs/m31_collision.jpg) Milky Way and Andromeda after their first passage (N-body) |
 | ![Andromeda approaching](docs/m31_sky.jpg) Andromeda looming in the sky of the Solar System in 3.4 billion years | ![Sun's orbit](docs/sun_orbit.jpg) The Sun's orbit around the Milky Way |

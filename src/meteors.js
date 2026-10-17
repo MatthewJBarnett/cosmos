@@ -59,7 +59,9 @@ export function updateMeteors(nav, dtReal) {
       const p = V.sub(V.add(base, V.mul(m.v, Math.max(0, Math.min(m.age, m.dur) - back))), nav.S);
       const d = V.len(p);
       // flux of a magnitude M meteor at 100 km, at distance d
-      const flux = Math.exp(-0.9210340372 * (m.M + 5 * Math.log10(d / 1e5) + 26.74)) / N * (x < 1 ? lc * (1 - f * 0.85) : 0.04 * Math.exp(-(m.age - m.dur) * 3) * (1 - f));
+      // half the light in the head (what the eye locks on to), the rest along the fading streak
+      const share = i === 0 ? 0.5 : 0.5 / (N - 1) * 2 * (1 - f);
+      const flux = Math.exp(-0.9210340372 * (m.M + 5 * Math.log10(d / 1e5) + 26.74)) * (x < 1 ? lc * share : 0.04 / N * Math.exp(-(m.age - m.dur) * 3) * (1 - f));
       if (flux > 0) out2.push({ dir: p, color: m.col, flux });
     }
   }
