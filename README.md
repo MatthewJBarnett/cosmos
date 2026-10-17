@@ -43,6 +43,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Last ice age](docs/ice_age.jpg) 20,000 years ago: ice sheets over North America, the sea 120 m lower (Milankovitch model) | ![Drifting continents](docs/drift.jpg) 80 million years from now: Australia has drifted north into the western Pacific |
 | ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | ![Merging shadows](docs/bbh_shadow.jpg) 12 ms before a black hole merger: light traced through both holes at once, their shadows fuse |
 | ![Kerr shadows](docs/kerr_spins.jpg) Black hole shadows at spin 0, 0.5 and 0.94: the D shape of a fast spinning (Kerr) hole | ![S-stars](docs/sstars.jpg) The S-stars around Sagittarius A* in 2018: S2 at its 120 AU pericentre |
+| ![Shoemaker-Levy 9](docs/sl9.jpg) Jupiter on 25 July 1994, scarred by the fragments of Comet Shoemaker-Levy 9 | ![Chicxulub](docs/chicxulub.jpg) 66 million years ago: the fireball of the Chicxulub impact on Earth's night side |
 | ![Deep past](docs/deep_past.jpg) Snowball Earth (690 Myr ago), bare continents (520 Myr ago), the magma ocean (4.5 Gyr ago) and the ancient ocean of Mars | ![Young Sun](docs/young_sun.jpg) The newborn Sun in its protoplanetary disk, gaps cleared by forming planets |
 
 ## Run
@@ -153,6 +154,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   real continental shelves (Beringia, Doggerland, Sundaland). It peaks 18,000 years ago and is clear by 9,000
   years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
   years by human CO₂).
+- **Shoemaker-Levy 9** (July 1994): six of the largest fragments leave dark scars at 44 S on Jupiter that spread and
+  fade over months.
 - **The Chicxulub impact** (66.043 Myr ago): a fireball over Yucatán, an ejecta plume, the whole sky glowing as debris
   re-enters an hour later, then soot spreading around the planet within days and darkening it for years.
 - **Earth's deep past:** before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
