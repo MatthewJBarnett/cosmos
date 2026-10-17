@@ -188,6 +188,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   greatest-eclipse points for 2017, 2024, 2026 and 2027.
 - **Exoplanets:** observed systems at Proxima Centauri, TRAPPIST-1, Barnard's Star, 51 Pegasi, Epsilon Eridani and
   Tau Ceti; Sirius B; asteroids and dwarf planets (Vesta, Pallas, Hygiea, Juno, Eros, Bennu, Makemake, Haumea, Sedna).
+- **Tectonic plates:** plate outlines from Bird (2003), PB2002 (GeoJSON from github.com/fraxen/tectonicplates), rasterised
+  to `data/planets/earth_plates.png` with the microplates merged; Euler poles from NNR-NUVEL-1A.
 - **Milky Way from near the Sun:** the ESO all-sky panorama with point stars removed, blended into the procedural
   galaxy model a few hundred parsecs out.
 
