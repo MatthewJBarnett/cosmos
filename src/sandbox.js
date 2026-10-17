@@ -381,7 +381,7 @@ const DEB_VS = `layout(location=0) in vec3 aRel; layout(location=1) in vec4 aCol
 uniform mat4 uViewProj; uniform float uExposure, uPxSA, uPxPerRad; out vec3 vCol; out float vSig;
 void main(){
   float d = length(aRel); float I = aCol.a/uPxSA*uExposure;
-  float sig = clamp(aSize/d*uPxPerRad, 0.8, 40.);
+  float sig = clamp(aSize/d*uPxPerRad, 0.8, 90.);   // point sprites are limited to ~500 px on some GPUs
   vCol = aCol.rgb*min(I/(6.2832*sig*sig), 40.); vSig = sig;
   gl_Position = uViewProj*vec4(aRel, 1.); gl_Position.z = 0.;
   gl_PointSize = I/(6.2832*sig*sig) < 1e-4 ? 0. : ceil(sig*5.);
@@ -390,20 +390,30 @@ void main(){
 const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz; o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig)), 1.); }`;
 let pDeb, debVAO, debBuf;
 export function drawDebris(sb, nav, o) {
-  const P = sb.sim.particles; if (!P || !P.n) return;
+  const P = sb.sim.particles;
+  // kilonova ejecta: a sphere expanding at ~0.2 c (drawn as one soft blob; inside it, as seen from its edge)
+  const blobs = [];
+  for (const b of sb.bodies) if (b.knL && b.knR) {
+    const rel = V.sub(b.wpos, nav.S), d = Math.max(V.len(rel), b.knR * 1.2), dAU = d / AU, col = bbColor(b.knT), y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2];
+    const dir = V.len(rel) > 1 ? V.norm(rel) : Q.rot(nav.q, [0, 0, -1]);
+    blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, b.knL / (dAU * dAU), b.knR]);
+  }
+  if ((!P || !P.n) && !blobs.length) return;
   if (!pDeb) {
     pDeb = new Program('debris', DEB_VS, DEB_FS);
     debVAO = gl.createVertexArray(); gl.bindVertexArray(debVAO); debBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 32, 28); gl.bindVertexArray(null);
   }
+  const data = new Float32Array(((P ? P.n : 0) + blobs.length) * 8); let n = 0;
+  for (const bl of blobs) data.set(bl, (n++) * 8);
+  if (P && P.n) {
   // the stream glows faintly with its own heat; once debris falls back, the flare (up to the Eddington luminosity)
   // is partly absorbed and re-emitted by gas near the hole
   const bh = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh, Lacc = sb.bodies.reduce((s, b) => s + (b.blackHole ? b.lum : 0), 0);
   const age = sb.sim.t - (P.t0 || (P.t0 = sb.sim.t)), Lself = 300 * Math.exp(-age / (3 * DAY)) + 2;
   const rr = new Float32Array(P.n); let near = 0;
   for (let i = 0; i < P.n; i++) { const x = P.x[i * 3]; if (x !== x) { rr[i] = -1; continue; } rr[i] = Math.hypot(x - bh.x[0], P.x[i * 3 + 1] - bh.x[1], P.x[i * 3 + 2] - bh.x[2]); if (rr[i] < 20 * AU) near++; }
-  const data = new Float32Array(P.n * 8); let n = 0;
   // the gas expands as it travels: blob size grows with time since the disruption (sound speed ~ few km/s)
   const size = Math.max(7e8, 2e3 * age);
   for (let i = 0; i < P.n; i++) {
@@ -414,6 +424,7 @@ export function drawDebris(sb, nav, o) {
     const L = Lself / P.n + rep, col = hot ? [0.72, 0.84, 1.0] : [1.0, 0.62, 0.42];
     data.set([rel[0], rel[1], rel[2], col[0], col[1], col[2], L / (dAU * dAU), size], n * 8); n++;
   }
+  }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   gl.bindVertexArray(debVAO); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf); gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, n * 8), gl.DYNAMIC_DRAW);
   pDeb.use().set({ uViewProj: o.viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPxPerRad: o.pxPerRad });
@@ -423,9 +434,6 @@ export function drawDebris(sb, nav, o) {
 // kilonova glow as a point
 export function sandboxPoints(sb, nav) {
   const pts = [];
-  for (const b of sb.bodies) if (b.knL) {
-    const rel = V.sub(b.wpos, nav.S), d = V.len(rel) / AU, col = bbColor(b.knT), y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2];
-    pts.push({ dir: rel, color: col.map(x => x / y), flux: b.knL / (d * d) });
-  }
+
   return pts;
 }
