@@ -4,7 +4,7 @@ import { gl, Program, drawFS, FS_VS, makeVAO } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
 import { RNG, hashCombine, makeName } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
-import { GLSL_BB, bbColor } from './stars.js';
+import { GLSL_BB, bbColor, vSurface } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
 import { world } from './galdyn.js';
@@ -304,7 +304,7 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
   for (const s of sys.stars) {
     if (s.blackHole || !s.rel || s.pxRadius < 1.5) continue;
     const c = bbColor(s.temp), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    pCor.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: s.rel, uSize: s.radius * 8, uR: s.radius, uExposure: o.exposure, uRad: 1.47e4 * s.lum / ((s.radius / C.Rsun) ** 2), uCol: [c[0] / y, c[1] / y, c[2] / y], uNoise3: o.noise3, uTime: o.time % 1e7, uSeed: (s.uid * 0.37) % 1, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0] });
+    pCor.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRel: s.rel, uSize: s.radius * 8, uR: s.radius, uExposure: o.exposure, uRad: 1.47e4 * vSurface(s.temp || 5772), uCol: [c[0] / y, c[1] / y, c[2] / y], uNoise3: o.noise3, uTime: o.time % 1e7, uSeed: (s.uid * 0.37) % 1, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0] });
     gl.bindVertexArray(quad()); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   gl.disable(gl.DEPTH_TEST);

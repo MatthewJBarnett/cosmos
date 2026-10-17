@@ -152,6 +152,11 @@ export class Nav {
     if (this.level === 'system') {
       if (V.len(this.S) > 0.25 * PC) { this.G = this.camG(); this.level = 'galaxy'; this.system = null; this.anchor = null; }
     } else if (this.level === 'galaxy') {
+      // overlapping (merging) galaxies: switch to the one that holds the go-to target
+      if (this.goto) {
+        const t = this.goto.target, tg = t.type === 'body' ? t.body.system.galaxy : t.type === 'star' ? t.desc.galaxy : t.type === 'nebula' ? t.galaxy : null;
+        if (tg && tg !== this.galaxy) { const U = this.camU(); if (V.dist(tg.posU, U) * 1e6 / tg.radius < 3.5) { this.galaxy = tg; this.field = fieldFor(tg); this.G = [(U[0] - tg.posU[0]) * 1e6, (U[1] - tg.posU[1]) * 1e6, (U[2] - tg.posU[2]) * 1e6]; } }
+      }
       if (this.frame % 10 === 0 || this.goto) {
         const n = this.field.nearest(this.camLocal(), 0.2);
         if (n) { this.enterSystem(n); return; }
@@ -161,6 +166,13 @@ export class Nav {
       let best = null, bs = 3.5;
       const test = (g) => { const d = V.dist(g.posU, this.U) * 1e6 / g.radius; if (d < bs) { bs = d; best = g; } };
       for (const c of visibleGalaxyCells) for (const g of c.list) test(g);
+      // the real galaxies always count, even while they are drawn another way (as N-body particles)
+      for (const g of REAL_GALAXIES) test(g);
+      // flying to something inside a galaxy: enter that galaxy (merged galaxies overlap)
+      if (this.goto) {
+        const t = this.goto.target, tg = t.type === 'body' ? t.body.system.galaxy : t.type === 'star' ? t.desc.galaxy : t.type === 'nebula' ? t.galaxy : null;
+        if (tg && V.dist(tg.posU, this.U) * 1e6 / tg.radius < 3.5) best = tg;
+      }
       if (best) { this.galaxy = best; this.field = fieldFor(best); this.G = [(this.U[0] - best.posU[0]) * 1e6, (this.U[1] - best.posU[1]) * 1e6, (this.U[2] - best.posU[2]) * 1e6]; this.level = 'galaxy'; }
     }
   }

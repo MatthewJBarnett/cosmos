@@ -139,3 +139,7 @@ vec3 bbColor(float T){
   vec3 c = max(vec3(3.2406*X - 1.5372 - 0.4986*Z, -0.9689*X + 1.8758 + 0.0415*Z, 0.0557*X - 0.2040 + 1.0570*Z), 0.);
   return c / max(c.r, max(c.g, c.b));
 }`;
+
+// visual (V band) surface brightness of a blackbody relative to the Sun's photosphere: a million kelvin neutron star is
+// "only" thousands of times brighter per area in visible light (Rayleigh-Jeans tail), not T^4 = 10^9 times
+export function vSurface(T) { return (Math.exp(26160 / 5772) - 1) / (Math.exp(Math.min(26160 / Math.max(T, 1), 80)) - 1); }
