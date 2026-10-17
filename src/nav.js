@@ -334,12 +334,28 @@ export class Nav {
     // relativistic flight: the outside clock runs fast by the Lorentz factor of the camera
     const b2 = this.beta ? this.beta[0] ** 2 + this.beta[1] ** 2 + this.beta[2] ** 2 : 0;
     this.gamma = 1 / Math.sqrt(1 - Math.min(b2, 0.999999));
-    if (!this.paused) this.time += dt * this.rate * this.gamma;
-    // time-lapse on a planet's surface: faster than a couple of hours per second, day and night would strobe every
-    // frame; hold the local solar time fixed instead (time advances in whole days, like a photo taken each night)
-    this.dayLocked = false;
+    const dAdv = this.paused ? 0 : dt * this.rate * this.gamma;
+    this.time += dAdv;
     const an0 = this.anchor;
-    if (!this.paused && an0 && an0.rotPeriod && an0.kind !== 'star' && this.level === 'system' && this.altitude < an0.radius * 0.05 && Math.abs(this.rate) > 7200 && Math.abs(this.rate) < 3e9 && !this.goto) {
+    // time-lapse near a planet: faster than about a sixth of an orbit per second its phase and seasons would flicker
+    // from frame to frame; advance in whole orbits instead so the lit face holds still while the ages pass
+    this.yearLocked = false;
+    let top = an0; while (top && top.parent && top.parent.kind !== 'star') top = top.parent;
+    const P = top && top.kind !== 'star' && top.orbit && top.orbit.period && !(top.system && top.system.sandbox) ? top.orbit.period : 0;
+    if (!this.paused && P && this.level === 'system' && !this.goto && Math.abs(this.rate) > 0.17 * P && Math.abs(this.rate) < 3e15) {
+      const y = this._yl;
+      if (y && y.top === top && Math.abs(this.time - (y.lastSet + dAdv)) <= Math.abs(dAdv) * 1e-6 + 1) y.tv += dAdv;
+      else this._yl = { top, t0: this.time, tv: this.time };
+      const L = this._yl;
+      this.time = L.t0 + Math.round((L.tv - L.t0) / P) * P;
+      this.yearLocked = true;
+    } else this._yl = null;
+    // time-lapse at a planet: faster than a couple of hours per second on the surface (or about a turn per second
+    // from orbit), day and night would strobe every frame; hold the local solar time fixed instead (time advances
+    // in whole days, like a photo taken each night)
+    this.dayLocked = false;
+    const near = an0 && (this.altitude < an0.radius * 0.05 ? Math.abs(this.rate) > 7200 : Math.abs(this.rate) > Math.abs(an0.rotPeriod || 0) * 1.0 || this.yearLocked);
+    if (!this.paused && an0 && an0.rotPeriod && an0.kind !== 'star' && this.level === 'system' && near && Math.abs(this.rate) < 3e15 && !this.goto && !(an0.system && an0.system.sandbox)) {
       if (!this._lock || this._lock.body !== an0) {
         const ll = this.latLonOf(an0); const sun = an0.system.stars[0];
         if (ll && sun) { const d = Q.rot(Q.conj(an0.wrot), V.norm(V.sub(sun.wpos, an0.wpos))); const subLon = Math.atan2(-d[2], d[0]) * 180 / Math.PI;
@@ -347,6 +363,7 @@ export class Nav {
       }
       if (this._lock) { this.setLocalTime(an0, this._lock.lon, this._lock.hour); this.dayLocked = true; }
     } else this._lock = null;
+    if (this._yl) this._yl.lastSet = this.time;
     updateWorld(this.time, this.paused ? 0 : dt * this.rate / YEAR);
     if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early

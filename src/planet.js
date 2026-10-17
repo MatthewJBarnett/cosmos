@@ -1,7 +1,7 @@
 // Quadtree cube-sphere renderer. Tiles are baked on the GPU (height / normal / albedo) and drawn with
 // camera-relative double precision placement, so one code path covers orbit to ground for planets, moons,
 // gas giants and stars.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, makeVAO, AsyncRead } from './gl.js';
+import { gl, unbindTextures, Program, tex2D, fbo, drawFS, FS_VS, makeVAO, AsyncRead } from './gl.js';
 import { V, Q, clamp } from './math.js';
 import { RNG, hashCombine } from './rng.js';
 import { NOCT, GEN_COMMON, GEN_TERRA, GEN_GAS, GEN_STAR, GEN_MAIN } from './terrain_glsl.js';
@@ -102,7 +102,9 @@ uniform vec3 uFaceA;
 uniform float uPixAngle;
 uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
 uniform vec2 uDetailO; uniform float uChunkA;
-uniform int uKind;
+uniform int uKind; uniform vec2 uIceAge;
+// southern limit (deg N) of the Northern ice sheets at the Last Glacial Maximum, every 20 deg of longitude from 180 W
+const float ICE_LIM[19] = float[19](72., 66., 58., 47., 45., 40., 44., 58., 62., 52., 51., 57., 62., 66., 72., 75., 74., 70., 72.);
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
@@ -140,7 +142,30 @@ void main(){
     vec3 nt = texture(uNormTex, tuv).rgb; vec2 nn = nt.rg; aoT = nt.b;
     vec3 T1 = normalize(uFaceA - dir*dot(dir, uFaceA)), T2 = cross(dir, T1);
     N = normalize(uRot*(dir*sqrt(max(0., 1. - dot(nn, nn))) + T1*nn.x + T2*nn.y));
-    if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea - h; water = smoothstep(0., 0.4, depth); }
+    if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea - h; water = smoothstep(0., 0.4, depth);
+      // ice ages: the sea falls as water is locked up in ice sheets, exposing the continental shelves
+      if (uIceAge.y > 0. && water > 0.) {
+        float ex = smoothstep(-uIceAge.y - 8., -uIceAge.y + 8., h)*water;
+        float latS = abs(dir.y);
+        vec3 shelf = mix(vec3(0.045, 0.07, 0.03), vec3(0.17, 0.15, 0.1), smoothstep(0.35, 0.75, latS));   // forest to steppe-tundra
+        alb.rgb = mix(alb.rgb, shelf*(0.85 + 0.3*texture(uNoise3, dir*3.1).r), ex); water *= 1. - ex; depth *= 1. - ex;
+      }
+    }
+    if (uIceAge.x > 0.) {
+      // ice sheets at their Last Glacial Maximum extent (Laurentide, Cordilleran, Fennoscandian, Barents-Kara,
+      // Patagonian), growing from the high latitudes as ice volume builds
+      float lonD = degrees(atan(-(abs(dir.z) < 1e-9 ? -1e-9 : dir.z), dir.x)), latD = degrees(asin(clamp(dir.y, -1., 1.)));
+      float fi = clamp((lonD + 180.)/20., 0., 17.999); int ii = int(fi);
+      float lim = mix(ICE_LIM[ii], ICE_LIM[ii + 1], smoothstep(0., 1., fi - float(ii)));
+      float nz = (texture(uNoise3, dir*1.7).r - 0.5)*5. + (texture(uNoise3, dir*7.).g - 0.5)*2.;
+      float latT = mix(82., lim, pow(min(uIceAge.x, 1.15), 0.7)) + water*6.;
+      float cov = smoothstep(-0.8, 0.8, latD + nz - latT);
+      // Patagonian ice cap along the southern Andes
+      cov = max(cov, smoothstep(-0.8, 0.8, mix(-56., -39., min(uIceAge.x, 1.)) - latD + nz*0.5)*smoothstep(-77., -74., lonD)*smoothstep(-68., -71., lonD)*step(0.05, uIceAge.x));
+      cov *= smoothstep(0., 0.05, uIceAge.x);
+      vec3 iceC = vec3(0.72, 0.77, 0.84)*(0.92 + 0.16*texture(uNoise3, dir*23.).b);
+      alb.rgb = mix(alb.rgb, iceC, cov); water *= 1. - cov; depth *= 1. - cov;
+    }
     // fine surface grain close to the camera (pebbles, soil clumps), fading with distance
     float near = clamp(1. - dist/900., 0., 1.);
     if (near > 0. && water < 1.) {
@@ -529,6 +554,9 @@ class PlanetState {
   bake(ch) {
     const prog = progGen[this.surf.gen].use();
     ch.tex = allocTex();
+    // a recycled tile texture may still sit on a texture unit from an earlier draw: rendering into it while it is
+    // bound is a feedback loop that drops the draw
+    unbindTextures();
     gl.bindFramebuffer(gl.FRAMEBUFFER, genFBO);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, ch.tex.h, 0);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, ch.tex.n, 0);
@@ -675,7 +703,14 @@ export function drawPlanet(body, o) {
     }
     draws.push({ ch, cRel, sizeM });
   };
-  for (const r of st.roots) { if (!r.ready) st.bake(r); visit(r); }
+  // (missing root tiles are baked right here, mid-frame: put the caller's render target back afterwards)
+  if (st.roots.some(r => !r.ready)) {
+    const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING), vp = gl.getParameter(gl.VIEWPORT), blend = gl.isEnabled(gl.BLEND), depth = gl.isEnabled(gl.DEPTH_TEST);
+    for (const r of st.roots) if (!r.ready) st.bake(r);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(vp[0], vp[1], vp[2], vp[3]);
+    if (blend) gl.enable(gl.BLEND); if (depth) gl.enable(gl.DEPTH_TEST);
+  }
+  for (const r of st.roots) visit(r);
   // draw
   const p = progDraw.use();
   gl.bindVertexArray(gridVAO.vao);
@@ -684,7 +719,7 @@ export function drawPlanet(body, o) {
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
-    uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
+    uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));

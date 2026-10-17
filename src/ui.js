@@ -401,12 +401,18 @@ export class UI {
         }
       }
     }
-    if (nav.dayLocked && nav._lock) alt += `<div class="dim">Time-lapse: time of day held at ${String(Math.floor(nav._lock.hour)).padStart(2, '0')}:${String(Math.floor((nav._lock.hour % 1) * 60)).padStart(2, '0')}</div>`;
+    if (nav.dayLocked && nav._lock) alt += `<div class="dim">Time-lapse: time of day held at ${String(Math.floor(nav._lock.hour)).padStart(2, '0')}:${String(Math.floor((nav._lock.hour % 1) * 60)).padStart(2, '0')}${nav.yearLocked ? ', one frame per orbit' : ''}</div>`;
     if (nav.relativistic) { const b = nav.beta ? Math.hypot(...nav.beta) : 0; alt += `<div><b>Relativistic</b> v = ${b.toFixed(b > 0.99 ? 5 : 3)} c · γ = ${(nav.gamma || 1).toFixed(b > 0.99 ? 2 : 3)}</div>`; }
     if (nav.orbit) { const o = nav.orbit; alt += `<div><b>Orbit</b> ${fmtDist(Math.max(o.peri, 0))} × ${isFinite(o.apo) ? fmtDist(o.apo) : 'escape'} · ${isFinite(o.period) ? (o.period < 7200 ? (o.period / 60).toFixed(1) + ' min' : (o.period / 3600).toFixed(2) + ' h') : ''}</div>`; }
     // deep time: the Sun's state and the universe
     let deep = '';
     const tyr = nav.time / YEAR;
+    if (Math.abs(tyr) > 3000 && Math.abs(tyr) < 2.5e7) {
+      // ice ages (shown when Earth is the selection or the place you are at)
+      const e = solSystem().find('Earth'), sel = nav.selected && nav.selected.body;
+      if (e && (sel === e || nav.anchor === e)) { const ice = e.iceAge || 0;
+        deep += `<div><b>Climate</b> ${ice > 0.05 ? 'ice age: ' + Math.round(ice * 100) + '% of the last glacial maximum, sea level −' + Math.round(125 * Math.min(ice, 1.1)) + ' m' : 'interglacial'} · Earth's orbit e = ${(e.orbitE || 0).toFixed(4)}</div>`; }
+    }
     if (Math.abs(tyr) > 1e5) {
       const ss = solSystem().sunState;
       if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), mo = sol.find('Moon');
@@ -593,6 +599,15 @@ export class UI {
         nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
         nav.S = [0, C.AU * 80, 0]; nav.selected = t; nav.q = Q.look(nav.relTo(t), [0, 1, 0]);
       }
+      return;
+    }
+    if (v.globe) {
+      // a whole-Earth view from ~20,000 km over a given place at early afternoon
+      const t = findByName(nav, v.globe); if (!t || t.type !== 'body') return;
+      const b = t.body; nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null;
+      sol.update(nav.time); nav.setLocalTime(b, v.lon, 13);
+      const la = v.lat * Math.PI / 180, lo = v.lon * Math.PI / 180, d = Q.rot(b.wrot, [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)]);
+      nav.S = V.add(b.wpos, V.mul(d, b.radius * 3.4)); nav.q = Q.look(V.mul(d, -1), Q.rot(b.wrot, [0, 1, 0])); nav.selected = t;
       return;
     }
     if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }

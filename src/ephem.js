@@ -15,16 +15,111 @@ export const JPL = {
   Pluto: [[39.48211675, 0.24882730, 17.14001206, 238.92903833, 224.06891629, 110.30393684], [-0.00031596, 0.00005170, 0.00004818, 145.20780515, -0.04062942, -0.01183482]],
 };
 const AU = 1.495978707e11;
+
+// ---- secular (orbit-averaged) evolution over millions of years: Laplace-Lagrange theory ----
+// The planets slowly twist each other's orbits: perihelia and nodes precess and eccentricities and inclinations
+// trade back and forth in a sum of normal modes (Murray & Dermott ch. 7). The modes are computed here from the
+// masses and semi-major axes alone, plus general relativity's perihelion advance (Mercury's 43"/century).
+// Earth's eccentricity swings between ~0 and ~0.06 with the ~100,000 and 405,000 year periods behind the ice ages.
+const SEC_NAMES = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+const SEC_MASS = [1.6601e-7, 2.4478e-6, 3.0404e-6, 3.2272e-7, 9.5479e-4, 2.8589e-4, 4.3662e-5, 5.1514e-5];   // M_sun (Earth + Moon)
+let SEC = null;
+function laplaceB(j, al) { const N = 256; let s = 0; for (let i = 0; i < N; i++) { const p = 2 * Math.PI * i / N; s += Math.cos(j * p) / Math.pow(1 - 2 * al * Math.cos(p) + al * al, 1.5); } return 2 * s / N; }
+// eigen-decomposition of a symmetric matrix (cyclic Jacobi)
+function jacobi(S) {
+  const n = S.length, A = S.map(r => r.slice()), U = A.map((r, i) => r.map((_, j) => +(i === j)));
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += A[i][j] * A[i][j];
+    if (off < 1e-30) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
+      if (Math.abs(A[p][q]) < 1e-300) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < n; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+      for (let k = 0; k < n; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+      for (let k = 0; k < n; k++) { const ukp = U[k][p], ukq = U[k][q]; U[k][p] = c * ukp - s * ukq; U[k][q] = s * ukp + c * ukq; }
+    }
+  }
+  return { val: A.map((r, i) => r[i]), U };
+}
+function secularInit() {
+  const n = 8, el = SEC_NAMES.map(k => JPL[k][0]), a = el.map(x => x[0]), m = SEC_MASS;
+  const nn = a.map(x => 2 * Math.PI / Math.pow(x, 1.5));       // mean motions, rad/yr
+  const A = a.map(() => new Array(n).fill(0)), B = a.map(() => new Array(n).fill(0));
+  for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) {
+    if (j === k) continue;
+    const al = Math.min(a[j], a[k]) / Math.max(a[j], a[k]), alb = a[j] < a[k] ? al : 1;
+    const f = nn[j] / 4 * m[k] / (1 + m[j]) * al * alb, b1 = laplaceB(1, al), b2 = laplaceB(2, al);
+    A[j][j] += f * b1; A[j][k] = -f * b2; B[j][j] -= f * b1; B[j][k] = f * b1;
+  }
+  // general relativity: 3 GM n / (c^2 a (1 - e^2))
+  for (let j = 0; j < n; j++) A[j][j] += 3 * 9.8706e-9 / (a[j] * (1 - el[j][1] ** 2)) * nn[j];
+  // symmetrize with the angular momentum weights sqrt(m sqrt(a)), then solve the two eigenproblems
+  const d = a.map((x, j) => Math.sqrt(m[j] * Math.sqrt(x)));
+  const sym = (M) => M.map((r, j) => r.map((v, k) => d[j] * v / d[k])).map((r, j, R) => r.map((v, k) => 0.5 * (v + R[k][j])));
+  const modes = (M, x0, y0) => {
+    const { val, U } = jacobi(sym(M));
+    // initial amplitudes: X = U^T D x0
+    const X = val.map((_, i) => U.reduce((s, row, j) => s + row[i] * d[j] * x0[j], 0)), Y = val.map((_, i) => U.reduce((s, row, j) => s + row[i] * d[j] * y0[j], 0));
+    const V = U.map((row, j) => row.map(u => u / d[j]));    // eigenvectors of M
+    return { g: val, V, X, Y };
+  };
+  const D = (x) => x * D2R;
+  SEC = {
+    e: modes(A, el.map(x => x[1] * Math.sin(D(x[4]))), el.map(x => x[1] * Math.cos(D(x[4])))),
+    i: modes(B, el.map(x => Math.sin(D(x[2])) * Math.sin(D(x[5]))), el.map(x => Math.sin(D(x[2])) * Math.cos(D(x[5])))),
+  };
+}
+let secT = NaN, secR = null;
+// h = e sin(perihelion longitude), k = e cos(..), p = sin I sin(node), q = sin I cos(node), at t years from J2000
+export function secularAt(t) {
+  if (t === secT) return secR;
+  if (!SEC) secularInit();
+  const out = { h: new Array(8).fill(0), k: new Array(8).fill(0), p: new Array(8).fill(0), q: new Array(8).fill(0) };
+  for (const [key, x, y] of [['e', 'h', 'k'], ['i', 'p', 'q']]) {
+    const M = SEC[key];
+    for (let i = 0; i < 8; i++) {
+      const c = Math.cos(M.g[i] * t), s = Math.sin(M.g[i] * t), sx = M.X[i] * c + M.Y[i] * s, sy = M.Y[i] * c - M.X[i] * s;
+      for (let j = 0; j < 8; j++) { out[x][j] += M.V[j][i] * sx; out[y][j] += M.V[j][i] * sy; }
+    }
+  }
+  secT = t; secR = out; return out;
+}
+export const secularModes = () => { if (!SEC) secularInit(); return SEC; };
+// Earth's eccentricity and longitude of perihelion (deg, J2000 ecliptic) at t years
+let joinP = null, joinM = null;
+export function earthOrbitAt(t) {
+  const T = t / 100, Ts = Math.max(-50, Math.min(50, T)), e0 = JPL.Earth[0], r = JPL.Earth[1];
+  let e = e0[1] + r[1] * Ts, w = (e0[4] + r[4] * Ts) * D2R, h = e * Math.sin(w), k = e * Math.cos(w);
+  if (T !== Ts) {
+    // (Earth only: called ~100,000 times when the ice-age history is built)
+    const M = secularModes().e, hk = (tt) => { let a = 0, b = 0; for (let i = 0; i < 8; i++) { const c = Math.cos(M.g[i] * tt), s = Math.sin(M.g[i] * tt), v = M.V[2][i]; a += v * (M.X[i] * c + M.Y[i] * s); b += v * (M.Y[i] * c - M.X[i] * s); } return [a, b]; };
+    const s1 = hk(t), s0 = Ts > 0 ? (joinP || (joinP = hk(5000))) : (joinM || (joinM = hk(-5000))); h += s1[0] - s0[0]; k += s1[1] - s0[1];
+  }
+  return { e: Math.hypot(h, k), varpi: Math.atan2(h, k) / D2R };
+}
 // t: seconds since J2000 (UTC); returns heliocentric position (m) in the J2000 ecliptic frame, engine axes (y = north)
 export function planetPos(name, t) {
   const el = JPL[name]; if (!el) return null;
   const T = (t + 69.2) / (36525 * 86400);
   const [e0, r] = el;
-  // the secular rates are fits to a few centuries: beyond +-50 centuries hold the slowly varying elements fixed
-  // (the mean longitude keeps advancing); long-term changes are handled by the evolution model
+  // the secular rates are fits to a few centuries: they are used out to +-50 centuries
   const Ts = Math.max(-50, Math.min(50, T));
-  const a = (e0[0] + r[0] * Ts) * AU, e = e0[1] + r[1] * Ts, I = (e0[2] + r[2] * Ts) * D2R, w = e0[4] + r[4] * Ts, O = (e0[5] + r[5] * Ts) * D2R;
-  const L = e0[3] + r[3] * T + (r[4] * (T - Ts));
+  const a = (e0[0] + r[0] * Ts) * AU;
+  let e = e0[1] + r[1] * Ts, I = (e0[2] + r[2] * Ts) * D2R, w = e0[4] + r[4] * Ts, O = (e0[5] + r[5] * Ts) * D2R;
+  // further out, the Laplace-Lagrange secular solution carries the orbits' slow changes (continuous at the join)
+  const si = SEC_NAMES.indexOf(name);
+  if (T !== Ts && si >= 0) {
+    const s1 = secularAt(T * 100), s0 = secularAt(Ts * 100);
+    const h = e * Math.sin(w * D2R) + s1.h[si] - s0.h[si], k = e * Math.cos(w * D2R) + s1.k[si] - s0.k[si];
+    const p = Math.sin(I) * Math.sin(O) + s1.p[si] - s0.p[si], q = Math.sin(I) * Math.cos(O) + s1.q[si] - s0.q[si];
+    const wn = Math.atan2(h, k) / D2R;
+    e = Math.min(Math.hypot(h, k), 0.9); I = Math.asin(Math.min(Math.hypot(p, q), 1)); O = Math.atan2(p, q);
+    // the mean longitude carries on at the mean motion; the mean anomaly is measured from the moving perihelion
+    return keplerPos(a, e, I, O, wn, e0[3] + r[3] * T);
+  }
+  return keplerPos(a, e, I, O, w, e0[3] + r[3] * T + (r[4] * (T - Ts)));
+}
+function keplerPos(a, e, I, O, w, L) {
   const argp = w * D2R - O;
   let M = (((L - w) % 360) + 360) % 360 * D2R;
   let E = M; for (let i = 0; i < 12; i++) { const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); E -= dE; if (Math.abs(dE) < 1e-13) break; }
@@ -122,4 +217,23 @@ export function iauNode(ra, dec) {
   const a = ra * D2R;
   // Q = z_eq x pole = direction (RA = ra + 90 deg, Dec = 0)
   return eqToEngine(ra + 90, 0);
+}
+// the same on a uniform time grid (fast: the normal modes are advanced by rotation, not re-evaluated)
+export function earthOrbitGrid(t0, dt, n) {
+  const M = secularModes().e, v = M.V[2], E = new Float64Array(n), W = new Float64Array(n);
+  const c = M.g.map(g => Math.cos(g * t0)), sn = M.g.map(g => Math.sin(g * t0)), cd = M.g.map(g => Math.cos(g * dt)), sd = M.g.map(g => Math.sin(g * dt));
+  const ref = (tt) => earthOrbitAt(tt), jp = ref(5000), jm = ref(-5000), hk = (tt) => { let a = 0, b = 0; for (let i = 0; i < 8; i++) { const cc = Math.cos(M.g[i] * tt), ss = Math.sin(M.g[i] * tt); a += v[i] * (M.X[i] * cc + M.Y[i] * ss); b += v[i] * (M.Y[i] * cc - M.X[i] * ss); } return [a, b]; };
+  const sp = hk(5000), sm = hk(-5000);
+  for (let j = 0; j < n; j++) {
+    const t = t0 + j * dt;
+    if (Math.abs(t) <= 5000) { const o = earthOrbitAt(t); E[j] = o.e; W[j] = o.varpi; }
+    else {
+      let a = 0, b = 0; for (let i = 0; i < 8; i++) { a += v[i] * (M.X[i] * c[i] + M.Y[i] * sn[i]); b += v[i] * (M.Y[i] * c[i] - M.X[i] * sn[i]); }
+      const J = t > 0 ? jp : jm, s0 = t > 0 ? sp : sm, w = J.varpi * D2R;
+      const h = J.e * Math.sin(w) + a - s0[0], k = J.e * Math.cos(w) + b - s0[1];
+      E[j] = Math.hypot(h, k); W[j] = Math.atan2(h, k) / D2R;
+    }
+    for (let i = 0; i < 8; i++) { const x = c[i] * cd[i] - sn[i] * sd[i]; sn[i] = sn[i] * cd[i] + c[i] * sd[i]; c[i] = x; }
+  }
+  return { E, W };
 }

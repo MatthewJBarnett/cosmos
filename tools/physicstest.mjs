@@ -136,5 +136,24 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
 {
   check('Betelgeuse supernova peak from Earth (mag)', -17.1 + 5 * Math.log10(168 / 10), '~ -10 to -11 (estimates)', (v) => v > -12 && v < -9.5);
 }
+// --- secular orbital evolution and ice ages ---
+{
+  const eph = await imp('ephem.js'); const S = eph.secularModes(), AS = 180 / Math.PI * 3600;
+  const g = S.e.g.map(x => x * AS).sort((a, b) => a - b), s = S.i.g.map(x => x * AS).sort((a, b) => a - b);
+  // Laplace-Lagrange frequencies (Brouwer & van Woerkom 1950, without the Jupiter-Saturn great inequality terms)
+  check('Secular g3 ("/yr)', g.find(x => x > 16 && x < 17.7), '17.33 (Brouwer & van Woerkom)', 0.3);
+  check('Secular g4 ("/yr)', g.find(x => x > 17.7 && x < 19), '18.00', 0.3);
+  check('Secular g7 ("/yr)', g[1], '2.72', 0.1); check('Secular g8 ("/yr)', g[0], '0.63', 0.05);
+  check('Secular s3 ("/yr)', s.find(x => x < -18 && x > -19.5), '-18.74', 0.3);
+  let mn = 1, mx = 0; for (let t = -3e6; t < 3e6; t += 1000) { const e = eph.earthOrbitAt(t).e; mn = Math.min(mn, e); mx = Math.max(mx, e); }
+  check("Earth's eccentricity range", mx, '0 - 0.06 (Laskar et al. 2004: 0.0002 - 0.058)', (v) => v > 0.045 && v < 0.07 && mn < 0.005);
+  check('Summer insolation at 65 N today (W/m²)', evo.insolation65(0), '~477 W/m² (Berger 1978)', 6);
+  check('Insolation 11,000 yr ago (W/m²)', evo.insolation65(-11000), '~520-530 W/m² (early Holocene maximum)', 15);
+  let tm = 0, vm = 0; for (let t = -40000; t < 0; t += 500) { const v = evo.iceAge(t); if (v > vm) { vm = v; tm = t; } }
+  check('Last Glacial Maximum (kyr ago)', -tm / 1000, '19-26.5 kyr (Clark et al. 2009)', (v) => v > 16 && v < 27);
+  let tEnd = 0; for (let t = tm; t < 0; t += 500) if (evo.iceAge(t) < 0.05) { tEnd = t; break; }
+  check('Northern ice sheets gone (kyr ago)', -tEnd / 1000, '~7-9 kyr', (v) => v > 6 && v < 11);
+  check('Eemian interglacial ice (125 kyr ago)', evo.iceAge(-125000), '~0 (sea level a few m above today)', 0.15);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -106,6 +106,10 @@ export class Program {
   }
 }
 
+export function unbindTextures(n = 16) {
+  for (let u = 0; u < n; u++) { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(gl.TEXTURE_2D, null); }
+  gl.activeTexture(gl.TEXTURE0);
+}
 export function tex2D(w, h, internal, format, type, filter, wrap, data = null) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);

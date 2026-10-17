@@ -133,6 +133,16 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   obliquity cycle; tidal recession of the Moon (total solar eclipses end in ~600 Myr) and the lengthening day;
   a brightening Sun dries the oceans (exposing the real sea floor), kills the biosphere and, near the red
   giant tip, heats rock until it glows (Mars too).
+- **Orbits over millions of years and ice ages:** beyond ±5,000 years the planets' orbits follow Laplace-Lagrange
+  secular theory, solved at load from the masses and orbit sizes (plus general relativity): perihelia and nodes
+  precess and eccentricities trade back and forth (Earth's swings between ~0 and 0.06). Midsummer sunlight at
+  65° N from the orbit, tilt and precession drives an ice volume model (Imbrie & Imbrie 1980): ice sheets spread
+  over Canada and Scandinavia to their Last Glacial Maximum limits and the sea falls up to 125 m, exposing the
+  real continental shelves (Beringia, Doggerland, Sundaland). It peaks 18,000 years ago and is clear by 9,000
+  years ago, close to the real record. The next glaciation comes ~58,000 years from now (held off for 50,000
+  years by human CO₂).
+- **Time-lapse at a planet:** at fast rates the clock advances in whole days (and, faster still, whole orbits),
+  like a camera taking one photo per night, so the lit face holds still instead of strobing.
 - **Andromeda:** M31's orbit (765 kpc, −109 km/s, dynamical friction) gives a first passage at 3.7 Gyr
   (35 kpc), a second at 5.2 Gyr and a merger at 5.9 Gyr, close to van der Marel et al. 2012. From 2.6 Gyr the
   two galaxies are a 65,536 particle restricted N-body simulation on the GPU (leapfrog, time reversible); the
@@ -267,7 +277,8 @@ figure-eight choreography, tidal disruption (half the debris bound, first fallba
   statistical model: the density stays right, individual stars are not followed for billions of years).
 - Supernova dates for Betelgeuse (100,000 yr) and Antares (600,000 yr) are estimates; their real dates are unknown.
   Procedural massive stars use lifetimes from 4 to 35 Myr by luminosity class.
-- Sandbox: post-Newtonian terms act between compact objects only; black holes are non-spinning during the inspiral;
+- Sandbox: post-Newtonian terms act between compact objects only; black hole spins are kept aligned with the orbit (1.5PN spin-orbit
+  coupling, no precession);
   the merger is handed to numerical relativity fits at 5.5 GM/c²; the merger-ringdown waveform is a smooth
   phenomenological join to the quasi-normal mode. Tidal debris is Newtonian test particles; returning debris is
   counted as accreted at pericentre (stream collisions and disk formation are not simulated).

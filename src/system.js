@@ -7,8 +7,8 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq } from './evolution.js';
-import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge } from './evolution.js';
+import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt } from './ephem.js';
 
 const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
@@ -287,6 +287,8 @@ export class StarSystem {
         const P = earthDay(tyr); b.rotPeriod = P;
         b.rotAngle = (b.rot0 || 0) + 2 * Math.PI * (((t / P) % 1) + 1);
         b.climate = earthClimate(tyr);
+        // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
+        b.iceAge = iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
       }
       if (b.seasonal && this.stars[0]) {
         // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)

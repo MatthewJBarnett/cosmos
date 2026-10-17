@@ -4,6 +4,7 @@
 // horizontal branch, asymptotic giant branch with thermal pulses, ejection of a planetary nebula and a cooling
 // carbon-oxygen white dwarf of 0.54 M_sun. Mass loss widens planetary orbits (a * M = const for slow loss).
 import { clamp } from './math.js';
+import { earthOrbitAt, earthOrbitGrid } from './ephem.js';
 
 export const SUN_AGE_NOW = 4.57;   // Gyr at J2000
 // [age Gyr, L/Lsun, R/Rsun, M/Msun]
@@ -105,3 +106,53 @@ export function planetTeq(name, tyr, albedo = 0.3, aAU) {
   const s = sunState(tyr), a = aAU * orbitScale(tyr);
   return 278.6 * Math.pow(s.L * (1 - albedo) / (a * a), 0.25);
 }
+
+// ---- ice ages ----
+// Milankovitch forcing: midsummer daily insolation at 65 N from the orbit (eccentricity and perihelion from the
+// secular theory, precession of the equinoxes, obliquity). Ice volume follows the Imbrie & Imbrie (1980) model:
+// it relaxes towards the forcing, growing slowly (~42,000 yr) and melting fast (~10,600 yr). Northern ice sheets
+// began ~2.7 million years ago; the cycles were smaller before the mid-Pleistocene transition (~1 Myr ago).
+// Human CO2 is expected to delay the next glaciation by ~50,000-100,000 yr (Berger & Loutre 2002, Ganopolski et
+// al. 2016): growth is held off for the first 50,000 years.
+export function insolation65(tyr, orb) {
+  const { e, varpi } = orb || earthOrbitAt(tyr);
+  // longitude of perigee of the Sun measured from the moving equinox
+  const wq = (varpi + 180) * Math.PI / 180 + P_PREC * tyr, eps = obliquity(tyr), phi = 65 * Math.PI / 180;
+  const rr = (1 + e * Math.cos(Math.PI / 2 - wq)) / (1 - e * e);          // a/r at the June solstice
+  const H0 = Math.acos(clamp(-Math.tan(phi) * Math.tan(eps), -1, 1));
+  return 1361 / Math.PI * rr * rr * (H0 * Math.sin(phi) * Math.sin(eps) + Math.cos(phi) * Math.cos(eps) * Math.sin(H0));
+}
+const ICE_T0 = -3.0e6, ICE_T1 = 10e6, ICE_DT = 500;
+let iceTab = null, iceRef = null;
+function iceInit() {
+  const n = Math.round((ICE_T1 - ICE_T0) / ICE_DT) + 1;
+  const Q = new Float32Array(n), G = earthOrbitGrid(ICE_T0, ICE_DT, n); let m = 0;
+  for (let i = 0; i < n; i++) { Q[i] = insolation65(ICE_T0 + i * ICE_DT, { e: G.E[i], varpi: G.W[i] }); m += Q[i]; }
+  m /= n; let sd = 0; for (let i = 0; i < n; i++) sd += (Q[i] - m) ** 2; sd = Math.sqrt(sd / n);
+  iceTab = new Float32Array(n);
+  let v = 0;
+  for (let i = 0; i < n; i++) {
+    const t = ICE_T0 + i * ICE_DT;
+    let x = -(Q[i] - m) / sd;
+    if (t > 0 && t < 5e4) x = Math.min(x, v);            // anthropogenic CO2: no new ice for now
+    const tau = 17000 / (x > v ? 1 - 0.6 : 1 + 0.6);     // grows slowly, melts fast
+    v += (x - v) * ICE_DT / tau;
+    iceTab[i] = v;
+  }
+  // calibrate: today's interglacial is 0, the Last Glacial Maximum (~21,000 yr ago) is 1 (sea level -125 m)
+  const at = (t) => iceTab[Math.round((t - ICE_T0) / ICE_DT)];
+  let lgm = -1e9; for (let t = -30000; t <= -15000; t += ICE_DT) lgm = Math.max(lgm, at(t));
+  iceRef = [at(0), lgm];
+}
+// ice volume relative to the Last Glacial Maximum (0 = today, 1 = LGM)
+export function iceAge(tyr) {
+  if (tyr < ICE_T0 || tyr > ICE_T1 - 1) return 0;
+  if (!iceTab) iceInit();
+  const f = (tyr - ICE_T0) / ICE_DT, i = Math.floor(f), w = f - i;
+  const v = iceTab[i] * (1 - w) + iceTab[Math.min(i + 1, iceTab.length - 1)] * w;
+  let ice = clamp((v - iceRef[0]) / (iceRef[1] - iceRef[0]), 0, 1.2);
+  ice *= clamp((tyr + 2.9e6) / 3e5, 0, 1) * (tyr < -1.2e6 ? 0.55 : tyr < -0.8e6 ? 0.55 + 0.45 * (tyr + 1.2e6) / 4e5 : 1);
+  return ice * clamp((ICE_T1 - tyr) / 3e6, 0, 1);
+}
+// the first time after t0 when the ice sheets pass a given fraction of their last-glacial-maximum volume
+export function nextGlacial(t0, level = 0.5) { for (let t = t0; t < ICE_T1; t += ICE_DT) if (iceAge(t) >= level) return t; return null; }

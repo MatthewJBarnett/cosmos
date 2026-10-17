@@ -5,7 +5,7 @@ import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
 import { galDir } from './universe.js';
 import { EXTRA_STARS } from './realsystems.js';
 import { orbitEvents, R0, V0 } from './lgorbit.js';
-import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed } from './evolution.js';
+import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed, nextGlacial } from './evolution.js';
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
 export const nowYr = () => (Date.now() - J2000) / 1000 / YEAR;     // years since J2000 of the real present
@@ -71,6 +71,8 @@ export function buildEvents() {
   add({ id: 'barnard', maxRate: 300000.0, t: bar.t, title: "Barnard's Star at its closest", text: `The fastest moving star in our sky passes ${(bar.d * 3.2616).toFixed(2)} light years from the Sun, then recedes.`, view: { star: "Barnard's Star", from: 'sun' }, rate: YEAR * 300 });
   add({ id: 'vega', maxRate: 300000.0, t: 11727, title: 'Vega is the pole star', text: 'Precession of Earth\'s axis (a 25,772 year cycle) brings the north celestial pole within 4° of Vega.', view: { pole: true }, rate: YEAR * 50 });
   add({ id: 'acen', maxRate: 300000.0, t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });
+  const gl = nextGlacial(now + 1000, 0.5);
+  if (gl) add({ id: 'iceage', hold: 8, maxRate: 3000000.0, t: gl, est: true, title: 'The next ice age', text: 'Milankovitch cycles: with Earth\'s orbit, tilt and precession lined up for cool northern summers, winter snow stops melting. Ice sheets spread over Canada and Scandinavia and the sea falls tens of metres, joining Asia to Alaska. (Human CO₂ is expected to have delayed it by tens of thousands of years.)', view: { globe: 'Earth', lat: 50, lon: -80 }, rate: YEAR * 2000 });
   add({ id: 'betelgeuse', hold: 25, maxRate: 300000.0, t: 1e5, est: true, title: 'Betelgeuse explodes', text: 'The red supergiant in Orion ends as a core collapse supernova. From 168 parsecs it outshines the half Moon for months and stays visible in daylight. (The star itself exploded about 500 years earlier: that is how long the light takes to reach us.)', view: { star: 'Betelgeuse', from: 'earth' }, rate: 86400 * 6 });
   add({ id: 'antares', hold: 25, maxRate: 3000000.0, t: 6e5, est: true, title: 'Antares explodes', text: 'The heart of the Scorpion, a red supergiant 170 parsecs away, becomes a supernova.', view: { star: 'Antares', from: 'earth' }, rate: 86400 * 6 });
   add({ id: 'g710', hold: 8, maxRate: 3000000.0, t: g710.t, title: 'Gliese 710 passes through the Oort cloud', text: `An orange dwarf passes ${Math.round(g710.d * 206265).toLocaleString('en')} AU from the Sun, shining at magnitude −2.7, and perturbs comets towards the planets.`, view: { star: 'Gliese 710', from: 'sun' }, rate: YEAR * 2000 });
