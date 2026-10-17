@@ -576,7 +576,7 @@ export class UI {
       return;
     }
     if (v.body) { const t = findByName(nav, v.body); if (t) { nav.selected = t; nav.goTo(t, v.far ? { dist: C.AU * 3 } : {}); } return; }
-    if (v.land) { const t = findByName(nav, v.land); if (t && t.type === 'body') { nav.landAt(t.body, 10, -60, { hour: v.hour || 12 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: sol.find('Sun') }; }; } return; }
+    if (v.land) { const t = findByName(nav, v.land); if (t && t.type === 'body') { nav.landAt(t.body, 10, -60, { hour: v.hour || 12 }); nav.onArrive = () => { nav.lookTarget = { type: 'body', body: sol.find('Sun') }; nav.fov = 80 * Math.PI / 180; }; } return; }
     if (v.pn) {
       // from about a parsec away, looking back at the Sun (later than the jump point so the shell is lit). After the
       // Andromeda encounter the Sun's position comes from the N-body tracer, so fly there rather than placing the camera
