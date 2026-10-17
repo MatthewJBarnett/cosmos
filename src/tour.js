@@ -32,6 +32,9 @@ export const STOPS = [
   { title: 'The last ice age', text: '20,000 years ago ice sheets covered Canada and northern Europe and the sea was 120 m lower. The cycles of Earth\'s orbit and tilt, computed from the planets\' mutual pull, pace the ice ages. Watch the ice retreat.',
     run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); nav.time = -20500 * 31557600; nav.paused = false; nav.rate = 31557600 * 600;
       ui.eventView({ title: 'The last ice age', text: '', view: { globe: 'Earth', lat: 50, lon: -88 } }); ui.caption(null); }, wait: 14 },
+  { title: 'Pangaea breaks apart', text: '250 million years ago every continent was one, with deserts across its heart. The maps are the PALEOMAP reconstructions; land cover comes from the climate of each epoch. Time runs at 5 million years a second: watch the Atlantic open.',
+    run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); nav.time = -2.5e8 * 31557600; nav.paused = false; nav.rate = 31557600 * 5e6;
+      ui.eventView({ title: 'Pangaea', text: '', view: { globe: 'Earth', lat: 10, lon: 10 } }); ui.caption(null); nav.rate = 31557600 * 5e6; }, wait: 16 },
   { title: 'Earthrise', text: 'From the lunar surface near the limb, Earth hangs low over the horizon. Earthshine lights the night side of the Moon.',
     run: (nav) => { nav.paused = false; nav.rate = 1; nav.time = iso('2024-05-15T12:00:00Z'); const m = body(nav, 'Moon'); nav.landAt(m, 5, 84, {});
       nav.onArrive = () => { nav.lookTarget = { type: 'body', body: body(nav, 'Earth') }; nav.fov = 0.3; }; } },
@@ -39,6 +42,9 @@ export const STOPS = [
     run: (nav) => { nav.landAt(body(nav, 'Mars'), -8, -75, { hour: 16.8 }); } },
   { title: 'Total lunar eclipse, 14 March 2025', text: 'The Moon in Earth\'s shadow is lit only by sunlight bent through Earth\'s atmosphere, every sunrise and sunset at once, so it glows red.',
     run: (nav) => { nav.time = iso('2025-03-14T06:30:00Z'); const ui = window.cosmos && window.cosmos.ui; if (ui) ui.goNextEclipse(); } },
+  { title: 'Mars, July 2018', text: 'A global dust storm, the one that ended the Opportunity rover: dust lifted near perihelion hides the whole planet for months; only the Tharsis volcanoes stand above it.',
+    run: (nav, ui) => { ui.sbui.panel.classList.add('hidden'); nav.paused = false; nav.rate = 1; nav.time = iso('2018-07-15T00:00:00Z'); const m = body(nav, 'Mars');
+      nav.selected = { type: 'body', body: m }; nav.goTo(nav.selected, { dist: m.radius * 3.4, sunAngle: 0.4 }); }, wait: 10 },
   { title: 'Jupiter', text: 'Io, Europa, Ganymede and Callisto are placed from their real orbital theory.',
     run: (nav) => { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; nav.goTo(findByName(nav, 'Jupiter')); } },
   { title: 'Saturn, 2017', text: 'Cassini ring transparency, ring shadow on the globe and the planet\'s shadow on the rings.',
