@@ -33,6 +33,8 @@ export const PRESETS = [
     setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉)', n2: 'Black hole B (29 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
   { id: 'unequal', name: 'Unequal black holes (8 : 1)', text: 'A 40 and a 5 solar mass black hole. Unequal masses radiate momentum asymmetrically: the remnant is kicked at tens of km/s.',
     setup(sim) { const a = separationForTime(40 * MSUN, 5 * MSUN, 10); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, a, { n1: 'Black hole (40 M☉)', n2: 'Black hole (5 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
+  { id: 'headon', name: 'Two black holes released from rest', text: 'Two 30 solar mass black holes 20,000 km apart, at rest. They fall straight together and merge head-on: with no orbital angular momentum only ~0.06% of the mass is radiated and the remnant does not spin.',
+    setup(sim) { const d = 2e7; sim.add(makeBody('bh', 30 * MSUN, [-d / 2, 0, 0], [0, 0, 0], { name: 'Black hole A (30 M☉)' })); sim.add(makeBody('bh', 30 * MSUN, [d / 2, 0, 0], [0, 0, 0], { name: 'Black hole B (30 M☉)' })); return { rate: 0.25, scale: d * 0.6, grid: true }; } },
   { id: 'eccentric', name: 'Eccentric black hole binary', text: 'Two 20 solar mass black holes on an eccentric orbit. General relativity turns the ellipse into a rosette (periastron precession), and each close passage emits a burst of gravitational waves before the orbit circularises.',
     setup(sim) { const rp = 1000e3; binary(sim, 'bh', 20 * MSUN, 'bh', 20 * MSUN, rp, { n1: 'Black hole A (20 M☉)', n2: 'Black hole B (20 M☉)', e: 0.6 }); return { rate: 0.25, scale: rp * 2.5, grid: true }; } },
   { id: 'gw170817', name: 'Neutron star merger (like GW170817)', text: 'Neutron stars of 1.46 and 1.27 solar masses spiral in at a third of the speed of light. The merger collapses to a black hole and throws out a kilonova.',
@@ -81,7 +83,7 @@ export const PRESETS = [
       return { rate: 300, scale: 4e9, grid: true };
     } },
   { id: 'empty', name: 'Empty space (place your own)', text: 'Choose a body type and mass, then click to place it. Drag while placing to give it a velocity; a plain click puts it on a circular orbit.',
-    setup(sim) { return { rate: 1, scale: 1e7, grid: true }; } },
+    setup(sim) { return { rate: 1, scale: 2e6, grid: true }; } },
 ];
 
 // ---------- the sandbox "star system" ----------
