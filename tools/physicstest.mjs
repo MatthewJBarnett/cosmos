@@ -110,6 +110,13 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
     check('MW-M31 turnaround (Gyr ago)', P.turn / 1e3, '~5 Gyr (timing argument, Li & White 2008)', (v) => v > 4 && v < 7);
     check('MW-M31 separation at turnaround (kpc)', P.rTurn, '~1000 kpc', (v) => v > 900 && v < 1200, ' kpc');
     check('MW-M31 together near the Big Bang (kpc)', near, '< 100 kpc', (v) => v < 100, ' kpc'); }
+  { const g = (t) => evo.geomagnetic(t);
+    check('Magnetic polarity: today / Jaramillo (1.0 Myr) / Matuyama (2.0 Myr)', [g(26).normal, g(-1.0e6).normal, g(-2.0e6).normal].join(' '), 'true true false', (v) => v === 'true true false');
+    check('Laschamp excursion field strength (41 kyr ago)', g(-41000).B, '~0.05-0.1 of today', (v) => v < 0.15);
+    check('Solar cycle 19 (1958) vs cycle 24 (2014) strength', evo.solarActivity(-41.8) / evo.solarActivity(14.3), '~2.5 (SSN 285 vs 116)', (v) => v > 2 && v < 3);
+    check('Maunder minimum activity (1680)', evo.solarActivity(-320), '~0', (v) => v < 0.05); }
+  check('LMC merges with the Milky Way (Gyr)', lgo.LMC_ORBIT.merged / 1e3, '2.4 +- 0.8 (Cautun et al. 2019)', (v) => v > 1.6 && v < 3.2);
+  check('LMC distance 1.5 Gyr ago (kpc)', Math.hypot(...lgo.lmcAt(-1500)), '> 200 (first infall)', (v) => v > 200, ' kpc');
   check("Sun's vertical period (Myr)", gd.SUN_ORBIT.verticalYr / 1e6, '~70-90 Myr', (v) => v > 60 && v < 95);
 }
 // --- the Sun's life ---

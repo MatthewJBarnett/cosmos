@@ -237,3 +237,67 @@ export function earthLife(tyr, clim) {
 }
 // the Chicxulub impact: 66.043 Myr ago (Renne et al. 2013); the hour is unknown, so it is set to early afternoon on Yucatan
 export const KPG_YR = -66.043e6 - 0.00128262;
+
+// Earth's magnetic field through time. The geomagnetic polarity timescale (Cande & Kent 1995, Ogg 2012) for the
+// last 5.2 Myr: normal-polarity intervals (Myr ago); between them the field points the other way. The Laschamp
+// excursion (41 kyr ago) nearly switched it off for about a thousand years; the Cretaceous Normal Superchron
+// (121-83.6 Myr ago) had no reversals at all. Elsewhere reversals come at random, ~4 per Myr. During a reversal the
+// field drops to ~10% for a few thousand years and the auroral ovals spread towards the equator.
+const NORMAL = [[0, 0.773], [0.99, 1.07], [1.78, 1.95], [2.58, 3.04], [3.11, 3.22], [3.33, 3.58], [4.19, 4.30], [4.49, 4.63], [4.80, 4.89], [4.99, 5.23]];
+const CHRONS = [[0.773, 'Brunhes'], [2.58, 'Matuyama'], [3.58, 'Gauss'], [6.03, 'Gilbert']];
+const hash01 = (n) => { let h = (n * 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d) >>> 0; h ^= h >>> 12; return (h >>> 0) / 4294967296; };
+// random chrons of mean length ~L Myr between a known epoch m0 (polarity normal0) and m (Myr ago; negative = future):
+// cells of 0.4 L Myr each hold a reversal at a random point with probability 0.4
+function randomPolarity(m, L, m0, normal0) {
+  const cell = 0.4 * L, lo = Math.min(m, m0), hi = Math.max(m, m0);
+  const at = (j) => hash01(j + 7919) < 0.4 ? (j + hash01(j * 31 + 5)) * cell : null;
+  let flips = 0, near = Infinity;
+  for (let j = Math.floor(lo / cell); j <= Math.floor(hi / cell); j++) { const tb = at(j); if (tb !== null && tb > lo && tb < hi) flips++; }
+  for (let j = Math.floor(m / cell) - 1; j <= Math.floor(m / cell) + 1; j++) { const tb = at(j); if (tb !== null) near = Math.min(near, Math.abs(tb - m)); }
+  return { normal: (flips % 2 === 0) === normal0, near };
+}
+export function geomagnetic(tyr) {
+  const m = -tyr / 1e6;
+  let normal, near = Infinity, chron = '';
+  if (m >= -0.02 && m < 5.23) {
+    const mm = Math.max(m, 0);
+    normal = NORMAL.some(([a, b]) => mm >= a && mm < b);
+    for (const [a, b] of NORMAL) { near = Math.min(near, Math.abs(m - a) + (a === 0 ? 1 : 0), Math.abs(m - b)); }
+    for (const [b, n] of CHRONS) if (m < b) { chron = n + ' chron'; break; }
+  } else if (m > 83.6 && m < 121) { normal = true; near = Math.min(m - 83.6, 121 - m); chron = 'Cretaceous Normal Superchron'; }
+  else {
+    // (the future starts from today's normal field; the past continues from the Gilbert chron, reversed, at 5.23 Myr)
+    const r = m < 0 ? randomPolarity(m, 0.3, 0, true) : m < 83.6 ? randomPolarity(m, 0.25, 5.23, false) : randomPolarity(m, 0.4, 121, true);
+    normal = r.normal; near = r.near;
+  }
+  // field strength: ~10% while reversing (transitions take ~5 kyr), Laschamp excursion ~41 kyr ago
+  let B = 0.1 + 0.9 * Math.min(1, near / 0.004);
+  const las = Math.abs(m - 0.041); if (las < 0.0015) B = Math.min(B, 0.06 + 0.94 * las / 0.0015);
+  // (the present field, weakening ~5% a century, is ~1.0 by definition)
+  return { normal, B, chron, reversing: B < 0.5 };
+}
+
+// The Sun's activity. Smoothed sunspot-number maxima of the observed cycles (SILSO v2; cycle 1 peaked in 1761), from
+// which each cycle's strength is interpolated; the Maunder (1645-1715), Sporer (1460-1550) and Wolf (1280-1350) minima,
+// known from tree-ring carbon-14, had almost none. Other cycles get a random strength. Returns 0..~1.6 (1 = typical).
+const CYCLES = [[1755.2, 1761.5, 144], [1766.5, 1769.7, 193], [1775.5, 1778.4, 264], [1784.7, 1788.1, 235], [1798.3, 1805.2, 82],
+  [1810.6, 1816.4, 81], [1823.3, 1829.9, 119], [1833.9, 1837.2, 245], [1843.5, 1848.1, 219], [1856.0, 1860.1, 186], [1867.2, 1870.6, 234],
+  [1878.9, 1883.9, 124], [1889.6, 1894.1, 147], [1901.7, 1906.2, 107], [1913.6, 1917.6, 176], [1923.6, 1928.4, 130], [1933.8, 1937.4, 198],
+  [1944.2, 1947.5, 219], [1954.3, 1958.2, 285], [1964.9, 1968.9, 157], [1976.5, 1979.9, 233], [1986.8, 1989.6, 213], [1996.4, 2001.9, 180],
+  [2008.9, 2014.3, 116], [2019.95, 2024.8, 160]];
+export function solarActivity(tyr) {
+  const y = 2000 + tyr;
+  let start, peak, amp, len;
+  const i = CYCLES.findIndex((c, k) => y >= c[0] && (k === CYCLES.length - 1 || y < CYCLES[k + 1][0]));
+  if (i >= 0 && (i < CYCLES.length - 1 || y < 2031)) { [start, peak, amp] = CYCLES[i]; len = i < CYCLES.length - 1 ? CYCLES[i + 1][0] - start : 11.0; }
+  else {
+    // outside the record: cycles of 9-13 years with random strengths
+    const n = Math.floor((y - 2031) / 11), u = hash01(n + 100003);
+    start = 2031 + n * 11; len = 11; peak = start + 4.2; amp = 60 + 200 * u * u;
+    if ((y > 1645 && y < 1715) || (y > 1460 && y < 1550) || (y > 1280 && y < 1350)) amp = 4;
+  }
+  const x = (y - start) / len, xp = (peak - start) / len;
+  // rise to the peak faster than the decline (Waldmeier effect)
+  const shape = x < xp ? Math.sin(Math.PI / 2 * x / xp) ** 2 : Math.cos(Math.PI / 2 * (x - xp) / (1 - xp)) ** 2;
+  return amp / 180 * shape;
+}

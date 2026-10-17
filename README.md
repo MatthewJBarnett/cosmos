@@ -142,7 +142,7 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **The Sun's life:** a solar evolutionary track (Sackmann et al. 1993; Schröder & Smith 2008): brightening on
   the main sequence, subgiant, red giant tip at 256 R☉ and 2,700 L☉, the helium flash, horizontal branch,
   AGB, a planetary nebula lit by the contracting core, and a cooling white dwarf. Mass loss widens the planets'
-  orbits; Mercury, Venus and Earth are engulfed. The 11-year activity cycle changes sunspots and aurorae.
+  orbits; Mercury, Venus and Earth are engulfed. Before 4.57 Gyr ago there is no Sun, only its birth cloud.
 - **Earth and Moon over time:** precession of the axis (Vega is the pole star in 13,700 CE) and the 41,000 year
   obliquity cycle; tidal recession of the Moon (total solar eclipses end in ~600 Myr) and the lengthening day;
   a brightening Sun dries the oceans (exposing the real sea floor), kills the biosphere and, near the red
@@ -162,9 +162,38 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Earth's deep past:** the Moon begins as a magma ocean and gets its dark maria only 3.9-3.1 Gyr ago; before land plants (~470 Myr ago) the continents are bare; the Cryogenian Snowball Earth
   (~717-635 Myr ago) is frozen to the equator; the first ~70 Myr after formation are a glowing magma ocean; for its
   first ~10 Myr the Sun sits in a flared protoplanetary disk with planet-carved gaps (like HL Tauri); the young
-  Sun is fainter, the day shorter and the Moon closer. (Continents keep today's shapes beyond 50 Myr back.) Mars has
+  Sun is fainter, the day shorter and the Moon closer. Mars has
   an ocean in its northern lowlands ~4.1-3.0 Gyr ago, filled to the -3,800 m shoreline on the real MOLA terrain;
   today its seasonal carbon dioxide frost caps spread to ~55 degrees latitude each winter and shrink back in summer.
+- **Paleogeography:** before 3 Myr ago Earth's continents, mountains and sea floor are the PALEOMAP reconstructions
+  (Scotese & Wright 2018), one every ~5 Myr back to the Cambrian (540 Myr), blended between epochs: Pangaea, its
+  breakup, the Tethys and the Western Interior Seaway. Land cover comes from a simple climate: temperature by
+  latitude and the epoch's global mean (Scotese et al. 2021; Cretaceous forests reach the poles), Hadley-cell rain
+  belts and moisture from the upwind ocean (Pangaea's interior is desert). Events: the Great Dying, Pangaea breaks up.
+- **Earth's state through time:** the info panel follows the epoch: global mean temperature, oxygen (none before the
+  Great Oxidation 2.4 Gyr ago, ~30% in the Carboniferous) and CO2 (percent-level in the Archean, starving plants
+  in ~1 Gyr), and what lives there.
+- **Magnetic reversals:** the geomagnetic polarity timescale for the last 5.2 Myr (Brunhes, Matuyama with the
+  Jaramillo and Olduvai subchrons, Gauss, Gilbert), the Laschamp excursion 41 kyr ago and the Cretaceous Normal
+  Superchron, random reversals (~4 per Myr) elsewhere. While the field is weak the aurora spreads equatorward.
+- **The solar cycle:** sunspots and aurorae follow the observed strengths of cycles 1-25 (the giant cycle 19 in
+  1958, the weak cycle 24), the Maunder, Spörer and Wolf minima, and random cycles outside the record.
+- **Nebulae everywhere live and die:** every procedural H II region, planetary nebula and supernova remnant in every
+  galaxy is born, expands (Strömgren t^4/7, coasting shell, Sedov t^2/5) and fades; their birth rates follow the
+  star formation history (cosmic noon ~10 Gyr ago at ~3x today, none before the galaxies, H II regions gone once the
+  gas runs out). Select one to see its age.
+- **Stars before birth:** rewind past a star's birth and it and its planets are gone; for its last ~20 Myr a dark,
+  glowing star-forming cloud sits where it will form (the Sun's birth cloud 4.57 Gyr ago). Young stars sit in
+  protoplanetary disks, with planets appearing in the first 5 Myr. Stars in one system share an age (a white dwarf
+  companion like Sirius B makes its system old enough to have made it); about 25 famous stars have their measured ages.
+- **Quasars:** galaxies seen at their light's emission time have active nuclei a few percent of the time near cosmic
+  noon (z ~ 2-3), ~30x rarer today, each episode ~50 Myr and up to ~30x the galaxy's light.
+- **The Local Group's past:** Andromeda's orbit is run back with the timing argument: the two galaxies flew apart
+  after the Big Bang, turned around 5.2 Gyr ago at 1.03 Mpc and have been falling together since (needs 4.9e12 M☉,
+  van der Marel et al. 2012: 4.93e12). The Large Magellanic Cloud (with the SMC) follows an orbit from its measured
+  velocity with dynamical friction: first infall from beyond 300 kpc ~2 Gyr ago, merger in 2.3 Gyr.
+- **Far future galaxies:** after star formation ends galaxies yellow, then glow dull red as only red dwarfs remain;
+  after the merger the remnant is labelled Milkomeda.
 - **Flares:** red dwarfs (Proxima Centauri included) flare several times a day, mostly small, rarely many-fold,
   lighting their planets for minutes.
 - **Variable stars everywhere:** besides the named ones, about one luminous cool giant in ten is a Mira (150-500 day

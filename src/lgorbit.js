@@ -124,3 +124,41 @@ export function orbitEvents() {
   }
   return { pericentres: ev, merged: ORBIT.merged };
 }
+
+// The Large Magellanic Cloud (with the SMC bound to it): on its first infall, now 50 kpc out and moving at 321 km/s
+// (Kallivayalil et al. 2013 proper motions), 1.4e11 Msun with its dark halo (Erkal et al. 2019). Dynamical friction in
+// the Milky Way's halo drags it in: it merges ~2.3 Gyr from now (Cautun et al. 2019: 2.4 +- 0.8 Gyr). Run backwards it
+// comes in from beyond 300 kpc two billion years ago.
+export const LMC_ORBIT = (() => {
+  const D2R = Math.PI / 180, l = 280.47 * D2R, b = -32.89 * D2R, M = 1.4e11, LNL = 4;
+  const r0 = [SUN[0] + Math.cos(b) * Math.cos(l) * 49.9, SUN[1] + Math.sin(b) * 49.9, SUN[2] - Math.cos(b) * Math.sin(l) * 49.9];
+  const v0 = [-57, 221, 226].map(x => x * KMS);      // galactocentric (X, Z, -Y) of Kallivayalil et al. (-57, -226, 221) km/s
+  const acc = (r, v) => {
+    const d = Math.max(Math.hypot(...r), 0.3), m = Menc(GAL.mw, d), a = r.map(x => -x * G * m / d ** 3);
+    const vv = Math.hypot(...v), sig = Math.sqrt(G * m / d) / Math.SQRT2, X = vv / (Math.SQRT2 * sig), f = erf(X) - 2 * X / Math.sqrt(Math.PI) * Math.exp(-X * X);
+    const k = -4 * Math.PI * G * G * LNL * M * rhoHalo(GAL.mw, d) * f / Math.max(vv ** 3, 1e-12);
+    for (let i = 0; i < 3; i++) a[i] += k * v[i];
+    return a;
+  };
+  const run = (dt, N) => {
+    let r = r0.slice(), v = v0.slice(); const tab = [r.slice()]; let merged = -1;
+    for (let i = 1; i <= N; i++) {
+      if (merged < 0) {
+        const k1 = acc(r, v), r2 = r.map((x, j) => x + v[j] * dt / 2), v2 = v.map((x, j) => x + k1[j] * dt / 2), k2 = acc(r2, v2);
+        const r3 = r.map((x, j) => x + v2[j] * dt / 2), v3 = v.map((x, j) => x + k2[j] * dt / 2), k3 = acc(r3, v3);
+        const r4 = r.map((x, j) => x + v3[j] * dt), v4 = v.map((x, j) => x + k3[j] * dt), k4 = acc(r4, v4);
+        r = r.map((x, j) => x + dt / 6 * (v[j] + 2 * v2[j] + 2 * v3[j] + v4[j])); v = v.map((x, j) => x + dt / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+        if (dt > 0 && Math.hypot(...r) < 3 && Math.hypot(...v) < 100 * KMS) { merged = i * dt; r = [0, 0, 0]; }
+      }
+      tab.push(r.slice());
+    }
+    tab.merged = merged; return tab;
+  };
+  const fwd = run(1, 3500), back = run(-1, 3500);
+  return { fwd, back, merged: fwd.merged, r0 };
+})();
+// LMC centre (kpc, Milky Way frame) at tMyr from now
+export function lmcAt(tMyr) {
+  const tab = tMyr >= 0 ? LMC_ORBIT.fwd : LMC_ORBIT.back, f = Math.min(Math.abs(tMyr), tab.length - 1.001), i = Math.floor(f), u = f - i;
+  return [0, 1, 2].map(j => tab[i][j] + (tab[i + 1][j] - tab[i][j]) * u);
+}

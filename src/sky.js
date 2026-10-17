@@ -154,7 +154,7 @@ const GAL_VS = `
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum;
 uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr, uYrs, uDtYrs; uniform vec3 uSkip;
-out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE; flat out vec3 vSN;
+out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE; flat out vec3 vSN; flat out float vQSO;
 ${COSMO_GLSL}
 ${REL_GLSL}
 void main(){
@@ -178,6 +178,15 @@ void main(){
     float ang = fract(sin(k*91.7 + h*13.1)*4375.85)*6.2832, rr = 0.15 + 0.5*fract(sin(k*17.3 + h*7.7)*9631.3);
     vSN = vec3(cos(ang)*rr, sin(ang)*rr, 0.25*lc*step(age, 2.));
   }
+  // quasars: gas falling into the central black hole outshines the galaxy (up to ~30x) for episodes of tens of Myr.
+  // The fraction of galaxies with one peaked ~10-11 Gyr ago ("cosmic noon", z ~ 2-3) and is ~30x lower today.
+  {
+    float hq = fract(sin(dot(aCen.xyz, vec3(39.1, 11.7, 83.3)))*24634.6345);
+    float fq = (0.04*exp(-pow((vTauE - 3.3)/1.8, 2.)) + 0.0015)*smoothstep(0.6, 1.2, vTauE)*step(0.3, aLum);
+    float ep = floor(vTauE*20. + hq*7.);                    // ~50 Myr episodes
+    float u = fract(sin(ep*12.9898 + hq*78.233)*43758.5453);
+    vQSO = u < fq ? mix(1., 30., pow(fract(u*917.3), 3.)) : 0.;
+  }
   float young = 1. - smoothstep(1., 6., vTauE);
   float rad = aCen.w*1.08*mix(1., 0.45, young);
   float px = rad/d*uPxPerRad;
@@ -190,12 +199,12 @@ void main(){
   if (length(wp) > 1e-3 && uTmyr != 0.) { float ang = -uTmyr*0.45/(aCen.w*1000.); vec4 r = vec4(0., sin(ang*0.5), 0., cos(ang*0.5)); q = vec4(q.w*r.xyz + r.w*q.xyz + cross(q.xyz, r.xyz), q.w*r.w - dot(q.xyz, r.xyz)); }
   vWorld = w; vCen = c; vQuat = q; vP0 = aP0; vP1 = aP1; vP2 = aP2; vLum = vec2(aLum, expand); vPx = px;
   gl_Position = uViewProj*vec4(w, 1.); gl_Position.z = 0.;
-  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.18, 1.0, vTauE);
+  float est = (aP0.x < 0.5 ? 0.45 : 0.2 + 0.02*aP0.y)/(expand*expand)*1.6*aLum*uScale*cv.y*smoothstep(0.18, 1.0, vTauE)*(1. + vQSO);
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
 const GAL_FS2 = `
-in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN;
+in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN; flat in float vQSO;
 // cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
 // Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
 vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
@@ -235,6 +244,8 @@ void main(){
       vec2 dd = vec2(x, y) - vec2(sp.x, sp.y*ratio);
       sn = vec3(0.85, 0.9, 1.0)*vSN.z*tot*0.98*exp(-dot(dd, dd)/(2.*sg*sg))/(6.2832*sg*sg);
     }
+    // an active nucleus: a point at the centre (blue-white, power-law continuum)
+    if (vQSO > 0.) { float sg = 0.7/max(vPx*1.08*vLum.y, 1e-3); sn += vec3(0.8, 0.88, 1.0)*vQSO*tot*exp(-(x*x + y*y)/(2.*sg*sg))/(6.2832*sg*sg); }
     o = vec4((col*tot*gsn + sn)*g.lum*uScale*zTint(), 1.); return;
   }
   vec4 qi = vec4(-vQuat.xyz, vQuat.w);
@@ -260,6 +271,11 @@ void main(){
     if (T.g < 0.01) break;
   }
   vec3 res = L*g.lum*uScale*zTint();
+  if (vQSO > 0.) {
+    // (resolved galaxy: the nucleus as a point source, ~1.5 px wide)
+    float ang = length(cross(rdW, normalize(vCen))), rpx = ang*length(vCen)/(vRad*1.08)*vPx;
+    res += vec3(0.8, 0.88, 1.0)*vQSO*(g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)*1.6*exp(-rpx*rpx/1.1)/(3.5*vPx*vPx)*g.lum*uScale*zTint();
+  }
   if (any(isnan(res)) || any(isinf(res))) res = vec3(0.);
   o = vec4(min(res, vec3(60000.)), T.g);
 }`;

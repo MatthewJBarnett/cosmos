@@ -8,7 +8,7 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic } from './evolution.js';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START } from './paleo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE } from './stellarevo.js';
@@ -322,11 +322,18 @@ export class StarSystem {
       { const un = ss.age < 0; if (!!sun.gone !== un) { sun.gone = un; this._sunChanged = true; } sun.unborn = un; }
       sun.evoPhase = ss.age < 0 ? 'not yet formed' : ss.age < 0.05 ? 'protostar, contracting towards the main sequence' : ss.phase; sun.ageYr = ss.age * 1e9;
       sun.radius = ss.R * C.Rsun; sun.lum = ss.L; sun.temp = ss.T; sun.mass = ss.M * C.Msun; sun.cls = ss.phase === 'Main sequence (G2V)' ? 'G2V' : ss.phase;
-      // the 11 year activity cycle (minimum December 2019): sunspots and the aurora follow it
-      const act = Math.sin(Math.PI * (tyr - 19.95) / 11.0) ** 2;
+      // the ~11 year activity cycle, following the observed sunspot record since 1755 (see solarActivity): sunspots
+      // and the aurora follow it. Earth's field reverses now and then; while it is weak the aurora spreads equatorward.
+      const act = solarActivity(tyr);
       this.activity = act;
-      sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.12 + 0.88 * act; sun.whiteDwarf = ss.R < 0.05;
-      const earthB = this.root.children.find(b => b.name === 'Earth'); if (earthB) earthB.aurora = 0.35 + 0.9 * act;
+      sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : Math.min(1.4, 0.06 + 0.88 * act); sun.whiteDwarf = ss.R < 0.05;
+      const earthB = this.root.children.find(b => b.name === 'Earth');
+      if (earthB) {
+        const gm = geomagnetic(tyr); earthB.geomag = gm;
+        if (!earthB.magPole0) earthB.magPole0 = earthB.magPole;
+        if (earthB.magPole0) earthB.magPole = gm.normal ? earthB.magPole0 : earthB.magPole0.map(x => -x);
+        earthB.aurora = (0.35 + 0.9 * act) * (gm.B < 0.5 ? 1.4 : 1); earthB.auroraB = gm.B;
+      }
       oScale = orbitScale(tyr); mScale = moonScale(tyr); this.oScale = oScale;
       let changed = !!this._sunChanged; this._sunChanged = false;
       for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }

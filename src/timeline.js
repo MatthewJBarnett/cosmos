@@ -5,6 +5,7 @@ import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
 import { galDir } from './universe.js';
 import { EXTRA_STARS } from './realsystems.js';
 import { orbitEvents, R0, V0, PAST } from './lgorbit.js';
+import { LMC_MERGE } from './localgroup.js';
 import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed, nextGlacial, KPG_YR } from './evolution.js';
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -105,7 +106,7 @@ export function buildEvents() {
   add({ id: 'saturn', maxRate: 300000000.0, t: now + 2.9e8, est: true, title: 'Saturn loses its rings', text: 'Ring rain: icy particles spiral into Saturn along its magnetic field and through drag, enough to empty the rings in about 300 million years. Only faint dusty rings will remain.', view: { body: 'Saturn' }, rate: YEAR * 1e6 });
   add({ id: 'eclipses', maxRate: 300000000.0, t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
   add({ id: 'oceans', maxRate: 1000000000.0, t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
-  add({ id: 'lmc', maxRate: 1000000000.0, t: now + 2.4e9, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction drags our largest satellite galaxy into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
+  add({ id: 'lmc', maxRate: 1000000000.0, t: now + LMC_MERGE * 1e6, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction in our dark halo has dragged our largest satellite galaxy, on its first approach only two billion years ago, into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
   const lg = orbitEvents(), p1 = lg.pericentres[0], p2 = lg.pericentres[1];
   add({ id: 'm31near', maxRate: 3000000000.0, t: now + 3.0e9, est: true, title: 'Andromeda fills the sky', text: 'Approaching at 250 km/s, the Andromeda Galaxy spans tens of degrees of the night sky, as bright as the Milky Way.', view: { lg: 'sun' }, rate: YEAR * 5e6 });
   if (p1) add({ id: 'm31', hold: 12, t: now + p1.t * 1e6, est: true, title: 'Andromeda\'s first passage', text: `The galaxies' centres pass ${p1.d.toFixed(0)} kpc apart at ~450 km/s. Tides tear both disks into long tails. (N-body simulation, 65,536 particles.)`, view: { lg: 'outside' }, rate: YEAR * 1e7 });

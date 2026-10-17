@@ -85,7 +85,7 @@ uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
 uniform float cBase, cTop, cDens, cHas, cKind, cMapped; uniform vec3 cColor;
-uniform float uAurora, uLightning; uniform mat3 uBodyRotInv; uniform vec3 uMagPole;
+uniform float uAurora, uLightning, uAurB; uniform mat3 uBodyRotInv; uniform vec3 uMagPole;
 uniform sampler2D uLightsTex; uniform float uHasLights;
 uniform sampler2D uIrrLUT;
 uniform int uSteps, uCloudSteps;
@@ -121,7 +121,8 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   // oval: ~20 deg from the magnetic pole, pushed equatorward on the night side
   vec3 sunB = uBodyRotInv*sunDir;
   float night = clamp(-dot(normalize(nb - mp*dot(nb, mp)), normalize(sunB - mp*dot(sunB, mp))), -1., 1.);
-  float th0 = 0.33 + 0.06*night;
+  // (a weaker field, as during a reversal, lets the solar wind in closer: the oval widens, sin^2 ~ B^-1/3)
+  float th0 = asin(min(0.9, sin(0.33 + 0.06*night)*pow(max(uAurB, 0.05), -1./6.)));
   vec3 e1 = normalize(cross(mp, vec3(0., 0., 1.))), e2 = cross(mp, e1);
   float phi = atan(dot(nb, e2), dot(nb, e1));
   float band = exp(-pow((th - th0)/0.045, 2.));
@@ -619,7 +620,7 @@ export function drawAtmosphere(body, o) {
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set(rf).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
     uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
-    uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0],
+    uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0], uAurB: body.auroraB || 1,
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds && !(body.climate && body.climate.dry > 0.98) ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density * (body.climate ? 1 - body.climate.dry : 1) : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
     uCyc: cycUniform(body, o.time), uNumCyc: body.cyclones ? Math.min(4, body.cyclones.length) : 0,

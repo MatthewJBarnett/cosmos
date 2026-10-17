@@ -5,7 +5,7 @@
 // Units: kpc, Myr, solar masses. Frame: centre of mass of the pair, axes of the Milky Way at the present epoch.
 import { gl, Program, tex2D, fbo, drawFS, FS_VS, texCube } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
-import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents } from './lgorbit.js';
+import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents, lmcAt, LMC_ORBIT } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
 import { sunPos, YEAR, sunHook, popFade } from './galdyn.js';
 import { CUBE_FACES } from './atmosphere.js';
@@ -24,6 +24,9 @@ export const M31 = REAL_GALAXIES.find(g => /M31/.test(g.name));
 const M33 = REAL_GALAXIES.find(g => /M33/.test(g.name));
 const M33_OFF = M33 ? V.sub(M33.posU, M31.posU) : null;
 const LMC = REAL_GALAXIES.filter(g => /Magellanic/.test(g.name));
+// (the SMC rides along with the LMC; positions move from the catalogue ones by the orbit's displacement)
+const MC0 = LMC.map(g => g.posU.slice());
+export const LMC_MERGE = LMC_ORBIT.merged > 0 ? LMC_ORBIT.merged : 2400;
 
 // GLSL acceleration from both galaxies (must match accJS below)
 const ACC = `
@@ -255,6 +258,7 @@ function cubeViewProj(m, k = 1) {
 }
 
 // ---- time-dependent positions of Local Group galaxies (universe frame, Mpc, Milky Way centre at the origin) ----
+let lastLmcT = 0;
 export function updateLocalGroupPositions(tyr) {
   const tMyr = (tyr - NOW_TYR) / 1e6;
   // (before the present relAt runs the timing-argument orbit backwards: apart, turnaround, back to the Big Bang)
@@ -263,7 +267,12 @@ export function updateLocalGroupPositions(tyr) {
   const moved = V.dist(p, M31.posU) > 1e-5;
   M31.posU = p;
   if (M33 && M33_OFF) M33.posU = V.add(p, M33_OFF);
-  return moved;
+  // the Magellanic Clouds on their orbit
+  const lm = lmcAt(tMyr), l0 = LMC_ORBIT.r0, dl = [(lm[0] - l0[0]) * 1e-3, (lm[1] - l0[1]) * 1e-3, (lm[2] - l0[2]) * 1e-3];
+  const sink = clamp(1 - (tMyr - LMC_MERGE + 300) / 300, 0, 1);      // (the SMC is torn apart and falls in with it)
+  LMC.forEach((g, i) => { const q = V.add(MC0[i], dl); g.posU = i ? V.add(LMC[0].posU, V.mul(V.sub(MC0[i], MC0[0]), sink)) : q; });
+  const lmcMoved = Math.abs(tMyr - lastLmcT) > 0.5; if (lmcMoved) lastLmcT = tMyr;
+  return moved || lmcMoved;
 }
 export const LG = new LocalGroup();
 // after the N-body takes over, the Sun's galactic position comes from its tracer particle
@@ -274,7 +283,7 @@ export function lgWeights(tyr) {
   const t = (tyr - NOW_TYR) / 1e6;
   const m31 = clamp(1 - (t - LG_START) / 250, 0, 1);
   const mw = clamp(1 - (t - MW_FADE[0]) / (MW_FADE[1] - MW_FADE[0]), 0, 1);
-  const lmc = clamp(1 - (t - 2300) / 200, 0, 1);
+  const lmc = clamp(1 - (t - LMC_MERGE + 100) / 200, 0, 1);
   return { m31, mw, lmc, tMyr: t };
 }
 export function initLocalGroupPrograms() { LG.initGL(); }
