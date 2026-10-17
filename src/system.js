@@ -371,6 +371,8 @@ export class StarSystem {
         b.rotAngle = (b.rot0 || 0) + 2 * Math.PI * (((t / P) % 1) + 1);
         b.climate = earthClimate(tyr);
         // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
+        // (no weather clouds over a magma ocean or once the oceans have boiled away)
+        b.noClouds = b.climate.magma > 0 || b.climate.dry > 0.9;
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }

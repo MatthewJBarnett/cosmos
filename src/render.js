@@ -536,7 +536,7 @@ export class Renderer {
         if (!b._ringOnly) {
           gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND);
           const starRad = isStar ? 1.47e4 * vSurface(b.temp || 5772) * clamp((b.pxRadius - 0.8) / 1.2, 0, 1) : 0;
-          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, pxPerRadMax: h / (2 * Math.tan(3 * Math.PI / 180)), sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, refrK: b === nav.anchor ? 0 : refrK, refrUp, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds, cloudRotInv, dummyCube: getDummyCube() });
+          drawPlanet(b, { rel: b.rel, rotQ: b.wrot, viewProj, fcoef, pxPerRad, pxPerRadMax: h / (2 * Math.tan(3 * Math.PI / 180)), sphereVisible, exposure, time: nav.time, light: lu, starRad, noise3: this.noise3, refrK: b === nav.anchor ? 0 : refrK, refrUp, atmoLUT: b.atmo && b.pxRadius > 2 ? getAtmoLUT(b) : null, clouds: rcfg.clouds && !b.noClouds, cloudRotInv, dummyCube: getDummyCube() });
           gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); gl.viewport(0, 0, w, h);
         }
         b._ringOnly = false;
@@ -586,14 +586,14 @@ export class Renderer {
         }
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-        const ao = { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds };
+        const ao = { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds && !b.noClouds };
         if (b === primary) {
           this.volTAA.draw(b, Object.assign(ao, { w, h, prev, key: b.uid + ':' + w + 'x' + h, outFBO: this.hdrNoDepth, scissor: [sx, sy, sw, sh], noHist: rcfg.volNoHist }));
           continue;
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawAtmosphere(b, { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds });
+        drawAtmosphere(b, { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds && !b.noClouds });
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
