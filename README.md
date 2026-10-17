@@ -42,6 +42,8 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Rogue black hole](docs/rogue_bh.jpg) A rogue black hole crosses the Solar System: the planets' trails 15 years later | ![Relativistic flight](docs/relativistic.jpg) Flying at 0.9 c: the sky crowds forward, blueshifted and beamed |
 | ![Last ice age](docs/ice_age.jpg) 20,000 years ago: ice sheets over North America, the sea 120 m lower (Milankovitch model) | ![Drifting continents](docs/drift.jpg) 80 million years from now: Australia has drifted north into the western Pacific |
 | ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | ![Merging shadows](docs/bbh_shadow.jpg) 12 ms before a black hole merger: light traced through both holes at once, their shadows fuse |
+| ![Kerr shadows](docs/kerr_spins.jpg) Black hole shadows at spin 0, 0.5 and 0.94: the D shape of a fast spinning (Kerr) hole | ![S-stars](docs/sstars.jpg) The S-stars around Sagittarius A* in 2018: S2 at its 120 AU pericentre |
+| ![Deep past](docs/deep_past.jpg) Snowball Earth (690 Myr ago), bare continents (520 Myr ago), the magma ocean (4.5 Gyr ago) and the ancient ocean of Mars | ![Young Sun](docs/young_sun.jpg) The newborn Sun in its protoplanetary disk, gaps cleared by forming planets |
 
 ## Run
 
