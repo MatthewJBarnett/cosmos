@@ -39,6 +39,8 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Planetary nebula](docs/sun_pn.jpg) The Sun's planetary nebula around its newborn white dwarf | ![Collision](docs/m31_collision.jpg) Milky Way and Andromeda after their first passage (N-body) |
 | ![Andromeda approaching](docs/m31_sky.jpg) Andromeda looming in the sky of the Solar System in 3.4 billion years | ![Sun's orbit](docs/sun_orbit.jpg) The Sun's orbit around the Milky Way |
 | ![Rogue black hole](docs/rogue_bh.jpg) A rogue black hole crosses the Solar System: the planets' trails 15 years later | ![Relativistic flight](docs/relativistic.jpg) Flying at 0.9 c: the sky crowds forward, blueshifted and beamed |
+| ![Last ice age](docs/ice_age.jpg) 20,000 years ago: ice sheets over North America, the sea 120 m lower (Milankovitch model) | ![Drifting continents](docs/drift.jpg) 80 million years from now: Australia has drifted north into the western Pacific |
+| ![Moon-forming impact](docs/theia_impact.jpg) Sandbox: hours after Theia hits the young Earth, molten rock winds into a disk | |
 
 ## Run
 
