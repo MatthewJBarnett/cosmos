@@ -6,7 +6,7 @@ import { galDir } from './universe.js';
 import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
-import { SCHEDULED } from './supernova.js';
+import { SCHEDULED, fireball } from './supernova.js';
 import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq } from './evolution.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode } from './ephem.js';
 
@@ -203,7 +203,13 @@ export class StarSystem {
       const sn = SCHEDULED.find(x => x.i === this.desc.catIndex);
       if (sn && sn.tEm !== undefined) {
         const dead = tyr > sn.tEm, st = this.stars[0];
-        if (st && dead !== !!st._remnant) {
+        // in the first year the star is an expanding fireball (seen from inside its own system, no light delay)
+        const fb = dead ? fireball(tyr - sn.tEm) : null;
+        if (st && fb) {
+          st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
+          Object.assign(st, { radius: Math.max(fb.R, st._orig.radius), lum: fb.L, temp: fb.T, cls: 'Supernova (type II-P)', _remnant: false, neutron: false, pulsar: false });
+          if (st.surface) st.surface.gran = 0;
+        } else if (st && dead !== !!st._remnant) {
           if (dead) { st._orig = st._orig || { radius: st.radius, lum: st.lum, temp: st.temp, cls: st.cls, mass: st.mass };
             Object.assign(st, { radius: 12e3, lum: 4 * Math.PI * 12e3 ** 2 * C.sigma * 1e6 ** 4 / C.Lsun, temp: 1e6, cls: 'Neutron star (remnant of the supernova)', mass: 1.4 * C.Msun, neutron: true, pulsar: true, rotPeriod: 0.03, _remnant: true });
             if (st.surface) st.surface.gran = 0;

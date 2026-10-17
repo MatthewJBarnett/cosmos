@@ -47,6 +47,19 @@ function meanFlux(ts, win, ibc) {
   return (cumAt(tab, d1) - cumAt(tab, d0)) / (d1 - d0);
 }
 
+// the exploding star seen from close by: an expanding photosphere (~5,000 km/s) whose luminosity follows the light curve
+// and whose temperature falls from ~12,000 K to the ~5,000 K of hydrogen recombination. ts: years since the explosion.
+export function fireball(ts) {
+  const d = ts * 365.25;
+  if (d < 0 || d > 400) return null;
+  const L = Math.pow(10, -0.4 * (magIIP(d) - 4.83)) * 1.6;        // bolometric correction of the plateau ~ small
+  let T = d < 20 ? 12000 - 300 * d : d < 110 ? 6000 - 8 * (d - 20) : 4500;
+  // photosphere radius from L and T, but never faster than the ejecta (~5,000 km/s); hotter if it is smaller
+  let R = Math.sqrt(L * 3.828e26 / (4 * Math.PI * 5.670e-8 * T ** 4));
+  const Rv = 5e6 * d * 86400;
+  if (Rv < R) { R = Rv; T = Math.pow(L * 3.828e26 / (4 * Math.PI * 5.670e-8 * R * R), 0.25); }
+  return { L, T, R };
+}
 // real stars with predicted explosions. tObs: years after J2000 when the light reaches the Sun (estimates)
 export const SCHEDULED = [
   { name: 'Betelgeuse', tObs: 1e5 },
