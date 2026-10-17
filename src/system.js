@@ -8,7 +8,7 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol } from './evolution.js';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START } from './paleo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
@@ -495,7 +495,8 @@ export class StarSystem {
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
         // (an icier Earth reflects more: brighter earthshine on the Moon; Snowball Earth ~0.6)
         b.albedo = 0.3 + (b.climate.snowball ? 0.3 : 0.025 * Math.min(b.iceAge || 0, 1.1));
-        b.meanT = earthMeanT(tyr, b.climate, b.climate.snowball ? 0 : iceAge(tyr) * b.climate.ice); b.air = earthAir(tyr); b.lifeNow = earthLife(tyr, b.climate);
+        { const va = volcanicAerosol(tyr); b.aerosol = Math.min(1, va.tau * 2); b.volcano = va.tau > 0.03 ? va.name : ''; }
+        b.meanT = earthMeanT(tyr, b.climate, b.climate.snowball ? 0 : iceAge(tyr) * b.climate.ice) - 3 * Math.min(b.aerosol || 0, 1); b.air = earthAir(tyr); b.lifeNow = earthLife(tyr, b.climate);
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
         b.drift = driftMyr(tyr); b.paleoMyr = tyr < -PALEO_START * 1e6 ? -tyr / 1e6 : 0;
@@ -1005,6 +1006,7 @@ export function describeBody(b) {
       rows.push(['Atmosphere', 'N2 ' + f(Math.max(0, 0.99 - b.air.o2 - b.air.co2)) + ', O2 ' + (b.air.o2 > 0 ? f(b.air.o2) : 'none') + ', CO2 ' + (ppm < 10000 ? ppm.toLocaleString('en') + ' ppm' : f(b.air.co2))]);
     } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P / 101325) + ' atm']); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
+    if (b.volcano) rows.push(['Sky', 'volcanic haze from ' + b.volcano + ' (vivid sunsets, global cooling)']);
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);

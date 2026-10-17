@@ -218,6 +218,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Looking out through time:** selecting a galaxy shows its redshift, how long ago the light left it and how fast it
   recedes at the current epoch; Andromeda's separation and approach (or, before 5 Gyr ago, recession) and the LMC's
   distance follow their orbits. Early galaxies are thick and clumpy with weak arms and few bars.
+- **Volcanic winters:** the great eruptions (Huaynaputina 1600, Laki 1783, Tambora 1815, Krakatoa 1883, Pinatubo 1991,
+  Toba 74,000 years ago and others) veil the stratosphere with sulfate for a year or two: hazier skies, redder
+  sunsets and a cooler planet.
 - **Mars weather:** global dust storms on their real dates (1971, 1977 twice, 1982, 2001, 2007, 2018) hide the surface
   for months, leaving only the Tharsis volcanoes; outside the record about one Mars year in three, near perihelion.
 - **Stellar remnants age:** pulsars spin down by magnetic braking and fall silent after ~10 Myr, white dwarfs

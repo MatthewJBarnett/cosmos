@@ -306,3 +306,14 @@ export function solarActivity(tyr) {
 }
 // the numbered solar cycle at a date (cycle 1 began in 1755), or 0 outside the record
 export function solarCycle(tyr) { const y = 2000 + tyr; for (let k = CYCLES.length - 1; k >= 0; k--) if (y >= CYCLES[k][0]) return y < (k < CYCLES.length - 1 ? CYCLES[k + 1][0] : 2031) ? k + 1 : 0; return 0; }
+
+// Stratospheric sulfate from great eruptions (extra aerosol optical depth, decaying over ~1-2 years): hazier skies,
+// vivid sunsets and a global cooling of up to ~1 C. [year of eruption, peak extra optical depth, name]
+const ERUPTIONS = [[1600.13, 0.25, 'Huaynaputina'], [1783.45, 0.2, 'Laki'], [1815.27, 0.5, 'Tambora'], [1883.65, 0.15, 'Krakatoa'],
+  [1902.35, 0.08, 'Santa Maria'], [1912.43, 0.1, 'Novarupta'], [1963.2, 0.1, 'Agung'], [1982.27, 0.12, 'El Chichon'], [1991.45, 0.15, 'Pinatubo'],
+  [2022.04, 0.02, 'Hunga Tonga'], [-72000, 2.5, 'Toba']];
+export function volcanicAerosol(tyr) {
+  const y = 2000 + tyr; let tau = 0, name = '';
+  for (const [y0, peak, n] of ERUPTIONS) { const d = y - y0; if (d < 0 || d > 8) continue; const v = peak * Math.min(1, d / 0.3) * Math.exp(-d / 1.2); if (v > tau) { tau = v; name = n; } }
+  return { tau, name };
+}
