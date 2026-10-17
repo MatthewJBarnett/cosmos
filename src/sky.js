@@ -67,22 +67,26 @@ void main(){
   float I = flux/uPxSA*uExposure*uBoost;     // energy in units of one fully lit pixel
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
-  if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 5.*uPixScale); peak = I/(6.2832*sig*sig); }
+  if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 2.6*uPixScale); peak = I/(6.2832*sig*sig); }
   vec3 c = bbColor(T); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
-  vCol = c*min(peak, 30.); vSig = sig;
+  vCol = c*min(peak, 4000.); vSig = sig;
   gl_Position = uViewProj*vec4(refractLift(p), 1.); gl_Position.z = 0.;
-  gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.);
+  gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.) * (peak > 30. ? min(1. + log(peak/30.)*0.9, 6.) : 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 const STAR_FS = `
 in vec3 vCol; in float vSig; out vec4 o;
 void main(){
-  float sz = ceil(vSig*6. + 1.); vec2 d = (gl_PointCoord - 0.5)*sz; float r = length(d);
+  float pk = max(max(vCol.r, vCol.g), vCol.b);
+  float grow = pk > 30. ? min(1. + log(pk/30.)*0.9, 6.) : 1.;
+  float sz = ceil(vSig*6. + 1.)*grow; vec2 d = (gl_PointCoord - 0.5)*sz; float r = length(d);
   float g = exp(-r*r/(2.*vSig*vSig));
-  // faint diffraction spikes on bright sources
-  float bright = smoothstep(1.2, 3.5, vSig);
-  float sp = (exp(-abs(d.x)*0.9/vSig)*exp(-d.y*d.y*1.6) + exp(-abs(d.y)*0.9/vSig)*exp(-d.x*d.x*1.6))*0.09*bright;
-  o = vec4(vCol*(g + sp)*smoothstep(0.5*sz, 0.3*sz, r), 1.);
+  // diffraction spikes and a soft halo on bright sources, falling off over the enlarged sprite
+  float bright = smoothstep(1.2, 2.5, vSig);
+  float ax = abs(d.x)/vSig, ay = abs(d.y)/vSig;
+  float sp = (exp(-d.y*d.y*1.6)/((1. + ax)*(1. + ax)) + exp(-d.x*d.x*1.6)/((1. + ay)*(1. + ay)))*0.09*bright;
+  float halo = grow > 1. ? 0.004/(1. + r*r/(vSig*vSig*4.)) : 0.;
+  o = vec4(vCol*(g + sp + halo)*smoothstep(0.5*sz, 0.3*sz, r), 1.);
 }`;
 
 const PT_VS = `
@@ -94,10 +98,11 @@ void main(){
   float I = aCol.a/uPxSA*uExposure;
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
-  if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 7.*uPixScale); peak = I/(6.2832*sig*sig); }
-  vCol = aCol.rgb*min(peak, 30.); vSig = sig;
+  // very bright points keep a compact core (the eye/camera PSF) and let bloom and spikes carry the glare
+  if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 2.6*uPixScale); peak = I/(6.2832*sig*sig); }
+  vCol = aCol.rgb*min(peak, 4000.); vSig = sig;
   gl_Position = uViewProj*vec4(refractLift(aDir), 1.); gl_Position.z = 0.;
-  gl_PointSize = peak < 0.0005 ? 0. : ceil(sig*6. + 1.);
+  gl_PointSize = peak < 0.0005 ? 0. : ceil(sig*6. + 1.) * (peak > 30. ? min(1. + log(peak/30.)*0.9, 6.) : 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 

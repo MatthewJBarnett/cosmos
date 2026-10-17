@@ -95,6 +95,8 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 // optional start location and date: ?goto=Saturn&date=2017-06-01
+// deep time: ?years=5e9 (years from now)
+if (params.has('years')) { const y = parseFloat(params.get('years')); if (isFinite(y)) nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; }
 if (params.has('date')) { const ds = params.get('date'); const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(ds) || ds.length <= 10 ? ds : ds + 'Z'); if (!isNaN(d)) nav.time = (d - Date.UTC(2000, 0, 1, 12)) / 1000; }
 if (params.has('goto')) {
   const t = findByName(nav, params.get('goto'));

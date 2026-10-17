@@ -14,6 +14,7 @@ import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU } from './cosmology.js';
+import { LG } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
@@ -257,8 +258,9 @@ export class UI {
   locationLink() {
     const nav = this.nav, u = new URL(location.href); u.search = '';
     const t = nav.selected || (nav.anchor ? { type: 'body', body: nav.anchor } : null);
-    const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000);
-    if (!isNaN(d)) u.searchParams.set('date', d.toISOString().slice(0, 16) + 'Z');
+    const d = new Date(Date.UTC(2000, 0, 1, 12) + nav.time * 1000), yrs = (nav.time - (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000) / YEAR;
+    if (Math.abs(yrs) > 5000 || isNaN(d)) u.searchParams.set('years', yrs.toPrecision(8));
+    else u.searchParams.set('date', d.toISOString().slice(0, 16) + 'Z');
     const ll = this.latLon();
     if (ll && nav.altitude < nav.anchor.radius * 0.05) { u.searchParams.set('goto', nav.anchor.name); u.searchParams.set('land', ll[0].toFixed(3) + ',' + ll[1].toFixed(3)); }
     else if (t) u.searchParams.set('goto', targetName(t));
@@ -267,6 +269,7 @@ export class UI {
   applyLink(link) {
     const nav = this.nav, p = new URL(link).searchParams;
     if (p.has('date')) { const t = Date.parse(p.get('date')); if (!isNaN(t)) nav.time = (t - Date.UTC(2000, 0, 1, 12)) / 1000; }
+    if (p.has('years')) { const y = parseFloat(p.get('years')); if (isFinite(y)) nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000 + y * YEAR; }
     if (p.has('goto')) {
       const t = findByName(nav, p.get('goto'));
       if (t && p.has('land') && t.type === 'body') { const [la, lo] = p.get('land').split(',').map(Number); nav.landAt(t.body, la, lo); }
@@ -389,6 +392,7 @@ export class UI {
       const ss = solSystem().sunState;
       if (ss && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K</div>`;
       deep += `<div class="dim">Universe ${cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0)} Gyr old · CMB ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T.toFixed(3)} K</div>`;
+      if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
     }
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
@@ -553,7 +557,7 @@ export class UI {
     if (v.pn) {
       // from half a parsec away (the nebula grows to about that size), looking back at the Sun; later than the
       // jump point so the shell is already lit
-      nav.time += 1.2e4 * YEAR;
+      nav.time += 1.6e4 * YEAR;
       const mw = findByName(nav, 'Milky Way').galaxy;
       nav.galaxy = mw; nav.system = null; nav.anchor = null; nav.level = 'galaxy';
       const sp = Q.rot(mw.quat, world.sunP), off = V.norm([0.3, 0.5, 0.8]);

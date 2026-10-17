@@ -381,6 +381,13 @@ export class Renderer {
     if (gal && nav.field && camLocal && nav.level !== 'universe') {
       sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
       if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
+      // a supernova brighter than about magnitude -7 lights planets and skies like a second moon
+      if (sys && nav.level === 'system') for (const p of sne.points.slice(0, 2)) {
+        if (p.m > -7) continue;
+        const dir = V.norm(p.dir), far = 1e4 * C.AU;
+        const fake = { wpos: V.add(nav.S, V.mul(dir, far)), radius: 1e3, name: 'Supernova', kind: 'star', pseudo: true };
+        lights.push({ body: fake, rel: V.mul(dir, far), color: p.color, lum: p.flux * 1e8 });
+      }
       // the Sun's own planetary nebula, lit by the hot core once the envelope is gone
       const pn = gal === MILKY_WAY ? planetaryNebula(world.tyr) : null;
       if (pn && pn.lit > 0.01) {

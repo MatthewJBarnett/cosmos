@@ -40,7 +40,9 @@ export class NBody {
         const r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2), ir3 = 1 / (r2 * r);
         A[i][0] -= G * bj.m * dx * ir3; A[i][1] -= G * bj.m * dy * ir3; A[i][2] -= G * bj.m * dz * ir3;
         A[j][0] += G * bi.m * dx * ir3; A[j][1] += G * bi.m * dy * ir3; A[j][2] += G * bi.m * dz * ir3;
-        if (!this.pn) continue;
+        // post-Newtonian terms between compact objects (black holes, neutron stars): for stars and planets they are
+        // negligible or, near a black hole, handled with the Newtonian debris model, which must stay consistent
+        if (!this.pn || !(compact(bi) && compact(bj))) continue;
         const M = bi.m + bj.m, GMr = G * M / r;
         // post-Newtonian terms only matter for relativistic pairs; skip when v^2/c^2 is negligible
         const vx = Vv[i][0] - Vv[j][0], vy = Vv[i][1] - Vv[j][1], vz = Vv[i][2] - Vv[j][2], v2 = vx * vx + vy * vy + vz * vz;
@@ -99,7 +101,7 @@ export class NBody {
     const t0 = this.t, tEnd = this.t + dt;
     let n = 0;
     while (this.t < tEnd && n < maxSteps) {
-      if (this.bodies.length < 2) { this.t = tEnd; break; }
+      if (this.bodies.length < 2) break;
       let h = Math.min(this.stepSize(), tEnd - this.t);
       if (!(h > 0)) h = tEnd - this.t;
       this.rk4(h); n++;
@@ -107,7 +109,13 @@ export class NBody {
       this.gw.sample(this);
       if (this.particles) this.particles.step(this, h);
     }
-    if (this.bodies.length < 2) { for (const b of this.bodies) for (let a = 0; a < 3; a++) b.x[a] += b.v[a] * (tEnd - this.t); if (this.particles) this.particles.step(this, tEnd - this.t); this.t = Math.max(this.t, tEnd); this.gw.sample(this); }
+    if (this.bodies.length < 2 && this.t < tEnd) {
+      // a single body drifts; debris still moves in its field
+      const rem = tEnd - this.t;
+      for (const b of this.bodies) for (let a = 0; a < 3; a++) b.x[a] += b.v[a] * rem;
+      if (this.particles) this.particles.step(this, rem);
+      this.t = tEnd; this.gw.sample(this);
+    }
     this.lastSteps = n;
     return this.t - t0;
   }
@@ -202,8 +210,8 @@ export class NBody {
 // Debris of a tidally disrupted star: test particles in the field of all bodies. Particles that fall within a few
 // Schwarzschild radii are accreted; the accretion rate (and so the flare) follows the famous t^-5/3 fallback.
 export class Debris {
-  constructor() { this.x = new Float64Array(0); this.v = new Float64Array(0); this.n = 0; this.mp = 0; this.acc = []; this.T = new Float32Array(0); }
-  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); return d; }
+  constructor() { this.x = new Float64Array(0); this.v = new Float64Array(0); this.n = 0; this.mp = 0; this.acc = []; this.T = new Float32Array(0); this.out = new Uint8Array(0); this.racc = 0; }
+  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); d.out = this.out.slice(); d.racc = this.racc; d.bh = this.bh; return d; }
   addStar(star, bh, n) {
     const x = new Float64Array((this.n + n) * 3), v = new Float64Array((this.n + n) * 3), T = new Float32Array(this.n + n);
     x.set(this.x); v.set(this.v); T.set(this.T);
@@ -215,28 +223,42 @@ export class Debris {
       x[i * 3] = star.x[0] + px * star.R; x[i * 3 + 1] = star.x[1] + py * star.R; x[i * 3 + 2] = star.x[2] + pz * star.R;
       v[i * 3] = star.v[0]; v[i * 3 + 1] = star.v[1]; v[i * 3 + 2] = star.v[2]; T[i] = 6000;
     }
-    this.x = x; this.v = v; this.T = T; this.mp = star.m / n; this.n += n; this.bh = bh;
+    const out = new Uint8Array(this.n + n); if (this.out) out.set(this.out);
+    this.x = x; this.v = v; this.T = T; this.out = out; this.mp = star.m / n; this.n += n; this.bh = bh;
+    // returning debris shocks and circularises near the star's pericentre: count it as accreted there
+    const r = Math.hypot(star.x[0] - bh.x[0], star.x[1] - bh.x[1], star.x[2] - bh.x[2]);
+    this.racc = Math.max(this.racc || 0, 0.9 * r);
   }
   step(sim, h) {
     if (!(h > 0)) return;
-    const B = sim.bodies, x = this.x, v = this.v;
-    // sub-step each particle by its own orbital time near the hole (leapfrog, kick-drift-kick)
+    const B = sim.bodies, x = this.x, v = this.v, acc = [0, 0, 0];
+    // acceleration on particle i; returns its dynamical time, or -1 if it fell into a black hole
+    const accel = (i) => {
+      let tmin = Infinity; acc[0] = acc[1] = acc[2] = 0;
+      for (const b of B) {
+        const dx = x[i * 3] - b.x[0], dy = x[i * 3 + 1] - b.x[1], dz = x[i * 3 + 2] - b.x[2], r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
+        if (b.kind === 'bh' && (r < 3 * b.R || (b === this.bh && this.out[i] && r < this.racc))) return -1;
+        if (b === this.bh && r > 3 * this.racc) this.out[i] = 1;
+        const k = -G * b.m / (r2 * r); acc[0] += k * dx; acc[1] += k * dy; acc[2] += k * dz;
+        const td = Math.sqrt(r2 * r / (G * b.m)); if (td < tmin) tmin = td;
+      }
+      return tmin;
+    };
+    // leapfrog (kick-drift-kick) with a step of 1/200 of the local dynamical time: the debris' fate (bound or
+    // not) depends on an energy spread of ~1% of the pericentre potential, so the integration must be accurate
     let accreted = 0;
     for (let i = 0; i < this.n; i++) {
       if (x[i * 3] !== x[i * 3]) continue;   // NaN = accreted
       let left = h, guard = 0;
-      while (left > 0 && guard++ < 400) {
-        let rmin = Infinity, ax = 0, ay = 0, az = 0;
-        for (const b of B) {
-          const dx = x[i * 3] - b.x[0], dy = x[i * 3 + 1] - b.x[1], dz = x[i * 3 + 2] - b.x[2], r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
-          if (b.kind === 'bh' && r < 3 * b.R) { x[i * 3] = NaN; accreted++; left = 0; break; }
-          const k = -G * b.m / (r2 * r); ax += k * dx; ay += k * dy; az += k * dz;
-          const tdyn = Math.sqrt(r2 * r / (G * b.m)); if (tdyn < rmin) rmin = tdyn;
-        }
-        if (left <= 0) break;
-        const dt = Math.min(left, 0.03 * rmin);
-        v[i * 3] += ax * dt; v[i * 3 + 1] += ay * dt; v[i * 3 + 2] += az * dt;
+      while (left > 0 && guard++ < 200000) {
+        let td = accel(i);
+        if (td < 0) { x[i * 3] = NaN; accreted++; break; }
+        const dt = Math.min(left, 0.005 * td);
+        v[i * 3] += acc[0] * dt * 0.5; v[i * 3 + 1] += acc[1] * dt * 0.5; v[i * 3 + 2] += acc[2] * dt * 0.5;
         x[i * 3] += v[i * 3] * dt; x[i * 3 + 1] += v[i * 3 + 1] * dt; x[i * 3 + 2] += v[i * 3 + 2] * dt;
+        td = accel(i);
+        if (td < 0) { x[i * 3] = NaN; accreted++; break; }
+        v[i * 3] += acc[0] * dt * 0.5; v[i * 3 + 1] += acc[1] * dt * 0.5; v[i * 3 + 2] += acc[2] * dt * 0.5;
         left -= dt;
       }
     }
