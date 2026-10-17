@@ -480,15 +480,24 @@ export class UI {
     if (!t) { this.info.classList.add('hidden'); this.lastInfoKey = null; return; }
     this.info.classList.remove('hidden');
     const dist = V.len(nav.relTo(t));
-    const key = t.type + ':' + targetName(t);
+    // (rebuilt twice a second: the rows follow the simulation clock)
+    const key = t.type + ':' + targetName(t) + ':' + Math.floor(performance.now() / 500);
     if (key !== this.lastInfoKey) {
       this.lastInfoKey = key;
       let rows = [], sub = '';
-      if (t.type === 'body') { rows = describeBody(t.body); sub = t.body.kind === 'star' ? 'Star' : t.body.kind[0].toUpperCase() + t.body.kind.slice(1); if (t.body.parent && t.body.parent.kind !== 'barycenter') sub += ' of ' + t.body.parent.name; }
+      if (t.type === 'body' && t.body.gone) { rows = [['Status', t.body.unborn || (t.body.system && t.body.system.unborn) || (t.body.system && t.body.system.desc && t.body.system.desc.sol && nav.time / YEAR < -4.5e9) ? 'not yet formed at this time' : 'no longer exists at this time']]; sub = t.body.kind[0].toUpperCase() + t.body.kind.slice(1); }
+      else if (t.type === 'body') { rows = describeBody(t.body); sub = t.body.kind === 'star' ? 'Star' : t.body.kind[0].toUpperCase() + t.body.kind.slice(1); if (t.body.parent && t.body.parent.kind !== 'barycenter') sub += ' of ' + t.body.parent.name; }
       else if (t.type === 'star') { const s = t.desc.star; sub = 'Star'; rows = [['Class', s.cls], ['Temperature', Math.round(s.T) + ' K'], ['Mass', (s.mass / C.Msun).toPrecision(3) + ' M<sub>Sun</sub>'], ['Radius', (s.radius / C.Rsun).toPrecision(3) + ' R<sub>Sun</sub>'], ['Luminosity', s.lum.toPrecision(3) + ' L<sub>Sun</sub>'], ['Abs. magnitude', s.MV.toFixed(2)]]; }
-      else if (t.type === 'nebula') { const nb = t.neb; sub = ['Emission nebula', 'Planetary nebula', 'Supernova remnant'][nb.type]; rows = [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']]; }
+      else if (t.type === 'nebula') {
+        const nb = t.neb; sub = nb.cluster ? 'Globular cluster' : ['Emission nebula (H II region)', 'Planetary nebula', 'Supernova remnant', 'Protoplanetary disk'][nb.type] || 'Nebula'; rows = [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']];
+        if (nb.age !== undefined && nb.life) rows.push(['Age', fmtSpan(nb.age) + ' (lasts ~' + (nb.life < 1e6 ? Math.round(nb.life / 1e3) + ',000 years' : Math.round(nb.life / 1e6) + ' million years') + ')']);
+        if (nb.type === 0 && !nb.cluster) rows.push(['Lit by', 'young O and B stars, ionizing hydrogen (red H-alpha) and oxygen (teal [O III])']);
+        else if (nb.type === 1) rows.push(['Lit by', 'the hot exposed core of a dying Sun-like star, now becoming a white dwarf']);
+        else if (nb.type === 2) rows.push(['Shock', 'a supernova blast wave sweeping up interstellar gas (Sedov expansion, radius ~ t^0.4)']);
+      }
       else { const g = t.galaxy; sub = 'Galaxy'; rows = [['Type', g.subtype], ['Diameter', (g.radius * 2 * 3.2616 / 1000).toPrecision(3) + ' kly'], ['Stellar mass', g.mass.toExponential(1) + ' M<sub>Sun</sub>'], ['Stars', '~' + g.nstars.toExponential(1)]]; }
-      this.info.innerHTML = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}${t.type === 'body' && t.body.kind !== 'star' && t.body.kind !== 'barycenter' ? '<tr><td>Illuminated</td><td id="iIll"></td></tr>' : ''}</table>`;
+      const html = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}${t.type === 'body' && !t.body.gone && t.body.kind !== 'star' && t.body.kind !== 'barycenter' ? '<tr><td>Illuminated</td><td id="iIll"></td></tr>' : ''}</table>`;
+      if (html !== this._infoHtml) { this.info.innerHTML = html; this._infoHtml = html; }
     }
     const d = document.getElementById('iDist'); if (d) d.textContent = fmtDist(dist);
     const m = document.getElementById('iMag'); if (m) m.textContent = (t.desc.star.MV + 5 * Math.log10(dist / C.PC) - 5).toFixed(2);
@@ -563,12 +572,12 @@ export class UI {
         }
       }
       if (darkSky && nav.level !== 'universe' && nav.galaxy) {
-        for (const v of visibleNebulae) if (v.px > 6 && v.px < 500 && v.nb.name) put(v.rel, v.nb.name, 'galaxy', Math.min(v.px, 60) + 6);
+        for (const v of visibleNebulae) if (v.px > 6 && v.px < 500 && v.nb.name && !(nav.selected && nav.selected.neb === v.nb)) put(v.rel, v.nb.name, 'galaxy', Math.min(v.px, 60) + 6);
       }
     }
     // selection marker
     const t = nav.selected; let shown = false;
-    if (t) {
+    if (t && !(t.type === 'body' && t.body.gone)) {
       const rel = nav.relTo(t), p = r.project(rel);
       if (p && p[0] > -0.1 && p[0] < 1.1 && p[1] > -0.1 && p[1] < 1.1) {
         const d = V.len(rel), ang = nav.targetRadius(t) / d * r.pxPerRad / rcfg.scale;

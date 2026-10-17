@@ -14,15 +14,18 @@ const msL = (x) => 0.7 + 0.6 * x + 0.6 * x * x * x, msR = (x) => 0.89 + 0.2 * x 
 const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
 // set up the evolutionary state of a star body (once)
-export function initEvolution(b, seed) {
+// (ageYr: the age of the system's primary, so that the stars of a binary or multiple system, born together, share it)
+export function initEvolution(b, seed, ageYr) {
   const st = b.star; if (!st || b.evo) return;
   const m = (st.mass || b.mass) / C.Msun, life = tMS(m), u = hashf(seed, 7);
   let x0;
   if (st.kind === KIND.GIANT) x0 = 1.01 + 0.07 * u;
   else if (st.kind === KIND.SUPERGIANT) x0 = 1.0 + 0.08 * u;
-  else if (st.kind === KIND.MS || st.kind === KIND.BD) x0 = 0.05 + 0.85 * u;
+  else if (st.kind === KIND.MS || st.kind === KIND.BD) x0 = ageYr ? clamp(ageYr / life, 0.002, 0.95) : 0.05 + 0.85 * u;
   else x0 = null;                                    // a remnant already
-  b.evo = { m, life, x0, L0: b.lum, R0: b.radius, T0: b.temp, cls0: b.cls, kind0: st.kind, wdAge0: st.kind === KIND.WD ? 1e8 + 3e9 * u : 0, phase: '' };
+  // a white dwarf in a system of known age has been cooling since its (more massive) progenitor died
+  const wdAge0 = st.kind !== KIND.WD ? 0 : ageYr ? Math.max(1e7, ageYr - tMS(wdProgenitor(m))) : 1e8 + 3e9 * u;
+  b.evo = { m, life, x0, L0: b.lum, R0: b.radius, T0: b.temp, cls0: b.cls, kind0: st.kind, wdAge0, phase: '' };
 }
 // the star's state at t years from now; returns { L (L_sun), R (m), T, m (M_sun), phase, kind, cls }
 export function stellarState(b, tyr) {
@@ -37,8 +40,11 @@ export function stellarState(b, tyr) {
   const x = e.x0 + tyr / e.life;
   if (x < 1) {
     if (x < 0) {
-      // not yet on the main sequence (rewound before its birth): a contracting protostar
-      const f = clamp(-x * e.life / 1e7, 0, 1);
+      // rewound before its birth. Pre-main-sequence contraction takes ~50 Myr for the Sun, much less for massive stars;
+      // before that the star's gas is still part of a molecular cloud (the last ~20 Myr: a star-forming region)
+      const tpre = clamp(0.005 * e.life, 1e5, 5e7), before = -x * e.life;
+      if (before > tpre) return { L: 0, R: e.R0, T: e.T0, m, phase: 'not yet formed', kind: e.kind0, unborn: true, nursery: before - tpre < 2e7 ? (before - tpre) / 2e7 : -1 };
+      const f = clamp(before / tpre, 0, 1);
       const R = e.R0 * msR(0) / msR(Math.min(e.x0, 0.99)) * (1 + 2 * f), T = Math.min(e.T0, 3000 + 1500 * (1 - f));
       return { L: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, R, T, m, phase: 'protostar (still contracting, not yet fusing hydrogen)', kind: KIND.MS };
     }
@@ -77,4 +83,5 @@ export function stellarState(b, tyr) {
 }
 // initial-final mass relation (Cummings et al. 2018, simplified)
 export const wdMass = (m) => clamp(0.08 * m + 0.47, 0.5, 1.35);
+export const wdProgenitor = (mwd) => clamp((mwd - 0.47) / 0.08, 0.9, 8);
 function fmtY(y) { return y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3) + ' thousand years' : y < 1e9 ? (y / 1e6).toFixed(0) + ' million years' : (y / 1e9).toFixed(1) + ' billion years'; }

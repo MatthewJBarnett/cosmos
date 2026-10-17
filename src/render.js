@@ -11,6 +11,7 @@ import { vSurface } from './stars.js';
 import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './galdyn.js';
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
+import { stellarState } from './stellarevo.js';
 import { updateSupernovae } from './supernova.js';
 import { drawSandbox, sandboxPoints, drawLines, drawDebris, drawTrailsOverlay } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
@@ -414,6 +415,20 @@ export class Renderer {
       const ageMyr = (world.tyr + 4.57e9) / 1e6;
       if (gal === MILKY_WAY && ageMyr > 0 && ageMyr < 12) {
         sne.remnants.push(this._ppd = Object.assign(this._ppd || {}, { pos: world.sunP.slice(), radius: 120 * C.AU / C.PC, type: 3, seed: 3.3, colA: [1.0, 0.72, 0.45], colB: [0.8, 0.5, 0.35], lum: 14000 * Math.exp(-ageMyr / 4) * Math.min(1, ageMyr / 0.2), name: 'The Sun\'s protoplanetary disk' }));
+      }
+      // before a star is born its gas is part of a giant molecular cloud; in the last ~20 Myr the cloud collapses into
+      // a star-forming region lit by its first massive stars (the Sun formed in such a cluster: short-lived 26Al and
+      // 60Fe in meteorites came from a nearby massive star). Drawn around the place the star will form.
+      { let k = -1, nm = '', at = null;
+        if (gal === MILKY_WAY && ageMyr < 0 && ageMyr > -20) { k = -ageMyr / 20; nm = 'The Sun\'s birth cloud'; at = world.sunP; }
+        else {
+          // (kept after leaving the system, so the cloud stays visible from outside)
+          if (sys && sys.unborn) this._unbornSys = sys;
+          const us = sys && !sys.desc.sol ? sys : this._unbornSys;
+          const s0 = us && us.galaxy === gal && us._allStars && us.posLocal ? stellarState(us._allStars[0], world.tyr) : null;
+          if (s0 && s0.unborn && s0.nursery >= 0) { k = s0.nursery; nm = 'Star-forming cloud (' + us._allStars[0].name + ' not yet born)'; at = us.posLocal; }
+        }
+        if (k >= 0) sne.remnants.push(this._nurs = Object.assign(this._nurs || {}, { pos: at.slice(), radius: 2.5 + 6 * k, type: 0, seed: 12.7, colA: [1.0, 0.27, 0.35], colB: [0.45, 0.4, 0.9], lum: 12 * (1 - k * 0.8) * Math.min(1, (1 - k) * 8), name: nm }));
       }
       // any visited star that has just died: its planetary nebula (~20 km/s, lit for ~30,000 years) or its supernova
       // remnant (free expansion, then Sedov-Taylor, fading over ~100,000 years)

@@ -7,7 +7,7 @@ import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
 import { GLSL_BB, bbColor, vSurface } from './stars.js';
 import { GAL_I0, skyCfg } from './sky.js';
 import { galDir, SUN_POS, MILKY_WAY } from './universe.js';
-import { world } from './galdyn.js';
+import { world, mwFormation } from './galdyn.js';
 import { globularNebulae } from './globulars.js';
 import { iscoRadius } from './nbody.js';
 
@@ -340,7 +340,9 @@ export function nebulaeNear(galaxy, cam, dens) {
     if (!list) {
       list = []; const rng = new RNG(hashCombine(galaxy.seed, 0x4eb, x, y, z));
       dens([(x + 0.5) * NEB_CELL, (y + 0.5) * NEB_CELL, (z + 0.5) * NEB_CELL], dd);
-      let n = rng.poisson(Math.min(dd[1] * 0.35 + dd[0] * 0.05, 3));
+      // slots for 2.5x today's population: each slot hosts a succession of nebulae, and how many are lit at a
+      // given time follows the star formation history (see nebulaRates)
+      let n = rng.poisson(Math.min(dd[1] * 0.35 + dd[0] * 0.05, 3) * 2.5);
       // around the Sun the sky is the real one: only catalogued nebulae there
       if (galaxy === MILKY_WAY && Math.hypot((x + 0.5) * NEB_CELL - SUN_POS[0], (y + 0.5) * NEB_CELL - SUN_POS[1], (z + 0.5) * NEB_CELL - SUN_POS[2]) < 2200) n = 0;
       for (let i = 0; i < n; i++) {
@@ -348,7 +350,10 @@ export function nebulaeNear(galaxy, cam, dens) {
         const radius = type === 0 ? rng.logRange(4, 45) : type === 1 ? rng.logRange(0.15, 0.9) : rng.logRange(3, 30);
         const pal = type === 0 ? [[1.0, 0.27, 0.35], rng.pick([[0.35, 0.45, 1.0], [0.9, 0.4, 0.45], [0.5, 0.35, 0.9]])] : type === 1 ? [rng.pick([[0.25, 0.85, 0.75], [0.3, 0.6, 1.0], [0.5, 0.9, 0.4]]), rng.pick([[1.0, 0.3, 0.25], [1.0, 0.5, 0.2], [0.8, 0.3, 0.7]])] : [[1.0, 0.35, 0.3], [0.3, 0.75, 1.0]];
         const s = hashCombine(galaxy.seed, x, y, z, i);
-        list.push({ pos: [(x + rng.f()) * NEB_CELL, (y + rng.f()) * NEB_CELL * 0.4 + y * NEB_CELL * 0.6, (z + rng.f()) * NEB_CELL], radius, type, seed, colA: pal[0], colB: pal[1], lum: type === 0 ? rng.range(20, 70) : type === 1 ? rng.range(300, 900) : rng.range(25, 250), name: makeName(s) + [' Nebula', ' planetary nebula', ' supernova remnant'][type] });
+        // lifetimes: H II regions until their O stars die and their winds disperse the gas (3-10 Myr); planetary
+        // nebulae expand at ~20 km/s and fade in a few tens of thousands of years; remnants stay visible ~30-100 kyr
+        const life = type === 0 ? rng.range(3e6, 1e7) : type === 1 ? rng.range(1.5e4, 5e4) : rng.range(3e4, 1e5);
+        list.push({ proc: true, cell: [x * NEB_CELL, y * NEB_CELL, z * NEB_CELL], s, life, phase: rng.f(), seed0: seed, radius0: radius, type, seed, colA: pal[0], colB: pal[1], lum0: type === 0 ? rng.range(20, 70) : type === 1 ? rng.range(300, 900) : rng.range(25, 250), gen: null });
       }
       nebCache.set(key, list); if (nebCache.size > 3000) nebCache.delete(nebCache.keys().next().value);
     }
@@ -356,9 +361,59 @@ export function nebulaeNear(galaxy, cam, dens) {
   }
   return out;
 }
+// Relative birth rates (1 today) of each kind of nebula at t years from now. Star formation (H II regions,
+// core-collapse remnants) starts with the galaxies 13 Gyr ago, peaks at "cosmic noon" ~10 Gyr ago at ~3x today's
+// rate (Madau & Dickinson 2014) and dies away as the gas runs out over the next ~10 Gyr. Planetary nebulae come from
+// old Sun-like stars, so they keep appearing until ~1 solar mass stars stop dying, tens of billions of years after.
+export function nebulaRates(t) {
+  const f = mwFormation(t), tau = 13.79 + t / 1e9;
+  const sfr = f * (1 + 2 * Math.exp(-(((tau - 3.5) / 2.5) ** 2))) * (t > 0 ? Math.exp(-t / 4e9) : 1);
+  const pn = f * (t > 1.5e10 ? Math.exp(-(t - 1.5e10) / 1e10) : 1);
+  return [sfr, pn, 0.75 * sfr + 0.25 * pn];
+}
+const fract = (x) => x - Math.floor(x), sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+let rateT = NaN, rates = [1, 1, 1];
+// a procedural nebula slot at the current time: which generation is lit, how old it is, where, how big and bright
+export function procNebulaTest(nb) { return procNebula(nb); }
+function procNebula(nb) {
+  const t = world.tyr, dt = Math.abs(world.dtyr || 0);
+  if (t !== rateT) { rates = nebulaRates(t); rateT = t; }
+  let cyc = t / nb.life + nb.phase, x;
+  // faster than ~5% of a lifetime per frame the individual nebulae would just flicker: show a typical one at a
+  // typical age, replaced every ~40 frames instead (what a long exposure of the time-lapse would show)
+  const k = dt / nb.life;
+  if (k > 0.05) { cyc = Math.floor(cyc / (k * 40)); x = 0.4; } else x = fract(cyc);
+  const gen = Math.floor(cyc);
+  if (hashCombine(nb.s, gen, 77) / 4294967296 * 2.5 >= rates[nb.type]) return null;
+  if (!nb.cur || nb.gen !== gen) {
+    const r = new RNG(hashCombine(nb.s, gen));
+    nb.gen = gen;
+    nb.cur = Object.assign(nb.cur || {}, { pos: [nb.cell[0] + r.f() * NEB_CELL, nb.cell[1] + r.f() * 0.4 * NEB_CELL, nb.cell[2] + r.f() * NEB_CELL], seed: (nb.seed0 + gen * 7.31) % 50, type: nb.type, colA: nb.colA, colB: nb.colB, life: nb.life,
+      name: makeName(hashCombine(nb.s, gen, 5)) + [' Nebula', ' planetary nebula', ' supernova remnant'][nb.type], gen });
+  }
+  const c = nb.cur, R0 = nb.radius0;
+  let R, L;
+  if (nb.type === 0) {
+    // the ionized bubble expands as t^(4/7) (Spitzer); the O stars' light is fixed, so surface brightness ~ R^-2
+    R = R0 * (0.15 + 0.85 * Math.pow(x / 0.4, 4 / 7));
+    L = nb.lum0 * Math.min(4, (R0 / R) ** 2) * sstep(0, 0.04, x) * (1 - sstep(0.55, 1, x));
+  } else if (nb.type === 1) {
+    // a shell coasting outward at constant speed, fading as it thins and the central star cools
+    R = R0 * (0.08 + 2.3 * x);
+    L = nb.lum0 * Math.min(4, (R0 / R) ** 2) * sstep(0, 0.03, x) * (1 - sstep(0.6, 1, x));
+  } else {
+    // Sedov-Taylor blast wave: R ~ t^(2/5)
+    R = R0 * Math.pow(Math.max(x, 0.005) / 0.4, 0.4);
+    L = nb.lum0 * Math.min(6, (R0 / R) ** 2) * (1 - sstep(0.5, 1, x));
+  }
+  if (L <= nb.lum0 * 0.01) return null;
+  c.radius = R; c.lum = L; c.age = x * nb.life;
+  return c;
+}
 // Real nebulae change with time: H II regions disperse in a few million years, planetary nebulae and supernova
 // remnants expand (radius ~ age for free expansion, ~ age^0.4 once they have swept up their mass) and fade.
 function nebulaAt(nb) {
+  if (nb.proc) return procNebula(nb);
   const t = world.tyr; if (!nb.life || !t) return nb;
   const life = nb.life, a = Math.abs(t);
   const w = Math.max(0, Math.min(1, 1 - (a - 0.3 * life) / (0.7 * life)));
@@ -367,7 +422,7 @@ function nebulaAt(nb) {
   if (nb.age) { const age = Math.max(nb.age + t, 1); radius = nb.radius * Math.pow(age / nb.age, nb.type === 2 && age > 3000 ? 0.4 : 1); if (nb.age + t < 1) return null; }
   if (w >= 1 && radius === nb.radius) return nb;
   if (!nb._t) nb._t = Object.assign({}, nb, { base: nb });
-  nb._t.lum = nb.lum * w * (nb.radius / radius) ** 2; nb._t.radius = radius;
+  nb._t.lum = nb.lum * w * (nb.radius / radius) ** 2; nb._t.radius = radius; if (nb.age) nb._t.age = nb.age + t;
   return nb._t;
 }
 export let visibleNebulae = [];

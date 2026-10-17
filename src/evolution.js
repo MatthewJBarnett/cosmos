@@ -190,3 +190,48 @@ export function geologicPeriod(tyr) {
   for (let i = GEO.length - 1; i >= 0; i--) if (myr <= GEO[i][0]) return { name: GEO[i][1], life: GEO[i][2] };
   return null;
 }
+
+// Earth's global mean surface temperature (K). Phanerozoic values follow Scotese et al. (2021); the glacial cycles of the
+// last 3 Myr come from the ice-age model (the Last Glacial Maximum was ~6 K colder); Snowball Earth ~ -40 C; the Huronian
+// glaciation; a magma ocean at the start; in the future the brightening Sun warms it, then the moist and runaway greenhouse.
+const GMST = [[0, 14.5], [3, 17.5], [15, 18.5], [34, 19], [50, 26.5], [56, 28], [60, 23], [66, 22], [90, 28], [130, 20], [170, 21],
+  [230, 23], [252, 32], [280, 15], [310, 13], [380, 24], [430, 22], [445, 15], [470, 22], [510, 23], [560, 20], [635, 20]];
+export function earthMeanT(tyr, clim, ice) {
+  const myr = -tyr / 1e6;
+  if (clim.magma > 0) return 288 + 1500 * clim.magma;
+  if (clim.snowball) return 233;
+  if (tyr > 0) {
+    const S = clim.S, warm = 288 * Math.pow(S, 0.25) - 288 * Math.pow(sunState(0).L / (orbitScale(0) ** 2), 0.25);
+    return Math.max(287.6 + warm * 3 + 70 * clim.dry - 6 * (ice || 0), clim.Teq * 1.13);
+  }
+  let c;
+  if (myr > 635) c = myr > 2100 && myr < 2400 ? 2 : 20;
+  else { let i = 1; while (i < GMST.length - 1 && GMST[i][0] < myr) i++; const [a, ta] = GMST[i - 1], [b, tb] = GMST[i]; c = ta + (tb - ta) * clamp((myr - a) / (b - a), 0, 1); }
+  return 273.15 + c - (myr < 3 ? 6 * (ice || 0) : 0);
+}
+// Earth's air through time: no free oxygen before the Great Oxidation (~2.4 Gyr ago), ~1% through the "boring billion",
+// rising to modern levels by ~400 Myr ago and peaking ~30% in the Carboniferous coal forests; CO2 was percent-level in
+// the Archean (the faint young Sun was offset by a strong greenhouse), ~1000-2000 ppm in the Mesozoic, 280 ppm before 1850.
+export function earthAir(tyr) {
+  const myr = -tyr / 1e6;
+  let o2, co2;
+  if (myr > 2400) { o2 = 0; co2 = myr > 3500 ? 0.1 : 0.03; }
+  else if (myr > 800) { o2 = 0.01; co2 = 0.01; }
+  else if (myr > 420) { o2 = 0.02 + 0.15 * clamp((800 - myr) / 380, 0, 1); co2 = 0.004; }
+  else if (myr > 0.0002) { o2 = myr > 290 && myr < 340 ? 0.3 : myr > 250 && myr < 290 ? 0.2 : 0.21; co2 = myr > 66 ? 0.0015 : myr > 34 ? 0.0008 : 0.00028; }
+  else { o2 = 0.2095; co2 = tyr < 26 ? 0.00042 : 0.00042; }
+  // far future: the brightening Sun speeds up rock weathering, drawing CO2 down until plants starve (~0.6-1 Gyr);
+  // then the oceans boil off into a steam atmosphere
+  if (tyr > 5e8) { co2 = Math.max(0.00001, co2 * Math.exp(-(tyr - 5e8) / 2e8)); o2 *= clamp(1 - (tyr - 7e8) / 5e8, 0, 1); }
+  return { o2, co2 };
+}
+// the state of Earth's biosphere
+export function earthLife(tyr, clim) {
+  const myr = -tyr / 1e6;
+  if (clim.magma > 0 || myr > 3800) return 'none yet';
+  if (tyr > 0) return clim.life > 0.9 ? 'organic, multicellular' : clim.life > 0.05 ? 'struggling: plants are starving of CO2 and the heat is rising' : clim.dry < 0.95 ? 'only microbes, deep underground and in the last seas' : 'none (the surface is sterile)';
+  if (myr > 2100) return 'single-celled microbes only (bacteria and archaea)';
+  if (myr > 600) return 'single-celled, plus the first complex (eukaryotic) cells and simple algae';
+  if (myr > 470) return 'multicellular, in the oceans only';
+  return 'organic, multicellular (land and sea)';
+}

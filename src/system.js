@@ -8,9 +8,9 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife } from './evolution.js';
 import { driftMyr } from './tectonics.js';
-import { initEvolution, stellarState } from './stellarevo.js';
+import { initEvolution, stellarState, tMS, wdProgenitor } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -248,9 +248,15 @@ export class StarSystem {
   }
   evolveStars(tyr) {
     let scale = 1, changed = false;
-    for (const s of this.stars) {
+    // (the whole system forms together: nothing is there before its primary star)
+    const p0 = (this._allStars || this.stars)[0], r0 = p0 && p0.evo ? stellarState(p0, tyr) : null, sysUn = !!(r0 && r0.unborn); this.unborn = sysUn;
+    for (const s of this._allStars || this.stars) {
       const e = s.evo; if (!e) continue;
       const st = stellarState(s, tyr); if (!st) continue;
+      // rewound to before the star formed: it (and its planets) are not there yet
+      const un = !!st.unborn || sysUn; if (!!s.gone !== un) { s.gone = un; changed = true; }
+      s.unborn = un; s.nursery = st.nursery; s.ageYr = e.x0 !== null ? e.x0 * e.life + tyr : undefined;
+      if (un) continue;
       s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase; s.pnAge = st.pnAge; s.snrAge = st.snrAge;
       if (s.surface) s.surface.T = st.T;
       const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
@@ -264,7 +270,7 @@ export class StarSystem {
     for (const b of root.children) {
       if (!b.orbit || b.kind === 'star') continue;
       const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
-      const g = !!(root.evo && a < root.radius * 1.1); if (!!b.gone !== g) changed = true; b.gone = g;
+      const g = !!(root.evo && a < root.radius * 1.1) || sysUn; if (!!b.gone !== g) changed = true; b.gone = g;
       for (const c of b.children) { if (!!c.gone !== g) changed = true; c.gone = g; }
       const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
       b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
@@ -309,6 +315,9 @@ export class StarSystem {
     if (this.desc.sol) {
       const ss = sunState(tyr), sun = this.root;
       this.sunState = ss;
+      // before 4.57 Gyr ago there is no Sun yet: its gas is part of a molecular cloud (see the birth cloud in render.js)
+      { const un = ss.age < 0; if (!!sun.gone !== un) { sun.gone = un; this._sunChanged = true; } sun.unborn = un; }
+      sun.evoPhase = ss.age < 0 ? 'not yet formed' : ss.age < 0.05 ? 'protostar, contracting towards the main sequence' : ss.phase; sun.ageYr = ss.age * 1e9;
       sun.radius = ss.R * C.Rsun; sun.lum = ss.L; sun.temp = ss.T; sun.mass = ss.M * C.Msun; sun.cls = ss.phase === 'Main sequence (G2V)' ? 'G2V' : ss.phase;
       // the 11 year activity cycle (minimum December 2019): sunspots and the aurora follow it
       const act = Math.sin(Math.PI * (tyr - 19.95) / 11.0) ** 2;
@@ -316,7 +325,7 @@ export class StarSystem {
       sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : 0.12 + 0.88 * act; sun.whiteDwarf = ss.R < 0.05;
       const earthB = this.root.children.find(b => b.name === 'Earth'); if (earthB) earthB.aurora = 0.35 + 0.9 * act;
       oScale = orbitScale(tyr); mScale = moonScale(tyr); this.oScale = oScale;
-      let changed = false;
+      let changed = !!this._sunChanged; this._sunChanged = false;
       for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
       // tidal decay: Phobos breaks up into a ring around Mars in ~40 Myr (Black & Mittal 2015); Triton, on a retrograde
       // orbit, is torn apart inside Neptune's Roche limit in ~3.6 Gyr. The debris rings last ~100 Myr / ~1 Gyr here.
@@ -372,14 +381,24 @@ export class StarSystem {
       }
       const sat = all.find(b => b.name === 'Saturn');
       if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
-      if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); }
+      if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
       // surfaces heated by the giant Sun glow
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }
       else if (this._heated !== false) { for (const b of this.root.children) b.heatT = 0; }
       this._heated = ss.L > 1.5;
     } else if (!this.sandbox && !this._snFixed) {
       // every other star ages too: main sequence, giant, then white dwarf, neutron star or black hole
-      if (!this._evoInit) { this._evoInit = true; this.stars.forEach((s, i) => initEvolution(s, (this.seed || 1) + i * 977)); this._snFixed = this.desc.catIndex !== undefined && SCHEDULED.some(x => x.i === this.desc.catIndex); }
+      if (!this._evoInit) {
+        this._evoInit = true; this._allStars = this.stars.slice();
+        // the primary's age is shared by its companions (stars of one system form together)
+        const p0 = this.stars[0]; initEvolution(p0, this.seed || 1); let age0 = p0 && p0.evo && p0.evo.x0 !== null ? p0.evo.x0 * p0.evo.life : 0;
+        // a white dwarf companion (Sirius B, Procyon B) came from a heavier star that has already lived and died: the
+        // system is at least that old
+        if (age0 && p0.evo.x0 < 1) for (const s of this.stars.slice(1)) if (s.star && s.star.kind === KIND.WD) {
+          const need = tMS(wdProgenitor(s.mass / C.Msun)) + 3e7;
+          if (age0 < need) { age0 = Math.min(need * (1.2 + 0.8 * ((this.seed || 1) % 97) / 97), 0.95 * p0.evo.life); p0.evo.x0 = age0 / p0.evo.life; }
+        }
+        this.stars.forEach((s, i) => { if (i) initEvolution(s, (this.seed || 1) + i * 977, age0); }); this._snFixed = this.desc.catIndex !== undefined && SCHEDULED.some(x => x.i === this.desc.catIndex); }
       const ran = !this._snFixed && this._evoT !== tyr;
       if (ran) { this._evoT = tyr; oScale = this.evolveStars(tyr); this._evoScale = oScale; }
       else oScale = this._evoScale || 1;
@@ -432,6 +451,7 @@ export class StarSystem {
         // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W
         { const ageH = (t / YEAR + 66.043e6) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 21.4 * D2R, lo = -89.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
+        b.meanT = earthMeanT(tyr, b.climate, b.climate.snowball ? 0 : iceAge(tyr) * b.climate.ice); b.air = earthAir(tyr); b.lifeNow = earthLife(tyr, b.climate);
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
         b.drift = driftMyr(tyr);
@@ -879,6 +899,7 @@ export function describeBody(b) {
     rows.push(['Luminosity', fmt(b.lum) + ' L<sub>Sun</sub>']);
     if (b.star && !b.evoPhase) rows.push(['Abs. magnitude', b.star.MV.toFixed(2)]);
     if (b.evoPhase) rows.push(['Stage', b.evoPhase]);
+    if (b.ageYr > 0 && !b.unborn) rows.push(['Age', b.ageYr >= 1e9 ? (b.ageYr / 1e9).toFixed(2) + ' billion years' : b.ageYr >= 1e6 ? (b.ageYr / 1e6).toFixed(1) + ' million years' : Math.round(b.ageYr).toLocaleString('en') + ' years']);
     if (b.blackHole) {
       // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
       const m = b.mass / C.Msun;
@@ -893,10 +914,17 @@ export function describeBody(b) {
     rows.push(['Radius', fmt(b.radius / 1e3, 5) + ' km']);
     rows.push(['Gravity', fmt(surfaceGravity(b) / 9.80665) + ' g']);
     rows.push(['Density', fmt(b.mass / (4.18879 * b.radius ** 3) / 1000) + ' g/cm³']);
-    rows.push(['Mean temperature', Math.round(b.temp) + ' K (' + Math.round(b.temp - 273.15) + ' °C)']);
-    if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P / 101325) + ' atm']); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
+    const Tm = b.meanT || (b.heatT > b.temp ? b.heatT : b.temp);
+    rows.push(['Mean temperature', Math.round(Tm) + ' K (' + Math.round(Tm - 273.15) + ' °C)']);
+    if (b.air) {
+      // Earth's air of the epoch (see earthAir)
+      const ppm = Math.round(b.air.co2 * 1e6), f = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+      rows.push(['Pressure', b.climate && b.climate.dry > 0.5 ? 'rising (steam atmosphere)' : '1 atm']);
+      rows.push(['Atmosphere', 'N2 ' + f(Math.max(0, 0.99 - b.air.o2 - b.air.co2)) + ', O2 ' + (b.air.o2 > 0 ? f(b.air.o2) : 'none') + ', CO2 ' + (ppm < 10000 ? ppm.toLocaleString('en') + ' ppm' : f(b.air.co2))]);
+    } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P / 101325) + ' atm']); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
-    if (b.life) rows.push(['Life', 'organic, multicellular']);
+    if (b.lifeNow) rows.push(['Life', b.lifeNow]);
+    else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }
   if (b.rotPeriod) rows.push(['Rotation', Math.abs(b.rotPeriod) < 1 ? fmt(Math.abs(b.rotPeriod) * 1000) + ' ms' : Math.abs(b.rotPeriod) < 86400 * 3 ? fmt(Math.abs(b.rotPeriod) / 3600) + ' h' : fmt(Math.abs(b.rotPeriod) / 86400) + ' d']);
   if (b.kind !== 'star' && b.kind !== 'barycenter') rows.push(['Axial tilt', fmt(b.tilt) + '°']);
