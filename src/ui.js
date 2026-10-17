@@ -526,9 +526,9 @@ export class UI {
       else if (t.type === 'nebula') {
         // (catalogued nebulae: their state at the current time)
         const base = t.neb.base || t.neb, real = base.gen === undefined && base.age !== undefined && !base.proc;
-        const nb = real ? (nebulaAt(base) || base) : t.neb, ageNow = real ? base.age + world.tyr : nb.age;
+        const nbNow = real ? nebulaAt(base) : null, nb = real ? (nbNow || base) : t.neb, ageNow = real ? base.age + world.tyr : nb.age;
         sub = nb.cluster ? 'Globular cluster' : ['Emission nebula (H II region)', 'Planetary nebula', 'Supernova remnant', 'Protoplanetary disk'][nb.type] || 'Nebula';
-        rows = real && ageNow < 0 ? [['Status', 'the star has not exploded yet (in ' + fmtSpan(-ageNow) + ')']] : [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']];
+        rows = real && ageNow < 0 ? [['Status', 'the star has not exploded yet (in ' + fmtSpan(-ageNow) + ')']] : [['Diameter', real && !nbNow && ageNow < 2 ? 'a few light days (just exploded)' : (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']];
         if (real && ageNow >= 0) rows.push(['Age', fmtSpan(ageNow)]);
         else if (nb.age !== undefined && nb.life && !real) rows.push(['Age', fmtSpan(nb.age) + ' (lasts ~' + (nb.life < 1e6 ? Math.round(nb.life / 1e3) + ',000 years' : Math.round(nb.life / 1e6) + ' million years') + ')']);
         if (nb.type === 0 && !nb.cluster) rows.push(['Lit by', 'young O and B stars, ionizing hydrogen (red H-alpha) and oxygen (teal [O III])']);

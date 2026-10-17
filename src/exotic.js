@@ -326,7 +326,7 @@ const ORION = (() => { const d = galDir(209.0, -19.4); return { pos: V.addm(SUN_
 export const REAL_NEBULAE = [ORION,
   (() => { const d = galDir(6.0, -1.2); return { pos: V.addm(SUN_POS, d, 1250), radius: 16, type: 0, seed: 9.1, name: 'Lagoon Nebula', colA: [1.0, 0.25, 0.35], colB: [0.9, 0.35, 0.5], lum: 40, life: 3e6 }; })(),
   (() => { const d = galDir(63.2, 13.98); return { pos: V.addm(SUN_POS, d, 790), radius: 0.4, type: 1, seed: 5.5, name: 'Ring Nebula', colA: [0.25, 0.85, 0.75], colB: [1.0, 0.3, 0.25], lum: 600, life: 2.5e4, age: 4000 }; })(),
-  (() => { const d = galDir(184.56, -5.78); return { pos: V.addm(SUN_POS, d, 2000), radius: 1.7, type: 2, seed: 2.2, name: 'Crab Nebula', colA: [1.0, 0.45, 0.25], colB: [0.35, 0.7, 1.0], lum: 250, life: 4e4, age: 946 }; })(),
+  (() => { const d = galDir(184.56, -5.78); return { pos: V.addm(SUN_POS, d, 2000), radius: 1.7, type: 2, seed: 2.2, name: 'Crab Nebula', colA: [1.0, 0.45, 0.25], colB: [0.35, 0.7, 1.0], lum: 250, life: 4e4, age: 945.52 }; })(),
   (() => { const d = galDir(74.0, -8.6); return { pos: V.addm(SUN_POS, d, 740), radius: 18, type: 2, seed: 6.4, name: 'Veil Nebula', colA: [1.0, 0.3, 0.3], colB: [0.3, 0.75, 1.0], lum: 30, life: 6e4, age: 15000 }; })(),
   (() => { const d = galDir(287.6, -0.6); return { pos: V.addm(SUN_POS, d, 2600), radius: 35, type: 0, seed: 8.8, name: 'Carina Nebula', colA: [1.0, 0.3, 0.33], colB: [0.9, 0.5, 0.4], lum: 45, life: 3e6 }; })(),
   // remnants of the historical supernovae (age in years at J2000; they appear when they exploded)
