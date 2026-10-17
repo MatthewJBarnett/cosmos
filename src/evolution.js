@@ -162,3 +162,31 @@ export function iceAge(tyr) {
 }
 // the first time after t0 when the ice sheets pass a given fraction of their last-glacial-maximum volume
 export function nextGlacial(t0, level = 0.5) { for (let t = t0; t < ICE_T1; t += ICE_DT) if (iceAge(t) >= level) return t; return null; }
+
+// geologic time (International Chronostratigraphic Chart, ages in Myr before present) and what was living then
+const GEO = [
+  [4567, 'Hadean', 'a molten, then cooling surface under heavy bombardment; the first oceans'],
+  [4031, 'Archean', 'the first life: single-celled microbes and stromatolites; an atmosphere without oxygen'],
+  [2500, 'Paleoproterozoic', 'the Great Oxidation: cyanobacteria fill the air with oxygen; the first complex (eukaryotic) cells'],
+  [1600, 'Mesoproterozoic', 'the "boring billion": microbial mats, early algae, the supercontinent Rodinia assembles'],
+  [1000, 'Tonian', 'Rodinia breaks up; the first animals may be evolving in the sea'],
+  [720, 'Cryogenian', 'Snowball Earth glaciations'],
+  [635, 'Ediacaran', 'the first large animals: soft-bodied Ediacaran fauna'],
+  [538.8, 'Cambrian', 'the Cambrian explosion: most animal groups appear, trilobites'],
+  [485.4, 'Ordovician', 'plants reach the land; a great diversity of sea life'],
+  [443.8, 'Silurian', 'jawed fish; the first land plants with vessels'],
+  [419.2, 'Devonian', 'the age of fishes; the first forests and the first four-legged animals'],
+  [358.9, 'Carboniferous', 'vast coal forests, giant insects, the first reptiles'],
+  [298.9, 'Permian', 'the supercontinent Pangaea; it ends in the greatest mass extinction'],
+  [251.9, 'Triassic', 'the first dinosaurs and mammals'],
+  [201.4, 'Jurassic', 'dinosaurs dominate; the first birds; Pangaea splits'],
+  [145, 'Cretaceous', 'flowering plants; ends with the asteroid impact that kills the dinosaurs'],
+  [66, 'Paleogene', 'mammals diversify after the dinosaurs; whales, primates'],
+  [23.03, 'Neogene', 'grasslands spread; the first hominins'],
+  [2.58, 'Quaternary', 'ice ages; Homo sapiens appears ~300,000 years ago'],
+];
+export function geologicPeriod(tyr) {
+  const myr = -tyr / 1e6; if (myr < 0.0117 || myr > 4567) return null;
+  for (let i = GEO.length - 1; i >= 0; i--) if (myr <= GEO[i][0]) return { name: GEO[i][1], life: GEO[i][2] };
+  return null;
+}

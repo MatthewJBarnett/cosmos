@@ -18,7 +18,7 @@ import { LG, LG_START, updateLocalGroupPositions } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0 } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T } from './timeline.js';
-import { sunState, earthDay, moonScale, engulfed } from './evolution.js';
+import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -414,10 +414,11 @@ export class UI {
     // deep time: the Sun's state and the universe
     let deep = '';
     const tyr = nav.time / YEAR;
-    if (Math.abs(tyr) > 3000 && Math.abs(tyr) < 2.5e7) {
+    if (Math.abs(tyr) > 3000 && tyr > -4.6e9 && tyr < 2.5e7) {
       // ice ages (shown when Earth is the selection or the place you are at)
       const e = solSystem().find('Earth'), sel = nav.selected && nav.selected.body;
       if (e && (sel === e || nav.anchor === e)) { const ice = e.iceAge || 0;
+        const geo = geologicPeriod(tyr); if (geo) deep += `<div><b>${geo.name}</b> <span class="dim">${geo.life}</span></div>`;
         deep += `<div><b>Climate</b> ${ice > 0.05 ? 'ice age: ' + Math.round(ice * 100) + '% of the last glacial maximum, sea level −' + Math.round(125 * Math.min(ice, 1.1)) + ' m' : 'interglacial'} · Earth's orbit e = ${(e.orbitE || 0).toFixed(4)}</div>`; }
     }
     if (Math.abs(tyr) > 1e5) {
