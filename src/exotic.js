@@ -14,7 +14,7 @@ const BH_FS = `
 in vec2 vUV; out vec4 o;
 uniform sampler2D uScene; uniform sampler3D uNoise3;
 uniform mat3 uCamRot, uCamRotInv, uDiskRot; uniform vec2 uTanFov; uniform vec3 uRel;
-uniform float uRs, uExposure, uTime, uDisk, uDiskT;
+uniform float uRs, uExposure, uTime, uDisk, uDiskT, uStrong;
 ${GLSL_BB}
 vec3 sampleSky(vec3 d){
   vec3 v = uCamRotInv*d;
@@ -29,7 +29,7 @@ void main(){
   float r0 = length(ro);
   float tca = -dot(ro, rd);
   vec3 pc = ro + rd*tca; float b = length(pc);
-  if (tca < 0. || b > 60.*uRs) {
+  if (tca < 0. || b > uStrong*uRs) {
     // weak field: small deflection towards the hole
     if (tca > 0.) { float a = 2.*uRs/b; rd = normalize(rd - (pc/b)*a); }
     o = vec4(sampleSky(rd), 1.); return;
@@ -88,7 +88,7 @@ export function drawBlackHole(b, o) {
   if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
   const rs = b.radius;
   const disk = b.accretion || 0;
-  pBH.use().set({ uScene: o.scene, uNoise3: o.noise3, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uDiskRot: Q.mat3(b.axisW || o.rotQ), uTanFov: o.tanFov, uRel: o.rel, uRs: rs, uExposure: o.exposure, uTime: o.time % 1e5, uDisk: disk * 40, uDiskT: 9000 });
+  pBH.use().set({ uScene: o.scene, uNoise3: o.noise3, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uDiskRot: Q.mat3(b.axisW || o.rotQ), uTanFov: o.tanFov, uRel: o.rel, uRs: rs, uExposure: o.exposure, uTime: o.time % 1e5, uDisk: disk * 40, uDiskT: 9000, uStrong: o.strong || 60 });
   drawFS();
 }
 
