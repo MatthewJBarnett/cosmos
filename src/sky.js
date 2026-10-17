@@ -549,12 +549,12 @@ void main(){
   vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
   float ce = clamp(dot(d, uSun), -1., 1.), eps = degrees(acos(ce));
   float beta = abs(degrees(asin(clamp(dot(d, uEclN), -1., 1.))));
-  if (eps < 12.) { o = vec4(0.); return; }
-  float zPlane = 260.*pow(1./max(sin(radians(eps)), 0.15), 1.6) + 70.*exp(-pow((180. - eps)/9., 2.));
+  // (it keeps brightening towards the Sun, merging into the F-corona; capped within ~1 degree)
+  float zPlane = 260.*pow(1./max(sin(radians(eps)), 0.018), 1.6) + 70.*exp(-pow((180. - eps)/9., 2.));
   float b0 = 12. + 25.*eps/180.;
   float z = 60. + (zPlane - 60.)*exp(-beta/b0);
   // S10 -> solar constants per steradian: 10^(-0.4 (10 + 26.74)) per square degree
-  o = vec4(vec3(1.0, 0.93, 0.82)*z*6.9e-12*uScale*smoothstep(12., 20., eps), 1.);
+  o = vec4(vec3(1.0, 0.93, 0.82)*z*6.9e-12*uScale, 1.);
 }`;
 let pZodi = null;
 export function initZodiProgram() { if (!pZodi) pZodi = new Program('zodiacal', FS_VS, ZODI_FS); }
