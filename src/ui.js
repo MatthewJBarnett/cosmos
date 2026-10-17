@@ -87,6 +87,16 @@ export class UI {
       Milky Way: ESO/S. Brunier panorama (CC BY 4.0). Exoplanets: NASA Exoplanet Archive.
       Ephemerides: JPL approximate planetary elements (E. M. Standish), J. Meeus, Astronomical Algorithms.</p>
       <p class="dim">Press H or ? to close.</p>`;
+    // one-time note about the physics features
+    try {
+      if (!localStorage.getItem('cosmos.seen.physics') && !new URLSearchParams(location.search).has('test')) {
+        localStorage.setItem('cosmos.seen.physics', '1');
+        setTimeout(() => {
+          const n = root.appendChild(el('div', 'panel whatsnew', `<b>New: physics across all of time</b><div>V opens the sandbox: merge black holes and hear the gravitational waves.</div><div>U opens the timeline: Betelgeuse's supernova, Andromeda's collision, the Sun's red giant phase.</div><div>The Rate menu runs the clock up to 10 billion years per second. M flies at relativistic speed.</div><button>OK</button>`));
+          n.querySelector('button').onclick = () => n.remove(); setTimeout(() => n.remove(), 25000);
+        }, 2500);
+      }
+    } catch (e) { }
     this.hint = root.appendChild(el('div', 'hint', 'Drag to look · W A S D to fly · double click to travel · <b>V</b> physics sandbox · <b>U</b> timeline · <b>H</b> help'));
     setTimeout(() => this.hint.classList.add('fade'), 9000);
     // on-screen fly buttons for touch screens

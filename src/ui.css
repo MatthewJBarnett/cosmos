@@ -108,3 +108,6 @@ select { background: rgba(20, 26, 36, 0.9); color: #dfe6ee; border: 1px solid rg
 .timeline .tlticks { position: relative; height: 14px; font-size: 10.5px; color: #8b98a8; margin-top: 2px; }
 .timeline .tlticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .timeline .tlticks span:first-child { transform: none; } .timeline .tlticks span:last-child { transform: translateX(-100%); }
+.whatsnew { left: 50%; top: 80px; transform: translateX(-50%); max-width: 520px; line-height: 1.5; }
+.whatsnew b { display: block; margin-bottom: 4px; color: #fff; }
+.whatsnew button { margin-top: 8px; }
