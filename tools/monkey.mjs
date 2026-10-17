@@ -9,6 +9,9 @@ page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0
 page.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
 await page.goto('http://localhost:8642/?q=low&tex=49&cube=32&galr=0.1&scale=0.4', { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos && document.getElementById("loading") === null', { timeout: 300000 }).catch(() => errors.push('never finished loading'));
+// every draw call is checked for GL errors (reported as console lines starting GLERR)
+{ const fs = await import('fs'); const hook = fs.readFileSync(new URL('./glhook.js', import.meta.url), 'utf8'); await page.evaluate(new Function('return (async () => {' + hook + '})()')); }
+page.on('console', m => { if (m.text().startsWith('GLERR')) errors.push(m.text().slice(0, 300)); });
 const places = ['Earth', 'Moon', 'Mars', 'Jupiter', 'Saturn', 'Titan', 'Sun', 'Venus', 'Pluto', 'Sirius', 'TRAPPIST-1', 'Orion Nebula', 'Andromeda', 'Sagittarius A*', 'Crab Pulsar', "Halley's Comet", 'Europa', 'Vesta', 'Proxima Centauri', 'Milky Way'];
 const keys = ['w', 's', 'a', 'd', 'q', 'e', 'r', 'f', 'g', 'l', 'y', '.', ',', 'j', ' ', '\\', 'k', 'o', 'n', 't', 'c', 'b', '1', '4', '6', 'z', 'x', '[', ']', 'Tab', 'h', 'u', 'v', '.', '.', '.'];
 for (let i = 0; i < steps; i++) {
@@ -22,7 +25,7 @@ for (let i = 0; i < steps; i++) {
       const k = Math.floor(rnd() * 4), x = rnd();
       await page.evaluate((k, x) => { const u = cosmos.ui, tl = u.timeline;
         if (k === 0) tl.go(tl.events[Math.floor(x * tl.events.length)]);
-        else if (k === 1) { u.sbui.start(Math.floor(x * 10) % 11); }
+        else if (k === 1) { u.sbui.start(Math.floor(x * u.sbui.presets.length) % u.sbui.presets.length); }
         else if (k === 2) { cosmos.nav.rate = cosmos.YEAR * Math.pow(10, Math.floor(x * 11)); cosmos.nav.paused = false; }
         else { cosmos.nav.rate = -Math.abs(cosmos.nav.rate); } }, k, x);
     }
