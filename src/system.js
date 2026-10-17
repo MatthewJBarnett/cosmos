@@ -1,5 +1,6 @@
 // Star systems: the real Solar System plus procedural generation, Keplerian motion, physical parameters.
 import { RNG, hashCombine, makeName } from './rng.js';
+import { SUN_POS } from './universe.js';
 import { V, Q, C, clamp, mix } from './math.js';
 import { makeStar, bbColor, KIND } from './stars.js';
 import { galDir } from './universe.js';
@@ -16,14 +17,19 @@ const D2R = Math.PI / 180;
 const yUp = (v) => [v[0], v[2], -v[1]]; // astronomy z-up -> engine y-up
 
 // ---------- Kepler ----------
+// an orbit whose elements are given in the plane of the sky (visual binaries, the S-stars): x north, y east, z away
+export function skyToFrame(sky, r) { const x = r[0], y = -r[2], z = r[1]; return [sky[0][0] * x + sky[1][0] * y + sky[2][0] * z, sky[0][1] * x + sky[1][1] * y + sky[2][1] * z, sky[0][2] * x + sky[1][2] * y + sky[2][2] * z]; }
 export function keplerPos(o, t) {
   // returns position in the orbit reference frame (y-up: orbital plane is XZ when i=0)
-  const M = o.M0 + 2 * Math.PI * t / o.period;
-  let E = M, e = o.e;
-  if (e > 0.8) E = Math.PI;
-  for (let i = 0; i < 12; i++) { const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); E -= dE; if (Math.abs(dE) < 1e-12) break; }
+  let M = o.M0 + 2 * Math.PI * ((t / o.period) % 1);
+  M = ((M % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;       // (-pi, pi]
+  // Danby's starting guess converges for any eccentricity (a fixed start at pi fails for e near 1)
+  const e = o.e; let E = M + 0.85 * e * Math.sign(Math.sin(M) || 1);
+  for (let i = 0; i < 40; i++) { const f = E - e * Math.sin(E) - M, f1 = 1 - e * Math.cos(E), f2 = e * Math.sin(E), dE = f / (f1 - 0.5 * f * f2 / f1); E -= dE; if (Math.abs(dE) < 1e-13) break; }
   const xv = o.a * (Math.cos(E) - e), yv = o.a * Math.sqrt(1 - e * e) * Math.sin(E);
-  const cw = Math.cos(o.argp), sw = Math.sin(o.argp), cO = Math.cos(o.node), sO = Math.sin(o.node), ci = Math.cos(o.inc), si = Math.sin(o.inc);
+  // (apsidal precession, e.g. general relativity's for stars close to a black hole)
+  const argp = o.argp + (o.argpDot ? o.argpDot * t : 0);
+  const cw = Math.cos(argp), sw = Math.sin(argp), cO = Math.cos(o.node), sO = Math.sin(o.node), ci = Math.cos(o.inc), si = Math.sin(o.inc);
   const x = (cO * cw - sO * sw * ci) * xv + (-cO * sw - sO * cw * ci) * yv;
   const y = (sO * cw + cO * sw * ci) * xv + (-sO * sw + cO * cw * ci) * yv;
   const z = (sw * si) * xv + (cw * si) * yv;
@@ -322,6 +328,7 @@ export class StarSystem {
         b.pos = [par.pos[0] + p[0], par.pos[1] + p[1], par.pos[2] + p[2]];
       } else if (b.orbit && b.parent) {
         let p = keplerPos(b.orbit, t);
+        if (b.orbit.sky) p = skyToFrame(b.orbit.sky, p);
         if (b.parent === this.root && oScale !== 1) p = V.mul(p, oScale);
         if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
         const pp = b.parent.pos; b.pos = [pp[0] + p[0], pp[1] + p[1], pp[2] + p[2]];
@@ -528,6 +535,36 @@ export function makeStarBody(star, name, rng) {
   return b;
 }
 
+// The S-stars: young stars orbiting Sagittarius A* within a few thousand AU, followed since the 1990s (Keck, VLT).
+// Elements from Gillessen et al. 2017 and GRAVITY 2020-22 (semi-major axis in arcseconds at 8.27 kpc, angles in degrees,
+// time of pericentre). The orbital planes are set relative to the line of sight to the Sun (sky north approximated by
+// galactic north). S2's orbit precesses by 12 arcminutes per orbit, as general relativity predicts (GRAVITY 2020).
+const S_STARS = [
+  ['S2', 0.1254, 0.8847, 134.7, 228.2, 66.3, 2018.38, 13.6, 28500],
+  ['S38', 0.1416, 0.8201, 171.1, 101.1, 18.0, 2003.2, 6, 25000],
+  ['S55', 0.1078, 0.7209, 150.1, 325.5, 331.5, 2009.3, 3, 20000],
+  ['S29', 0.3910, 0.9690, 144.4, 7.1, 205.8, 2021.4, 5, 22000],
+  ['S1', 0.5950, 0.5560, 119.1, 342.0, 122.3, 2001.8, 12, 27000],
+  ['S4711', 0.0420, 0.7680, 114.7, 20.1, 131.1, 2017.5, 2, 15000],
+];
+function addSStars(sys, bh) {
+  const M = bh.mass, AUa = 8270 * C.AU, rng = new RNG(77);
+  // sky frame: z towards the Sun, x east, y north (galactic north stands in for celestial north)
+  const toSun = V.norm(V.mul(SUN_POS, -1)), N0 = [0, 1, 0], north = V.norm(V.sub(N0, V.mul(toSun, V.dot(N0, toSun)))), east = V.cross(toSun, north);
+  for (const [name, aA, e, inc, node, w, tp, mass, T] of S_STARS) {
+    const a = aA * AUa, P = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * M));
+    const tpS = (tp - 2000) * C.YEAR;
+    const st = makeStar(-2.5, 0.5, 0.5, true);
+    const R = C.Rsun * Math.pow(mass, 0.6), L = 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun;
+    const b = makeStarBody(Object.assign({}, st, { kind: KIND.MS, mass: mass * C.Msun, radius: R, T, lum: L, MV: 4.83 - 2.5 * Math.log10(L) }), name, rng);
+    b.cls = 'B-type star orbiting Sagittarius A*';
+    // orbit in the sky frame, then expressed in the system's axes
+    b.orbit = { a, e, inc: inc * D2R, node: node * D2R, argp: w * D2R, M0: -2 * Math.PI * ((tpS / P) % 1), period: P,
+      argpDot: 6 * Math.PI * C.G * M / (C.c ** 2 * a * (1 - e * e)) / P, sky: [north, east, V.mul(toSun, -1)] };
+    b.equatorial = false; b.skyFrame = true;
+    addChild(bh, b);
+  }
+}
 function buildProcedural(sys) {
   const rng = new RNG(sys.seed), d = sys.desc, st = d.star;
   const name = starName(d);
@@ -536,6 +573,7 @@ function buildProcedural(sys) {
   let primary = makeStarBody(st, name, rng);
   let hostMass = st.mass, lum = st.lum, planetParent = primary, maxA = 1e9, minAfac = 1;
   sys.root = primary;
+  if (name === 'Sagittarius A*') { sys.quat = [0, 0, 0, 1]; addSStars(sys, primary); return; }
   const real = REAL_SYSTEMS[name];
   if (real || d.catIndex !== undefined) {
     // catalogue stars: no invented companions; known systems get their observed planets only

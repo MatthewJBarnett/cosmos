@@ -3,7 +3,7 @@ import { gl, Program, tex2D, makeVAO } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, LIGHT_UNIFORMS } from './planet.js';
-import { keplerPos } from './system.js';
+import { keplerPos, skyToFrame } from './system.js';
 import { planetOrbitPath } from './ephem.js';
 import { loadTexture } from './assets.js';
 
@@ -140,12 +140,13 @@ export function drawOrbits(sys, nav, o) {
     const col = sel ? [1, 0.85, 0.4] : b.kind === 'star' ? [1, 0.7, 0.3] : b.kind === 'moon' ? [0.45, 0.55, 0.7] : b.kind === 'dwarf' || b.kind === 'comet' ? [0.5, 0.5, 0.5] : [0.35, 0.6, 1.0];
     const M0 = orb.M0 + 2 * Math.PI * nav.time / orb.period;
     const start = data.length / 7;
-    const fake = Object.assign({}, orb, { period: 1 });
+    const fake = Object.assign({}, orb, { period: 1, argp: orb.argp + (orb.argpDot ? orb.argpDot * nav.time : 0), argpDot: 0 });
     // real planets follow their ephemeris (orbits that slowly change shape, and widen as the Sun loses mass)
     const eph = b.ephem === 'planet' ? (sys.oScale || 1) : 0, path = eph ? planetOrbitPath(b.name, nav.time, ORB_N) : null;
     for (let i = 0; i <= ORB_N; i++) {
       fake.M0 = M0 + i / ORB_N * Math.PI * 2;
       let p = path ? V.mul(path[i], eph) : keplerPos(fake, 0);
+      if (orb.sky) p = skyToFrame(orb.sky, p);
       if (!path && b.parent === sys.root && sys.oScale && sys.oScale !== 1) p = V.mul(p, sys.oScale);
       if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
       p = Q.rot(sys.worldQ, p);
