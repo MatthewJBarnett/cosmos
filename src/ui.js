@@ -586,11 +586,21 @@ export class UI {
       const earth = sol.find('Earth'), sun = sol.find('Sun');
       if (v.from === 'earth') {
         // stand on the night side of Earth with the star about 35 degrees up
-        const s = V.norm(nav.relGalactic ? nav.relTo(t) : [0, 0, -1]);
-        const toSun = V.norm(V.sub(sun.wpos, earth.wpos));
-        let perp = V.sub(V.mul(toSun, -1), V.mul(s, V.dot(V.mul(toSun, -1), s))); if (V.len(perp) < 1e-3) perp = V.cross(s, [0, 1, 0]);
-        perp = V.norm(perp);
-        const up = V.norm(V.add(V.mul(s, Math.cos(55 * Math.PI / 180)), V.mul(perp, Math.sin(55 * Math.PI / 180))));
+        const upFor = () => {
+          const s = V.norm(nav.relGalactic ? nav.relTo(t) : [0, 0, -1]);
+          const toSun = V.norm(V.sub(sun.wpos, earth.wpos));
+          let perp = V.sub(V.mul(toSun, -1), V.mul(s, V.dot(V.mul(toSun, -1), s))); if (V.len(perp) < 1e-3) perp = V.cross(s, [0, 1, 0]);
+          perp = V.norm(perp);
+          return V.norm(V.add(V.mul(s, Math.cos(55 * Math.PI / 180)), V.mul(perp, Math.sin(55 * Math.PI / 180))));
+        };
+        // a supernova stays near its peak for months: wait (up to three weeks) for a night without the Moon
+        const moon = sol.find('Moon'), t0 = nav.time;
+        if (e.hold && moon) for (let d = 0; d < 22; d++) {
+          nav.time = t0 + d * 86400; sol.update(nav.time);
+          if (V.dot(V.norm(V.sub(moon.wpos, earth.wpos)), upFor()) < -0.15) break;
+          if (d === 21) { nav.time = t0; sol.update(nav.time); }
+        }
+        const up = upFor();
         nav.land(earth, { dir: up });
         nav.onArrive = () => { nav.lookTarget = t; };
         nav.selected = t;
