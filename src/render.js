@@ -10,7 +10,7 @@ import { world, sunHook, SUN_ORBIT, sunPos, galQuat0 } from './galdyn.js';
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
-import { drawSandbox, sandboxPoints, drawLines } from './sandbox.js';
+import { drawSandbox, sandboxPoints, drawLines, drawDebris } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies } from './sky.js';
 import { catalog } from './assets.js';
@@ -537,7 +537,7 @@ export class Renderer {
       gl.disable(gl.DEPTH_TEST);
       // points: bodies and far stars
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
-      if (sys.sandbox) { for (const p of sandboxPoints(sys, nav)) points.push(p); drawSandbox(sys, nav, { viewProj, fcoef, exposure, maxExposure: this.maxExposure || rcfg.maxExposure }); gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); }
+      if (sys.sandbox) { for (const p of sandboxPoints(sys, nav)) points.push(p); drawSandbox(sys, nav, { viewProj, fcoef, exposure, maxExposure: this.maxExposure || rcfg.maxExposure }); drawDebris(sys, nav, { viewProj, exposure, pxSA, pxPerRad }); gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO); }
       drawPoints(points, viewProj, common);
       // star coronae / glare
       drawNebulaeAndFx.coronae(sys, nav, { viewProj, fcoef, exposure, pxPerRad, time: nav.time, noise3: this.noise3, refrK, refrUp });
