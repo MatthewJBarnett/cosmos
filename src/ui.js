@@ -476,6 +476,18 @@ export class UI {
       deep += `<div class="dim">Universe ${ageS} old · background ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T < 1e4 ? cosmo.T.toFixed(cosmo.T < 100 ? 3 : 0) : cosmo.T.toExponential(2)} K${era ? '</div><div><b>Era</b> ' + era : ''}</div>`;
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';
     }
+    // what is happening right now that only this moment has (weather on other worlds, comets, new stars in the sky)
+    {
+      const now = [], sol = solSystem(), all = sol._all || sol.bodies, tyrN = nav.time / YEAR;
+      const mars = all.find(b => b.name === 'Mars'), earth = all.find(b => b.name === 'Earth'), sun = sol.root;
+      if (mars && !mars.gone && mars.dust > 0.15) now.push('global dust storm on Mars');
+      if (earth && !earth.gone && earth.volcano) now.push('volcanic haze from ' + earth.volcano);
+      if (earth && !earth.gone && earth.geomag && earth.geomag.reversing && tyrN > -4.2e9) now.push('Earth\'s magnetic field reversing');
+      if (sun && !sun.gone) for (const b of all) if (b.kind === 'comet' && !b.gone && b.wpos && V.dist(b.wpos, sun.wpos) < 1.5 * C.AU && b.name !== 'Comet') now.push(b.name + ' near the Sun');
+      const sn = r.supernovae && r.supernovae.points ? r.supernovae.points.filter(p => p.m < 3 && p.name).slice(0, 2) : [];
+      for (const p of sn) now.push(p.name + ' at magnitude ' + p.m.toFixed(1));
+      if (now.length) deep += `<div><b>Now</b> ${now.slice(0, 3).join(' · ')}</div>`;
+    }
     const watch = nav.paused ? '' : this.watchHint(nav);
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}${watch ? '<div class="dim"><b>At this rate</b> ' + watch + '</div>' : ''}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
     document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? 'paused' : fmtRate(nav.rate));
