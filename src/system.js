@@ -327,7 +327,10 @@ export class StarSystem {
       sun.radius = ss.R * C.Rsun; sun.lum = ss.L; sun.temp = ss.T; sun.mass = ss.M * C.Msun; sun.cls = ss.phase === 'Main sequence (G2V)' ? 'G2V' : ss.phase;
       // the ~11 year activity cycle, following the observed sunspot record since 1755 (see solarActivity): sunspots
       // and the aurora follow it. Earth's field reverses now and then; while it is weak the aurora spreads equatorward.
-      const act = solarActivity(tyr);
+      // (younger, it spun faster and was far more active: rotation ~ age^0.5 (Skumanich 1972), activity ~ 1/age)
+      const youth = ss.age > 0.01 && ss.age < 10 ? 4.57 / ss.age : 1;
+      if (ss.age > 0.01 && ss.age < 10) sun.rotPeriod = 25.38 * 86400 / Math.sqrt(youth);
+      const act = solarActivity(tyr) * Math.min(youth, 4) + (youth > 1.5 ? 0.3 * Math.min(youth - 1, 3) : 0);
       this.activity = act;
       sun.surface.gran = ss.R > 4 ? 3 : 0; sun.surface.spots = ss.R > 4 || ss.R < 0.1 ? 0 : Math.min(1.4, 0.06 + 0.88 * act); sun.whiteDwarf = ss.R < 0.05;
       const earthB = this.root.children.find(b => b.name === 'Earth');
