@@ -15,6 +15,28 @@ export const skyCfg = { cubeSize: 1024, galBoost: 22, extBoost: 2.5, galSteps: 7
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
 export const SUN_MAG = -26.74;
 
+// ---------- special relativity: aberration and Doppler shift of light for a moving observer ----------
+export const REL_GLSL = `
+uniform vec3 uBeta;   // observer velocity / c, in the frame of the directions being transformed
+// apparent direction of a source seen in (rest frame) direction n; D = Doppler factor
+vec3 aberrate(vec3 n, out float D){
+  float b = length(uBeta); if (b < 1e-5) { D = 1.; return n; }
+  vec3 bh = uBeta/b; float g = inversesqrt(1. - b*b), c = dot(n, bh);
+  float c2 = (c + b)/(1. + b*c); vec3 pp = n - c*bh; float pl = length(pp);
+  D = g*(1. + b*c);
+  return c2*bh + (pl > 1e-7 ? pp/pl : vec3(0.))*sqrt(max(0., 1. - c2*c2));
+}
+// rest frame direction of the light arriving from apparent direction np
+vec3 deaberrate(vec3 np, out float D){
+  float b = length(uBeta); if (b < 1e-5) { D = 1.; return np; }
+  vec3 bh = uBeta/b; float g = inversesqrt(1. - b*b), c2 = dot(np, bh);
+  float c = (c2 - b)/(1. - b*c2); vec3 pp = np - c2*bh; float pl = length(pp);
+  D = g*(1. + b*c);
+  return c*bh + (pl > 1e-7 ? pp/pl : vec3(0.))*sqrt(max(0., 1. - c*c));
+}
+// V band flux of a blackbody relative to another temperature (h nu / k at 550 nm = 26,160 K)
+float vbandRatio(float T1, float T0){ return (exp(26160./max(T0, 1.)) - 1.)/(exp(min(26160./max(T1, 1.), 80.)) - 1.); }`;
+
 // ---------- point sources ----------
 const STAR_VS = `
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aMT; layout(location=2) in vec4 aVel;
@@ -24,6 +46,7 @@ uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight, uLmax; uniform mat3 uRotC;
 uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[4]; uniform int uVarIdx[8]; uniform float uVarDm[8];
 ${REFRACT_VS}
+${REL_GLSL}
 out vec3 vCol; out float vSig;
 ${GLSL_BB}
 int snClass(float MV, float T){
@@ -58,6 +81,9 @@ void main(){
   }
   float m = aMT.x + 5.*log(max(d, 1e-9))/log(10.) - 5.;
   float flux = exp(-0.9210340372*(m + 26.74))*w;
+  // moving observer: stars crowd towards the direction of travel, bluer and brighter ahead, redder behind
+  float Dop; vec3 pn = aberrate(p/d, Dop); p = pn*d;
+  if (Dop != 1.) { flux *= vbandRatio(T*Dop, T); T *= Dop; }
   if (uTwinkle > 0.) {
     // scintillation: turbulence in the air above an observer on the ground; strongest near the horizon
     float el = dot(p/d, uUpLocal);
@@ -96,14 +122,16 @@ layout(location=0) in vec3 aDir; layout(location=1) in vec4 aCol;
 uniform mat4 uViewProj; uniform float uExposure, uPxSA, uPixScale;
 out vec3 vCol; out float vSig;
 ${REFRACT_VS}
+${REL_GLSL}
 void main(){
-  float I = aCol.a/uPxSA*uExposure;
+  float Dop; vec3 dir = aberrate(normalize(aDir), Dop)*length(aDir);
+  float I = aCol.a/uPxSA*uExposure*Dop*Dop*Dop;
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
   // very bright points keep a compact core (the eye/camera PSF) and let bloom and spikes carry the glare
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 2.6*uPixScale); peak = I/(6.2832*sig*sig); }
   vCol = aCol.rgb*min(peak, 4000.); vSig = sig;
-  gl_Position = uViewProj*vec4(refractLift(aDir), 1.); gl_Position.z = 0.;
+  gl_Position = uViewProj*vec4(refractLift(dir), 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0005 ? 0. : ceil(sig*6. + 1.) * (peak > 30. ? min(1. + log(peak/30.)*0.9, 6.) : 1.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
@@ -115,11 +143,13 @@ layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(locati
 uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr; uniform vec3 uSkip;
 out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos;
 ${COSMO_GLSL}
+${REL_GLSL}
 void main(){
   // expanding universe: seen with the light travel delay, smaller, dimmer and redder as time goes on
   vec3 wp = aCen.xyz + uOrigin; vec3 cv = cosmoView(length(wp));
   vec3 c = wp*cv.x - uCamU; float d = length(c);
-  vCos = cv.yz;
+  float Dop; c = aberrate(c/max(d, 1e-12), Dop)*d;
+  vCos = vec2(cv.y*Dop*Dop*Dop, cv.z/Dop);
   float rad = aCen.w*1.08;
   float px = rad/d*uPxPerRad;
   float expand = max(1., 2.6/px);   // unresolved galaxies still cover a few pixels: seeing and the PSF smear them
@@ -231,7 +261,8 @@ void main(){
 const CUBEDRAW_FS = `
 in vec2 vUV; out vec4 o;
 uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale, uFade;
-void main(){ vec3 rd = uRot*vec3((vUV*2. - 1.)*uTanFov, -1.); vec4 c = texture(uCube, rd); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, mix(1., clamp(c.a, 0., 1.), uFade)); }`;
+${REL_GLSL}
+void main(){ vec3 rd = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.)); float Dop; rd = deaberrate(rd, Dop); vec4 c = texture(uCube, rd); c.rgb *= Dop == 1. ? 1. : vbandRatio(4500.*Dop, 4500.)*Dop; if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, mix(1., clamp(c.a, 0., 1.), uFade)); }`;
 
 let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
 export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); initSkyMapProgram(); }
@@ -257,7 +288,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   const p = pStar.use();
   const tyr = world.tyr;
   p.set({ uViewProj: viewProjLocal, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
-    uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
+    uBeta: o.betaLocal || [0, 0, 0], uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1]) });
   { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm }); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
@@ -282,7 +313,7 @@ export function drawPoints(list, viewProj, o) {
   const data = new Float32Array(list.length * 7);
   list.forEach((q, i) => { data.set(q.dir, i * 7); data.set(q.color, i * 7 + 3); data[i * 7 + 6] = q.flux; });
   gl.bindVertexArray(ptVAO); gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-  pPt.use().set({ uViewProj: viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0] });
+  pPt.use().set({ uViewProj: viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPixScale: o.pixScale, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uBeta: o.betaWorld || [0, 0, 0] });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   gl.drawArrays(gl.POINTS, 0, list.length);
 }
@@ -317,7 +348,7 @@ export function drawGalaxies(camU, viewProj, o) {
   init(); galFrame++;
   const p = pGal.use();
   // other galaxies get only a small visibility boost: exposure adapts in deep space, and near bright subjects they should vanish
-  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
+  p.set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uMaxSteps: skyCfg.galSteps, uNoise3: o.noise3, uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTmyr: (world.tyr % 1e12) / 1e6, uScale: GAL_I0 * skyCfg.extBoost * o.exposure * popFade(world.tyr) });
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   visibleGalaxyCells.length = 0;
   const skip = o.skip;
@@ -379,10 +410,10 @@ export class GalaxySky {
     gl.disable(gl.SCISSOR_TEST);
     if (this.face >= 6) { const t = this.front; this.front = this.back; this.back = t; this.face = -1; this.pos = this.newPos; this.valid = true; }
   }
-  draw(rotLocalFromView, tanFov, exposure, weight = 1) {
+  draw(rotLocalFromView, tanFov, exposure, weight = 1, betaLocal = null) {
     if (!this.valid || weight <= 0) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
-    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure * weight * popFade(world.tyr), uFade: weight });
+    pCubeDraw.use().set({ uCube: this.front.t, uRot: rotLocalFromView, uTanFov: tanFov, uScale: GAL_I0 * skyCfg.galBoost * exposure * weight * popFade(world.tyr), uFade: weight, uBeta: betaLocal || [0, 0, 0] });
     drawFS();
   }
 }
@@ -414,8 +445,10 @@ export function drawConstellations(catalog, sunLocal, camLocal, viewProjLocal, a
 // ----- the real Milky Way seen from near the Sun (ESO panorama in galactic coordinates, stars removed) -----
 const MAP_FS = `in vec2 vUV; out vec4 o;
 uniform sampler2D uMap; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uScale;
+${REL_GLSL}
 void main(){
   vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  float Dop; d = deaberrate(d, Dop);
   float l = atan(-d.z, d.x), b = asin(clamp(d.y, -1., 1.));
   vec2 uv = vec2(0.5 - l/6.2831853, 0.5 - b/3.14159265);
   vec3 c = textureLod(uMap, uv, 0.).rgb;
@@ -427,17 +460,17 @@ void main(){
   vec3 smc = vec3(cos(radians(-44.3))*cos(radians(302.8)), sin(radians(-44.3)), -cos(radians(-44.3))*sin(radians(302.8)));
   keep = max(keep, smoothstep(cos(radians(9.)), cos(radians(5.)), dot(d, lmc)));
   keep = max(keep, smoothstep(cos(radians(5.)), cos(radians(3.)), dot(d, smc)));
-  o = vec4(max(c - 0.0017, 0.)*uScale*keep, 1.);
+  o = vec4(max(c - 0.0017, 0.)*uScale*keep*(Dop == 1. ? 1. : vbandRatio(4500.*Dop, 4500.)*Dop), 1.);
 }`;
 let pMap = null;
 export function initSkyMapProgram() { if (!pMap) pMap = new Program('skymap', FS_VS, MAP_FS); }
 // rotLocalFromView: view -> galaxy local (galactic) axes. weight: 0..1 blend with the procedural sky.
-export function drawSkyMap(rotLocalFromView, tanFov, exposure, weight) {
+export function drawSkyMap(rotLocalFromView, tanFov, exposure, weight, betaLocal = null) {
   const e = loadTexture('data/milkyway.jpg', 'color');
   if (!e.ready || weight <= 0) return false;
   initSkyMapProgram();
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-  pMap.use().set({ uMap: e.tex, uRot: rotLocalFromView, uTanFov: tanFov, uScale: 1.6e-8 * skyCfg.galBoost * exposure * weight });
+  pMap.use().set({ uMap: e.tex, uRot: rotLocalFromView, uTanFov: tanFov, uScale: 1.6e-8 * skyCfg.galBoost * exposure * weight, uBeta: betaLocal || [0, 0, 0] });
   drawFS();
   return true;
 }

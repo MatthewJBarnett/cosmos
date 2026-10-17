@@ -153,7 +153,7 @@ export class Sandbox {
         b.radius = pb.R;
         // accretion from tidal debris lights a disk: rate relative to Eddington
         const P = this.sim.particles;
-        const mdot = P && P.bh === pb ? P.mdot(this.sim.t) : 0;
+        const mdot = P && P.bhId === pb.id ? P.mdot(this.sim.t) : 0;
         b.accretion = mdot > 0 ? clamp(Math.log10(mdot / (pb.m / MSUN * 1.4e14)) / 3 + 0.6, 0.15, 1) : 0;
         b.lum = mdot > 0 ? Math.min(0.1 * mdot * c * c, 1.26e31 * pb.m / MSUN) / C.Lsun : 0;
       }
@@ -381,13 +381,18 @@ export function sandboxPoints(sb, nav) {
   const pts = [];
   const P = sb.sim.particles;
   if (P && P.n) {
-    const lumTot = Math.max(1e3, sb.bodies.reduce((s, b) => s + (b.blackHole ? b.lum : 0), 0) * 0.3);
-    const per = lumTot / P.n;
+    // the stream glows faintly with its own heat; once debris falls back, the flare (up to the Eddington
+    // luminosity) is partly absorbed and re-emitted by debris near the hole
+    const bh = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh, Lacc = sb.bodies.reduce((s, b) => s + (b.blackHole ? b.lum : 0), 0);
+    const age = sb.sim.t - (P.t0 || (P.t0 = sb.sim.t)), Lself = 300 * Math.exp(-age / (3 * DAY)) + 2;
+    let near = 0; const rr = new Float32Array(P.n);
+    for (let i = 0; i < P.n; i++) { const x = P.x[i * 3]; if (x !== x) continue; const r = Math.hypot(x - bh.x[0], P.x[i * 3 + 1] - bh.x[1], P.x[i * 3 + 2] - bh.x[2]); rr[i] = r; if (r < 20 * AU) near++; }
     for (let i = 0; i < P.n; i++) {
       const x = P.x[i * 3]; if (x !== x) continue;
       const rel = [x - nav.S[0], P.x[i * 3 + 1] - nav.S[1], P.x[i * 3 + 2] - nav.S[2]];
       const d = V.len(rel) / AU;
-      pts.push({ dir: rel, color: [1.0, 0.75, 0.55], flux: per / (d * d) });
+      const L = Lself / P.n + (rr[i] < 20 * AU && near ? 0.1 * Lacc / near * Math.min(1, (2 * AU / Math.max(rr[i], AU * 0.05)) ** 2) : 0);
+      pts.push({ dir: rel, color: rr[i] < 20 * AU && Lacc > 1e3 ? [0.75, 0.85, 1.0] : [1.0, 0.7, 0.5], flux: L / (d * d) });
     }
   }
   for (const b of sb.bodies) if (b.knL) {

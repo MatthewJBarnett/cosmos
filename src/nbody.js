@@ -222,7 +222,7 @@ export class NBody {
 // Schwarzschild radii are accreted; the accretion rate (and so the flare) follows the famous t^-5/3 fallback.
 export class Debris {
   constructor() { this.x = new Float64Array(0); this.v = new Float64Array(0); this.n = 0; this.mp = 0; this.acc = []; this.T = new Float32Array(0); this.out = new Uint8Array(0); this.racc = 0; }
-  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); d.out = this.out.slice(); d.racc = this.racc; d.bh = this.bh; return d; }
+  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); d.out = this.out.slice(); d.racc = this.racc; d.bh = this.bh; d.bhId = this.bhId; d.flared = this.flared; d.t0 = this.t0; return d; }
   addStar(star, bh, n) {
     const x = new Float64Array((this.n + n) * 3), v = new Float64Array((this.n + n) * 3), T = new Float32Array(this.n + n);
     x.set(this.x); v.set(this.v); T.set(this.T);
@@ -235,7 +235,7 @@ export class Debris {
       v[i * 3] = star.v[0]; v[i * 3 + 1] = star.v[1]; v[i * 3 + 2] = star.v[2]; T[i] = 6000;
     }
     const out = new Uint8Array(this.n + n); if (this.out) out.set(this.out);
-    this.x = x; this.v = v; this.T = T; this.out = out; this.mp = star.m / n; this.n += n; this.bh = bh;
+    this.x = x; this.v = v; this.T = T; this.out = out; this.mp = star.m / n; this.n += n; this.bh = bh; this.bhId = bh.id;
     // returning debris shocks and circularises near the star's pericentre: count it as accreted there
     const r = Math.hypot(star.x[0] - bh.x[0], star.x[1] - bh.x[1], star.x[2] - bh.x[2]);
     this.racc = Math.max(this.racc || 0, 0.9 * r);
@@ -248,8 +248,9 @@ export class Debris {
       let tmin = Infinity; acc[0] = acc[1] = acc[2] = 0;
       for (const b of B) {
         const dx = x[i * 3] - b.x[0], dy = x[i * 3 + 1] - b.x[1], dz = x[i * 3 + 2] - b.x[2], r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
-        if (b.kind === 'bh' && (r < 3 * b.R || (b === this.bh && this.out[i] && r < this.racc))) return -1;
-        if (b === this.bh && r > 3 * this.racc) this.out[i] = 1;
+        const host = b.id === this.bhId;
+        if (b.kind === 'bh' && (r < 3 * b.R || (host && this.out[i] && r < this.racc))) return -1;
+        if (host && r > 3 * this.racc) this.out[i] = 1;
         const k = -G * b.m / (r2 * r); acc[0] += k * dx; acc[1] += k * dy; acc[2] += k * dz;
         const td = Math.sqrt(r2 * r / (G * b.m)); if (td < tmin) tmin = td;
       }
@@ -273,7 +274,10 @@ export class Debris {
         left -= dt;
       }
     }
-    if (accreted) this.acc.push([sim.t, accreted * this.mp]);
+    if (accreted) {
+      this.acc.push([sim.t, accreted * this.mp]);
+      if (!this.flared) { this.flared = true; const ev = { t: sim.t, note: 'Debris is falling back onto the black hole: the flare begins (accretion rate ~ t^-5/3)', flare: true }; sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev); }
+    }
     // keep a short history of the accretion rate
     while (this.acc.length > 2 && sim.t - this.acc[0][0] > 30 * 86400) this.acc.shift();
   }

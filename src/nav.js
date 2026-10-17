@@ -310,7 +310,10 @@ export class Nav {
 
   // ----- per frame -----
   update(dt, input) {
-    if (!this.paused) this.time += dt * this.rate;
+    // relativistic flight: the outside clock runs fast by the Lorentz factor of the camera
+    const b2 = this.beta ? this.beta[0] ** 2 + this.beta[1] ** 2 + this.beta[2] ** 2 : 0;
+    this.gamma = 1 / Math.sqrt(1 - Math.min(b2, 0.999999));
+    if (!this.paused) this.time += dt * this.rate * this.gamma;
     updateWorld(this.time, this.paused ? 0 : dt * this.rate / YEAR);
     if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early
@@ -391,6 +394,8 @@ export class Nav {
     else {
       let sp = this.speed * (input.fast ? 10 : 1) * (input.slow ? 0.1 : 1);
       if (anchor && alt < anchor.radius * 4) sp = Math.min(sp, Math.max(alt * 1.5, 3) * (input.fast ? 4 : 1));
+      // relativistic mode: no faster than light (the wheel then sets the rapidity, so c is approached smoothly)
+      if (this.relativistic) sp = C.c * Math.tanh(sp / C.c);
       const want = V.mul([input.mx, input.my, input.mz], sp);
       const k = 1 - Math.exp(-dt * 7);
       this.vel = V.lerp(this.vel, want, k);
@@ -417,6 +422,8 @@ export class Nav {
       if (d < minR) { this.S = V.add(anchor.wpos, V.mul(rel, minR / d)); d = minR; }
       this.altitude = d - anchor.radius - h;
     }
+    // observer velocity for aberration and Doppler shift (free flight only; go-to is a 'warp' and stays unshifted)
+    this.beta = this.relativistic && !this.goto && !this.orbit && this.speedNow > 0 ? V.mul(Q.rot(this.q, this.vel), 1 / C.c) : null;
     if (this.field) this.field.updateFixed();
     this.transitions();
     if (this.field && this.level !== 'universe') this.field.update(this.camLocal(), this.sync ? 400 : 5);

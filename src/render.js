@@ -264,7 +264,10 @@ export class Renderer {
     };
     const project = (rel) => { const v = Q.rot(invQ, rel); if (v[2] >= 0) return null; return [(v[0] / (-v[2] * tanX) * 0.5 + 0.5), (1 - (v[1] / (-v[2] * tanY) * 0.5 + 0.5)), -v[2]]; };
     this.project = project; this.pxPerRad = pxPerRad;
-    const common = { exposure, pxSA, pixScale, pxPerRad, noise3: this.noise3, sync: this.sync };
+    // relativistic flight: the observer's velocity as a fraction of c (world axes and the galaxy's local axes)
+    const betaWorld = nav.beta || [0, 0, 0];
+    const betaLocal = nav.galaxy ? Q.rot(Q.conj(nav.galaxy.quat), betaWorld) : betaWorld;
+    const common = { exposure, pxSA, pixScale, pxPerRad, noise3: this.noise3, sync: this.sync, betaWorld, betaLocal };
 
     const prof = rcfg.prof ? [] : null; let pt = performance.now();
     const gt = rcfg.gpuTimes ? (this.gpuTimer || (this.gpuTimer = new GpuTimer())) : null;
@@ -347,8 +350,8 @@ export class Renderer {
       let wReal = 0;
       if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal) * lgw.mw;
       const wModel = gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1;
-      const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal);
-      this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel);
+      const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal, betaLocal);
+      this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel, betaLocal);
     }
     T('galsky');
     let nStars = 0;
