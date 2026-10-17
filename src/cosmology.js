@@ -10,7 +10,11 @@ const C_KMS = 299792.458, DH = C_KMS / H0;          // Hubble distance, Mpc
 const HGYR = H0 / 977.792;                          // H0 in 1/Gyr
 const K = Math.cbrt(OM / OL), W = 1.5 * Math.sqrt(OL) * HGYR;
 // scale factor at cosmic time tau (Gyr since the Big Bang); a(T0) = 1
-export function aOfTau(tau) { return K * Math.pow(Math.sinh(W * Math.max(tau, 1e-6)), 2 / 3); }
+export function aOfTau(tau) {
+  const x = W * Math.max(tau, 1e-6);
+  // (exponential expansion overflows a double after ~10^13 years: cap it, the visible universe is empty long before)
+  return Math.min(1e300, x > 300 ? K * Math.exp((2 / 3) * (Math.min(x, 1000) - Math.LN2)) : K * Math.pow(Math.sinh(x), 2 / 3));
+}
 export function tauNow() { return T0_GYR; }
 const Hof = (a) => Math.sqrt(OM / (a * a * a) + OL);   // in units of H0
 // u(a) = comoving distance light still travels after scale factor a (eta_inf - eta(a)), in Mpc
