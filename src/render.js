@@ -10,7 +10,7 @@ import { world, sunHook, SUN_ORBIT, sunPos, galQuat0 } from './galdyn.js';
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { updateSupernovae } from './supernova.js';
-import { drawSandbox, sandboxPoints, drawLines, drawDebris } from './sandbox.js';
+import { drawSandbox, sandboxPoints, drawLines, drawDebris, drawTrailsOverlay } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
 import { updateMeteors } from './meteors.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies, drawZodiacal } from './sky.js';
@@ -641,6 +641,8 @@ export class Renderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, useFxaa ? this.ldrFBO : null); gl.viewport(0, 0, w, h);
     this.pTone.use().set({ uHDR: sceneTex, uBloom: acc, uBloomAmt: rcfg.bloom, uGhost: rcfg.flare ? 0.0012 : 0, uFrame: this.frameNo % 97, uRes: [w, h] }); drawFS();
     if (useFxaa) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); this.pFxaa.use().set({ uTex: this.ldrTex, uTexel: [1 / w, 1 / h] }); drawFS(); }
+    // sandbox trails: a display overlay on top of the finished image
+    if (sys && sys.sandbox) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); drawTrailsOverlay(sys, nav, { viewProj: M4.mul(M4.persp(fov, aspect, 0.1, 1000), view), fcoef }); }
 
     T('post');
     if (gt) gt.end();

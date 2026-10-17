@@ -307,6 +307,27 @@ function initTrail() {
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
   gl.bindVertexArray(null);
 }
+// trails are an overlay drawn after tone mapping (so they never change the exposure), in display colours
+export function drawTrailsOverlay(sb, nav, o) {
+  if (!sb.trailsOn) return;
+  const camS = nav.S;
+  initTrail();
+  const data = [];
+  const addTrail = (pts, col, fade) => {
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], fa = (i - 1) / pts.length, fb = i / pts.length;
+      data.push(a[0] - camS[0], a[1] - camS[1], a[2] - camS[2], col[0], col[1], col[2], fa * fa * 0.85 * fade, b[0] - camS[0], b[1] - camS[1], b[2] - camS[2], col[0], col[1], col[2], fb * fb * 0.85 * fade);
+    }
+  };
+  for (const b of sb.bodies) {
+    const tr = sb.trails.get(b.phys.id); if (!tr || tr.length < 2) continue;
+    const pts = tr.concat([[b.pos[0], b.pos[1], b.pos[2]]]);
+    const col = b.blackHole ? [1.0, 0.62, 0.3] : b.neutron ? [0.5, 0.75, 1.0] : b.kind === 'star' ? bbColor(b.temp).map(x => x / Math.max(...bbColor(b.temp))) : [0.5, 0.85, 0.65];
+    addTrail(pts, col, 1);
+  }
+  for (const d of sb.deadTrails) addTrail(d.pts, [0.6, 0.6, 0.6], 0.6);
+  drawLines(data, o.viewProj, o.fcoef);
+}
 // generic coloured line segments: data = [x y z r g b a] per vertex (camera relative), drawn as GL lines
 export function drawLines(data, viewProj, fcoef, depth = false) {
   if (!data.length) return;
@@ -320,29 +341,6 @@ export function drawLines(data, viewProj, fcoef, depth = false) {
 export function drawSandbox(sb, nav, o) {
   const camS = nav.S;
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
-  // trails
-  if (sb.trailsOn) {
-    initTrail();
-    const data = [];
-    const addTrail = (pts, col, fade) => {
-      for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1], b = pts[i], fa = (i - 1) / pts.length, fb = i / pts.length;
-        data.push(a[0] - camS[0], a[1] - camS[1], a[2] - camS[2], col[0], col[1], col[2], fa * fa * 0.6 * fade, b[0] - camS[0], b[1] - camS[1], b[2] - camS[2], col[0], col[1], col[2], fb * fb * 0.6 * fade);
-      }
-    };
-    for (const b of sb.bodies) {
-      const tr = sb.trails.get(b.phys.id); if (!tr || tr.length < 2) continue;
-      const pts = tr.concat([[b.pos[0], b.pos[1], b.pos[2]]]);
-      const col = b.blackHole ? [1.0, 0.62, 0.3] : b.neutron ? [0.5, 0.75, 1.0] : b.kind === 'star' ? bbColor(b.temp).map(x => x * 0.9) : [0.5, 0.8, 0.6];
-      addTrail(pts, col, 1);
-    }
-    for (const d of sb.deadTrails) addTrail(d.pts, [0.6, 0.6, 0.6], 0.6);
-    if (data.length) {
-      gl.bindVertexArray(trailVAO); gl.bindBuffer(gl.ARRAY_BUFFER, trailBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
-      pTrail.use().set({ uViewProj: o.viewProj, uFcoef: o.fcoef });
-      gl.drawArrays(gl.LINES, 0, data.length / 7);
-    }
-  }
   // placing a body: marker and velocity arrow
   if (sb.ghost && sb.ghost.at) {
     const a = V.sub(sb.ghost.at, camS), b = V.sub(sb.ghost.drag, camS), s2 = V.len(a) * 0.01;
