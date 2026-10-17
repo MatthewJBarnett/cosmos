@@ -11,7 +11,7 @@ import { MILKY_WAY, SUN_POS } from './universe.js';
 import { galQuat0, toPattern, world, YEAR } from './galdyn.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS } from './planet.js';
 import { beam } from './exotic.js';
-import { NBody, makeBody, binary, separationForTime, circularBinary, petersTime, MSUN } from './nbody.js';
+import { NBody, makeBody, binary, separationForTime, circularBinary, petersTime, radiusFor, MSUN } from './nbody.js';
 import { planetPos } from './ephem.js';
 
 const G = C.G, c = C.c, AU = C.AU, DAY = 86400;
@@ -100,6 +100,18 @@ export const PRESETS = [
       sim.add(makeBody('star', 0.3 * MSUN, [2e9, 0, 3e8], [-2.0e5, 0, 0], { name: 'Red dwarf' }));
       return { rate: 300, scale: 4e9, grid: true };
     } },
+  { id: 'theia', name: 'Moon-forming impact (Theia)', text: 'A Mars-sized planet strikes the young Earth at about 10 km/s and 45 degrees, 4.5 billion years ago. The two merge into a molten, fast-spinning Earth and a disk of vaporised rock wraps around it; within a couple of weeks the material outside the Roche limit gathers into the Moon. (The Sun is far off to the left: its pull on both is the same, so only its light is included.)',
+    setup(sim) {
+      const ME = C.Mearth, m1 = 0.89 * ME, m2 = 0.11 * ME, M = m1 + m2, R1 = radiusFor('planet', m1), R2 = radiusFor('planet', m2), d = R1 + R2;
+      sim.pn = false;
+      // a hyperbolic approach that strikes at 45 degrees: impact speed from v_inf = 4 km/s plus the mutual escape speed
+      const vinf = 4e3, vimp = Math.sqrt(vinf * vinf + 2 * G * M / d), L = d * vimp * Math.SQRT1_2, D = 7 * R1;
+      const vD = Math.sqrt(vinf * vinf + 2 * G * M / D), vt = L / D, vr = -Math.sqrt(vD * vD - vt * vt);
+      const r = [D * 0.8, 0, D * 0.6], rh = r.map(x => x / D), th = [-rh[2], 0, rh[0]], u = rh.map((x, k) => x * vr + th[k] * vt);
+      sim.add(makeBody('planet', m1, r.map(x => -x * m2 / M), u.map(x => -x * m2 / M), { name: 'Proto-Earth' }));
+      sim.add(makeBody('planet', m2, r.map(x => x * m1 / M), u.map(x => x * m1 / M), { name: 'Theia' }));
+      return { rate: 20, scale: 4.5 * R1, grid: false, light: { dir: [-1, 0.25, 0.35] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
+    } },
   { id: 'empty', name: 'Empty space (place your own)', text: 'Choose a body type and mass, then click to place it. Drag while placing to give it a velocity; a plain click puts it on a circular orbit.',
     setup(sim) { return { rate: 1, scale: 2e6, grid: true }; } },
 ];
@@ -119,6 +131,7 @@ export class Sandbox {
     this.navT = undefined; this.time = 0; this.lag = false; this.events = [];
   }
   load(p) {
+    this.lightStar = null;
     this.sim = new NBody(); this.map.clear(); this.trails.clear(); this.deadTrails = []; this.snaps = []; this.events = [];
     this.sim.onEvent = (e) => { this.events.push(e); if (this.onEvent) this.onEvent(e); };
     const r = p.setup(this.sim); this.preset = p; this.cfg = r;
@@ -177,6 +190,8 @@ export class Sandbox {
         b.accretion = mdot > 0 ? clamp(Math.log10(mdot / (pb.m / MSUN * 1.4e14)) / 3 + 0.6, 0.15, 1) : 0;
         b.lum = mdot > 0 ? Math.min(0.1 * mdot * c * c, 1.26e31 * pb.m / MSUN) / C.Lsun : 0;
       }
+      // after a giant impact the surface is a magma ocean glowing at ~2,300 K (it takes centuries to crust over)
+      if (pb.magma) b.heatT = 2300 * Math.exp(-(this.sim.t - pb.magma.t) / (3 * YEAR));
       if (pb.flash) { const age = this.sim.t - pb.flash.t; b.lum = b.baseLum * (1 + pb.flash.L * Math.exp(-age / (30 * DAY))); }
       if (pb.kilonova) {
         // kilonova: r-process ejecta expanding at ~0.2 c, peaking after about a day and reddening over a week
@@ -192,8 +207,15 @@ export class Sandbox {
     }
     for (const [id, b] of this.map) if (!seen.has(id)) { this.map.delete(id); const tr = this.trails.get(id); if (tr) { this.deadTrails.push({ pts: tr, t: this.sim.t }); this.trails.delete(id); } }
     if (this.deadTrails.length > 6) this.deadTrails.splice(0, this.deadTrails.length - 6);
-    this.bodies = list; this.stars = list.filter(b => b.kind === 'star');
     this.root = list[0] || null;
+    // a distant Sun that only provides light (its pull is the same on everything here, so it is left out)
+    if (this.cfg && this.cfg.light) {
+      if (!this.lightStar) { this.lightStar = this.makeRender({ id: -1, kind: 'star', m: MSUN, R: C.Rsun, name: 'Sun' }); this.lightStar.lightOnly = true; }
+      const L = this.lightStar, dl = Math.hypot(...this.cfg.light.dir), c0 = this.com();
+      L.pos = this.cfg.light.dir.map((x, k) => c0[k] + x / dl * AU); L.wpos = Q.rot(this.worldQ, L.pos); L.rotQ = L.axisQ; L.wrot = Q.mul(this.worldQ, L.rotQ);
+      list.push(L);
+    }
+    this.bodies = list; this.stars = list.filter(b => b.kind === 'star');
   }
   trailStep(pb) {
     // resolve each orbit with ~200 points: step from the distance to the nearest other body
@@ -208,7 +230,7 @@ export class Sandbox {
     else if (pb.kind === 'wd') { const T = 15000, R = pb.R; b = makeStarBody({ kind: KIND.WD, MV: 11, T, mass: pb.m, radius: R, lum: 4 * Math.PI * R * R * C.sigma * T ** 4 / C.Lsun, cls: 'White dwarf' }, pb.name, rng); }
     else if (pb.kind === 'star') { const s = msStar(pb.m); s.radius = pb.R; b = makeStarBody(s, pb.name, rng); b.rotPeriod = 25 * DAY; }
     else {
-      b = mkBody({ name: pb.name, kind: 'planet', cls: pb.m > 50 * C.Mearth ? 'Gas giant' : 'Rocky planet', mass: pb.m, radius: pb.R, albedo: 0.3, temp: 250, rotPeriod: 20 * 3600, tilt: 10 });
+      b = mkBody({ name: pb.name, kind: 'planet', cls: pb.m > 50 * C.Mearth ? 'Gas giant' : 'Rocky planet', mass: pb.m, radius: pb.R, albedo: 0.3, temp: 250, rotPeriod: pb.rotP || 20 * 3600, tilt: 10 });
       b.surface = pb.m > 50 * C.Mearth ? { gen: 'gas', seed: [1, 2, 3], freq: 1, pal: [[0.62, 0.5, 0.36], [0.8, 0.74, 0.62], [0.45, 0.26, 0.14], [0.88, 0.84, 0.76]], bands: 8, bandStr: 1, turb: 1, storms: 0.5, hmin: 0, hmax: 0, lunar: 0, emis: 0 } : surfacePreset('selena', rng, b);
     }
     b.baseLum = b.lum; b.sandbox = true; b.children = []; b.parent = null; b.system = this; b.depth = 0;
@@ -320,6 +342,7 @@ export function drawTrailsOverlay(sb, nav, o) {
     }
   };
   for (const b of sb.bodies) {
+    if (!b.phys) continue;
     const tr = sb.trails.get(b.phys.id); if (!tr || tr.length < 2) continue;
     const pts = tr.concat([[b.pos[0], b.pos[1], b.pos[2]]]);
     const col = b.blackHole ? [1.0, 0.62, 0.3] : b.neutron ? [0.5, 0.75, 1.0] : b.kind === 'star' ? bbColor(b.temp).map(x => x / Math.max(...bbColor(b.temp))) : [0.5, 0.85, 0.65];
@@ -425,7 +448,20 @@ export function drawDebris(sb, nav, o) {
   }
   const data = new Float32Array(((P ? P.n : 0) + blobs.length) * 8); let n = 0;
   for (const bl of blobs) data.set(bl, (n++) * 8);
-  if (P && P.n) {
+  if (P && P.n && P.kind === 'impact') {
+    // giant impact debris: silicate vapour and magma droplets glowing at a few thousand K, cooling over weeks
+    const age = sb.sim.t - P.tImp, cool = Math.max(0.5, Math.exp(-age / (25 * DAY))), host = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh;
+    const size = host.R * 0.06, area = Math.PI * size * size * 0.25;
+    for (let i = 0; i < P.n; i++) {
+      const x = P.x[i * 3]; if (x !== x) continue;
+      const T = P.T[i] * cool, cc = bbColor(T), mx = Math.max(...cc), rel = [x - nav.S[0], P.x[i * 3 + 1] - nav.S[1], P.x[i * 3 + 2] - nav.S[2]];
+      // (hidden behind the planet? the points are drawn without depth testing)
+      const hc = [host.x[0] - nav.S[0], host.x[1] - nav.S[1], host.x[2] - nav.S[2]], dl = Math.hypot(...rel), tca = (hc[0] * rel[0] + hc[1] * rel[1] + hc[2] * rel[2]) / dl;
+      if (tca > 0 && tca < dl && hc[0] ** 2 + hc[1] ** 2 + hc[2] ** 2 - tca * tca < host.R * host.R) continue;
+      const dAU = dl / AU, L = C.sigma * T ** 4 * area / C.Lsun;
+      data.set([rel[0], rel[1], rel[2], cc[0] / mx, cc[1] / mx, cc[2] / mx, L / (dAU * dAU), size], n * 8); n++;
+    }
+  } else if (P && P.n) {
   // the stream glows faintly with its own heat; once debris falls back, the flare (up to the Eddington luminosity)
   // is partly absorbed and re-emitted by gas near the hole
   const bh = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh, Lacc = sb.bodies.reduce((s, b) => s + (b.blackHole ? b.lum : 0), 0);

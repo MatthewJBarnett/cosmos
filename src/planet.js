@@ -547,7 +547,7 @@ class PlanetState {
       uClimate: this.body.climate ? [(this.climate = this.body.climate).dry, this.body.climate.life, this.body.climate.ice] : [0, 1, 1],
       uCraterO0: mp && mp.height ? mapOct : 2 });
     // drifting continents (Earth): the plate map loads the first time it is needed
-    const drift = this.body.drift || 0, pm = drift && mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(pm && pm.ready);
+    const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
     this.drift = dOn ? drift : 0;
     prog.set({ uDrift: this.drift, uPlates: dOn ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift) });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });

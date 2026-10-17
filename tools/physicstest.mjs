@@ -155,5 +155,13 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('Northern ice sheets gone (kyr ago)', -tEnd / 1000, '~7-9 kyr', (v) => v > 6 && v < 11);
   check('Eemian interglacial ice (125 kyr ago)', evo.iceAge(-125000), '~0 (sea level a few m above today)', 0.15);
 }
+// --- the Moon-forming impact ---
+{
+  const sbm = await imp('sandbox.js'); const sim = new NBody(); sbm.PRESETS.find(p => p.id === 'theia').setup(sim);
+  let impact = null, moon = null; sim.onEvent = (e) => { if (e.impact) impact = e; if (/Moon has formed/.test(e.note)) moon = e; };
+  while (sim.t < 20 * 86400 && !moon) sim.advance(sim.t < 86400 ? 60 : 1800, 200000);
+  check('Theia impact speed (km/s)', impact ? +impact.note.match(/at ([\d.]+) km\/s/)[1] : 0, '~9-10 km/s (Canup 2004)', 1.5);
+  check('Moon mass from the debris disk (lunar masses)', moon ? moon.body.m / 7.35e22 : 0, '~0.6-1.2 (Canup 2004, Ida et al. 1997)', (v) => v > 0.4 && v < 1.4);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

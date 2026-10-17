@@ -129,6 +129,7 @@ export class NBody {
       this.gw.sample(this);
       if (this.particles) this.particles.step(this, h);
     }
+    if (this.particles && this.particles.kind === 'impact') this.particles.accrete(this);
     if (this.bodies.length < 2 && this.t < tEnd) {
       // a single body drifts; debris still moves in its field
       const rem = tEnd - this.t;
@@ -197,6 +198,8 @@ export class NBody {
     } else if (compact(a) || compact(b)) { kind = compact(a) ? a.kind : b.kind; note = (compact(a) ? b : a).name + ' was swallowed'; }
     else if (a.kind === 'star' || b.kind === 'star') { kind = 'star'; note = 'Stellar collision: the stars merged'; }
     else { note = 'Collision: the bodies merged'; }
+    const rocky = (x) => x.kind === 'planet' && x.m < 20 * 5.972e24;
+    const giantImpact = rocky(a) && rocky(b) && Math.min(a.m, b.m) > 0.01 * M;
     // recoil in the orbital plane, perpendicular to the separation at merger (direction depends on the phase)
     const rel = [0, 1, 2].map(k => a.x[k] - b.x[k]), vrel = [0, 1, 2].map(k => a.v[k] - b.v[k]);
     const nrm = [rel[1] * vrel[2] - rel[2] * vrel[1], rel[2] * vrel[0] - rel[0] * vrel[2], rel[0] * vrel[1] - rel[1] * vrel[0]];
@@ -204,11 +207,21 @@ export class NBody {
     const dir = [(nrm[1] * rel[2] - nrm[2] * rel[1]) / (nl * rl), (nrm[2] * rel[0] - nrm[0] * rel[2]) / (nl * rl), (nrm[0] * rel[1] - nrm[1] * rel[0]) / (nl * rl)];
     const v = vcm.map((x, k) => x + dir[k] * kick);
     const big = a.m >= b.m ? a : b;
-    const nb = makeBody(kind, m, xcm, v, { name: kind === 'bh' && bothCompact ? 'Remnant black hole' : big.name, chi, merged: true });
+    const nb = makeBody(kind, m, xcm, v, { name: kind === 'bh' && bothCompact ? 'Remnant black hole' : giantImpact && big.name === 'Proto-Earth' ? 'Earth' : big.name, chi, merged: true });
     if (kind === 'star') { nb.R = radiusFor('star', m); nb.flash = { t, L: 1e4 }; }
     this.remove(a); this.remove(b); this.add(nb);
+    if (giantImpact) {
+      // a giant impact: the planets merge into one molten, fast-spinning body and throw a disk of vaporised rock
+      // into orbit (smoothed-particle simulations of the Moon-forming impact put ~2% of the mass there)
+      const [T, I] = a.m >= b.m ? [a, b] : [b, a];
+      const Md = 0.025 * M * circ * Math.min(1, 8 * I.m / M);
+      nb.magma = { t }; nb.rotP = 5 * 3600;
+      const P = this.particles || (this.particles = new Debris());
+      P.addImpact(nb, T, I, 2400, Md, t);
+      note = `Giant impact: ${I.name} hit ${T.name} at ${(Math.hypot(...vv) / 1e3).toFixed(1)} km/s. A disk of ${(Md / 7.35e22).toFixed(1)} lunar masses of molten rock is thrown into orbit`;
+    }
     this.Erad += Erad;
-    const ev = { t, a: a.name, b: b.name, note, kick, chi, Erad, mf: m, M, eta, body: nb, kindA: a.kind, kindB: b.kind };
+    const ev = { t, a: a.name, b: b.name, note, kick, chi, Erad, mf: m, M, eta, body: nb, kindA: a.kind, kindB: b.kind, impact: giantImpact };
     if (bothCompact) {
       // ringdown of the final black hole (Berti, Cardoso & Will 2006 fits for the l = m = 2 mode)
       const Mf = m;
@@ -250,7 +263,7 @@ export class NBody {
 // Schwarzschild radii are accreted; the accretion rate (and so the flare) follows the famous t^-5/3 fallback.
 export class Debris {
   constructor() { this.x = new Float64Array(0); this.v = new Float64Array(0); this.n = 0; this.mp = 0; this.acc = []; this.T = new Float32Array(0); this.out = new Uint8Array(0); this.racc = 0; }
-  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); d.out = this.out.slice(); d.racc = this.racc; d.bh = this.bh; d.bhId = this.bhId; d.flared = this.flared; d.t0 = this.t0; return d; }
+  clone() { const d = new Debris(); d.x = this.x.slice(); d.v = this.v.slice(); d.n = this.n; d.mp = this.mp; d.acc = this.acc.slice(); d.T = this.T.slice(); d.out = this.out.slice(); d.racc = this.racc; d.bh = this.bh; d.bhId = this.bhId; d.flared = this.flared; d.t0 = this.t0; d.kind = this.kind; d.moon = this.moon; d.aR = this.aR; d.tImp = this.tImp; d.tForm = this.tForm; return d; }
   addStar(star, bh, n) {
     const x = new Float64Array((this.n + n) * 3), v = new Float64Array((this.n + n) * 3), T = new Float32Array(this.n + n);
     x.set(this.x); v.set(this.v); T.set(this.T);
@@ -268,6 +281,84 @@ export class Debris {
     const r = Math.hypot(star.x[0] - bh.x[0], star.x[1] - bh.x[1], star.x[2] - bh.x[2]);
     this.racc = Math.max(this.racc || 0, 0.9 * r);
   }
+  // debris of a giant impact (a phenomenological fit to SPH results, Canup 2004): most of it is the impactor's
+  // mantle, stretched into an arm ahead of the impact that winds up into a hot disk reaching a few planetary radii;
+  // the rest is a spray of ejecta that falls back or escapes
+  addImpact(host, T, I, n, Md, t) {
+    const x = new Float64Array(n * 3), v = new Float64Array(n * 3), Tm = new Float32Array(n);
+    const GM = G * host.m, R = host.R;
+    const sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]], nrm = (p) => { const l = Math.hypot(...p) || 1; return [p[0] / l, p[1] / l, p[2] / l]; };
+    const cr = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
+    const nn = nrm(sub(I.x, T.x)), vr = sub(I.v, T.v);
+    let hh = cr(nn, vr); if (Math.hypot(...hh) < 1e-6 * Math.hypot(...vr)) hh = cr(nn, Math.abs(nn[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]);
+    hh = nrm(hh); const tt = cr(hh, nn), vesc = Math.sqrt(2 * GM / R);
+    let s = 987654; const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    const nDisk = Math.round(n * 0.75);
+    for (let i = 0; i < n; i++) {
+      let p, vel;
+      if (i < nDisk) {
+        // the arm: from just above the surface out to ~5 radii, swept forward from the impact site
+        const u = rnd(), r = R * (1.15 + 3.6 * Math.pow(u, 1.4)), ph = (0.15 + 1.6 * u + 0.25 * rnd()) * Math.PI, z = (rnd() - 0.5) * 0.08 * r;
+        const rh = [nn[0] * Math.cos(ph) + tt[0] * Math.sin(ph), nn[1] * Math.cos(ph) + tt[1] * Math.sin(ph), nn[2] * Math.cos(ph) + tt[2] * Math.sin(ph)];
+        const th = cr(hh, rh), vc = Math.sqrt(GM / r) * (0.86 + 0.2 * rnd()), vrad = (rnd() - 0.4) * 0.25 * vc;
+        p = [rh[0] * r + hh[0] * z, rh[1] * r + hh[1] * z, rh[2] * r + hh[2] * z];
+        vel = [th[0] * vc + rh[0] * vrad, th[1] * vc + rh[1] * vrad, th[2] * vc + rh[2] * vrad];
+      } else {
+        // ejecta spray from the impact site
+        const a = (rnd() - 0.5) * 0.6, out = [nn[0] * Math.cos(a) + tt[0] * Math.sin(a), nn[1] * Math.cos(a) + tt[1] * Math.sin(a), nn[2] * Math.cos(a) + tt[2] * Math.sin(a)];
+        const vu = vesc * (0.25 + 0.85 * Math.pow(rnd(), 2)), vt = vesc * (0.1 + 0.5 * rnd()), zz = (rnd() - 0.5) * 0.3 * vu;
+        p = out.map(c => c * R * 1.03);
+        vel = [out[0] * vu + tt[0] * vt + hh[0] * zz, out[1] * vu + tt[1] * vt + hh[1] * zz, out[2] * vu + tt[2] * vt + hh[2] * zz];
+      }
+      for (let k = 0; k < 3; k++) { x[i * 3 + k] = host.x[k] + p[k]; v[i * 3 + k] = host.v[k] + vel[k]; }
+      Tm[i] = 2500 + 1500 * rnd();
+    }
+    this.x = x; this.v = v; this.T = Tm; this.out = new Uint8Array(n); this.n = n; this.mp = Md / nDisk;
+    this.kind = 'impact'; this.bh = host; this.bhId = host.id; this.racc = 0; this.tImp = t; this.t0 = t;
+    // Roche limit for lunar-density rock around the molten planet; the Moon gathers just outside it within weeks
+    // to a year (Ida et al. 1997, Salmon & Canup 2012): here once the disk has wound up (~40 orbits at 3 radii)
+    this.aR = 2.456 * R * Math.cbrt((host.m / (4.18879 * R ** 3)) / 3340);
+    this.tForm = 40 * 2 * Math.PI * Math.sqrt((3 * R) ** 3 / GM);
+  }
+  // the Moon accretes from the disk outside the Roche limit; inside it, the disk spreads and rains onto the planet
+  accrete(sim) {
+    const host = sim.bodies.find(b => b.id === this.bhId); if (!host) return;
+    const age = sim.t - this.tImp, x = this.x, v = this.v;
+    if (!this.moon && age > this.tForm) {
+      let m = 0; const cx = [0, 0, 0], cv = [0, 0, 0];
+      for (let i = 0; i < this.n; i++) {
+        if (x[i * 3] !== x[i * 3]) continue;
+        const dx = x[i * 3] - host.x[0], dy = x[i * 3 + 1] - host.x[1], dz = x[i * 3 + 2] - host.x[2], r = Math.hypot(dx, dy, dz);
+        if (r < this.aR || r > 12 * this.aR) continue;
+        // bound to the planet?
+        const ux = v[i * 3] - host.v[0], uy = v[i * 3 + 1] - host.v[1], uz = v[i * 3 + 2] - host.v[2];
+        if (0.5 * (ux * ux + uy * uy + uz * uz) - G * host.m / r > 0) continue;
+        for (let k = 0; k < 3; k++) { cx[k] += x[i * 3 + k]; cv[k] += v[i * 3 + k]; }
+        m += this.mp; x[i * 3] = NaN;
+      }
+      this.moon = true;
+      if (m > 0) {
+        const k = this.mp / m; for (let j = 0; j < 3; j++) { cx[j] *= k; cv[j] *= k; }
+        // (the moonlets coalesce on a near-circular orbit at their mean distance)
+        const rel = [cx[0] - host.x[0], cx[1] - host.x[1], cx[2] - host.x[2]], r = Math.max(Math.hypot(...rel), 1.15 * this.aR);
+        const u = [cv[0] - host.v[0], cv[1] - host.v[1], cv[2] - host.v[2]], rh = rel.map(c => c / Math.hypot(...rel));
+        const ur = u[0] * rh[0] + u[1] * rh[1] + u[2] * rh[2], ut = u.map((c, j) => c - ur * rh[j]), utl = Math.hypot(...ut) || 1, vc = Math.sqrt(G * (host.m + m) / r);
+        const mx = rh.map((c, j) => host.x[j] + c * r), mv = ut.map((c, j) => host.v[j] + c / utl * vc);
+        host.m -= m;
+        const moon = makeBody('planet', m, mx, mv, { name: 'Moon' });
+        sim.add(moon);
+        const ev = { t: sim.t, note: `The Moon has formed: ${(m / 7.35e22).toFixed(2)} lunar masses gathered just outside the Roche limit (${(r / host.R).toFixed(1)} planetary radii)`, body: moon };
+        sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev);
+      }
+    }
+    if (this.moon && this.lastSpread !== undefined) {
+      // viscous spreading of the inner disk: an e-folding time of about a month
+      const p = 1 - Math.exp(-(sim.t - this.lastSpread) / (30 * 86400));
+      let s = Math.floor(sim.t) % 2147483647;
+      for (let i = 0; i < this.n; i++) { if (x[i * 3] !== x[i * 3]) continue; s = (s * 1103515245 + 12345) & 0x7fffffff; if (s / 0x7fffffff < p) x[i * 3] = NaN; }
+    }
+    this.lastSpread = sim.t;
+  }
   step(sim, h) {
     if (!(h > 0)) return;
     const B = sim.bodies, x = this.x, v = this.v, acc = [0, 0, 0];
@@ -278,6 +369,7 @@ export class Debris {
         const dx = x[i * 3] - b.x[0], dy = x[i * 3 + 1] - b.x[1], dz = x[i * 3 + 2] - b.x[2], r2 = dx * dx + dy * dy + dz * dz, r = Math.sqrt(r2);
         const host = b.id === this.bhId;
         if (b.kind === 'bh' && (r < 3 * b.R || (host && this.out[i] && r < this.racc))) return -1;
+        if (b.kind !== 'bh' && r < b.R) return -1;
         if (host && r > 3 * this.racc) this.out[i] = 1;
         const k = -G * b.m / (r2 * r); acc[0] += k * dx; acc[1] += k * dy; acc[2] += k * dz;
         const td = Math.sqrt(r2 * r / (G * b.m)); if (td < tmin) tmin = td;
@@ -304,7 +396,7 @@ export class Debris {
     }
     if (accreted) {
       this.acc.push([sim.t, accreted * this.mp]);
-      if (!this.flared) { this.flared = true; const ev = { t: sim.t, note: 'Debris is falling back onto the black hole: the flare begins (accretion rate ~ t^-5/3)', flare: true }; sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev); }
+      if (!this.flared && this.kind !== 'impact') { this.flared = true; const ev = { t: sim.t, note: 'Debris is falling back onto the black hole: the flare begins (accretion rate ~ t^-5/3)', flare: true }; sim.events.push(ev); if (sim.onEvent) sim.onEvent(ev); }
     }
     // keep a short history of the accretion rate
     while (this.acc.length > 2 && sim.t - this.acc[0][0] > 30 * 86400) this.acc.shift();

@@ -105,7 +105,11 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   Scenarios: GW150914-like merger, rapidly spinning black holes, unequal masses (recoil), black holes released from rest (head-on), an
   eccentric binary (GR rosette, wave bursts), neutron star merger with kilonova and gamma-ray burst jet,
   a supermassive pair (LISA band), a tidal disruption, a rogue black hole through the real Solar System,
-  the figure-eight and Pythagorean three-body problems, a circumbinary planet, or empty space.
+  the figure-eight and Pythagorean three-body problems, a circumbinary planet, the Moon-forming impact, or empty space.
+  Giant impacts between rocky planets merge them into a molten, fast-spinning body and throw a hot debris disk
+  into orbit (about 2% of the mass, after SPH results); material outside the Roche limit gathers into a moon
+  within weeks (Ida et al. 1997) while the inner disk spreads and rains back. Selecting a black hole shows its
+  Hawking temperature and evaporation time.
 - **Moving stars:** catalogue stars follow their measured space velocities (Barnard's Star passes 3.75 ly from
   the Sun in 11,700 years, Alpha Centauri 2.9 ly in 27,600 years, Gliese 710 crosses the Oort cloud in 1.3 Myr),
   so constellations distort; procedural stars stream through the rotating spiral pattern with the Galaxy's
@@ -284,7 +288,8 @@ figure-eight choreography, tidal disruption (half the debris bound, first fallba
   coupling, no precession);
   the merger is handed to numerical relativity fits at 5.5 GM/c²; the merger-ringdown waveform is a smooth
   phenomenological join to the quasi-normal mode. Tidal debris is Newtonian test particles; returning debris is
-  counted as accreted at pericentre (stream collisions and disk formation are not simulated).
+  counted as accreted at pericentre (stream collisions and disk formation are not simulated). The giant impact's
+  debris disk is set up from published simulation outcomes rather than computed with hydrodynamics.
 - Andromeda: the tangential velocity is uncertain (Gaia-era estimates even allow a ~50% chance of no merger within
   10 Gyr, Sawala et al. 2025); 30 km/s was chosen to follow van der Marel et al. 2012. The N-body is restricted
   (particles feel both galaxies' analytic potentials, not each other), with no gas.
