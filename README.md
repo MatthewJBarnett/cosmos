@@ -93,8 +93,10 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 
 On touch screens: one finger looks around, pinch moves toward or away from the selection, and two on-screen buttons fly forward and back.
 
-The Places menu jumps to planets, exoplanet systems, nebulae, black holes and galaxies. Explore finds a random star,
-an Earth-like planet with life, a ringed planet, a giant star or another galaxy. The Saved menu keeps views you save with B.
+The Places menu jumps to planets, exoplanet systems, nebulae, supernova remnants, interstellar visitors, black holes and
+galaxies. Explore finds a random star, an Earth-like planet with life, a ringed planet, a giant star, another galaxy, a
+moment in Earth's past or a random event in time. The Saved menu keeps views you save with B. The status panel's "Now"
+line lists what is special about the current moment (a Mars dust storm, volcanic haze, a bright comet, a nova).
 
 ## Physics and deep time
 
