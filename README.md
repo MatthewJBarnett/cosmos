@@ -413,12 +413,19 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
   weather systems themselves stay where the map put them.
 - Aurora seen from orbit is streaky; from the ground it looks right.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
-- Galaxies other than the Milky Way and nebulae other than the six named ones are procedural.
+- Galaxies other than the ~15 named ones and nebulae other than the dozen named ones are procedural.
 - A pair of black holes is ray traced through the sum of their Schwarzschild bendings (each hole static during a
   ray's flight), not a full binary spacetime. Light bent out of the rendered frame picks up the model galaxy sky,
   not the photographed Milky Way or individual stars.
 - The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).
-- Earth's clouds are today's: after millions of years of drift they no longer match the continents beneath.
+- Earth's clouds are today's pattern (shifted in longitude in the deep past so they don't trace modern coastlines).
+- Paleogeography is 1 degree (~110 km) with procedural relief below that; before 540 Myr there are no maps, so the
+  oldest one is shown, drowned to model the smaller early continents. The future beyond +100 Myr keeps the drifted
+  continents of +100 Myr (no future supercontinent).
+- Nebula and galaxy histories are statistical (rates through cosmic time), not tracked individual objects; the
+  famous ones (Crab, Cas A, Tycho, Kepler, SN 1006) are real.
+- Stellar ages of procedural stars are random draws consistent with their type; about 25 famous stars use measured
+  ages. Radial migration of the Sun is a steady drift, not a simulated churning.
 - Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not
   hydrodynamics, and the new Moon does not recede tidally in the sandbox.
 - Exposure is metered on the brightest part of the frame, so a bright Moon or supernova in view darkens the stars.
