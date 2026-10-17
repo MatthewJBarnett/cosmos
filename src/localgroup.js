@@ -194,7 +194,7 @@ export class LocalGroup {
   // bring the simulation to tMyr (from now), a bounded number of steps per call. Returns true when in sync.
   advance(tMyr, maxSteps = 24) {
     if (tMyr < LG_START) { this.active = false; return true; }
-    this.active = true;
+    this.active = true; this.tReal = tMyr;      // (the dynamics stop at LG_END; the stars keep ageing)
     tMyr = Math.min(tMyr, LG_END);
     if (!this.ready || (tMyr < this.t - 600 && this.t - LG_START > tMyr - LG_START + 600)) this.reset();
     let n = 0;
@@ -217,11 +217,15 @@ export class LocalGroup {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
     this.pPart.use().set({ uPos: this.pos[this.cur], uSW: SW, uHalf: HALF, uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
-      uLum: [GAL.mw.L / HALF * popFade(NOW_TYR + this.t * 1e6), GAL.m31.L / HALF * popFade(NOW_TYR + this.t * 1e6)], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
+      uLum: [GAL.mw.L / HALF * popFade(NOW_TYR + (this.tReal || this.t) * 1e6), GAL.m31.L / HALF * popFade(NOW_TYR + (this.tReal || this.t) * 1e6)], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }
   // sky seen from inside: particles splatted into a cube map around the camera, refreshed as time moves on
   updateCube(camCOM, wMW, wM31) {
+    // galaxies are drawn ~20 times brighter than life so they stand out; once the Sun sits inside the merged galaxy that
+    // would turn the whole sky into a bright fog, so the boost eases off to a nearly real surface brightness
+    if (this._merged === undefined) this._merged = orbitEvents().merged || Infinity;
+    const boost = skyCfg.galBoost * (1 - 0.85 * Math.min(1, Math.max(0, ((this.tReal || this.t) - this._merged) / 800)));
     if (!this.ready) return;
     if (Math.abs(this.t - this.cubeT) < 1.5 && this.cubeCam && V.dist(camCOM, this.cubeCam) < 0.3 && Math.abs(wMW - this.cubeW) < 0.05) return;
     this.cubeT = this.t; this.cubeCam = camCOM.slice(); this.cubeW = wMW;
@@ -232,7 +236,7 @@ export class LocalGroup {
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.viewport(-GB, -GB, 256 + 2 * GB, 256 + 2 * GB);
       // seen from inside, both galaxies are diffuse glow across the sky: the same visibility boost as the Milky Way band
-      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.galBoost, 2.5);
+      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * boost, wM31 * boost, 2.5);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
