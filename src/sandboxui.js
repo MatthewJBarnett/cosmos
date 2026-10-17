@@ -116,7 +116,7 @@ export class SandboxUI {
     // expanding supernova or kilonova ejecta push the camera back so the explosion stays in view
     if (inside && !nav.paused && !nav.goto) for (const [x, R] of ejecta(sb)) {
       const xw = Q.rot(sb.worldQ, x), rel = V.sub(nav.S, xw), d = V.len(rel);
-      if (d < 3 * R && d > 0) { const nd = Math.min(3 * R, d * 1.08); nav.S = V.add(xw, V.mul(rel, nd / d)); }
+      if (d < 5 * R && d > 0) { const nd = Math.min(5 * R, d * 1.08); nav.S = V.add(xw, V.mul(rel, nd / d)); }
     }
     const phys = sb.bodies.filter(b => b.phys);
     if (inside && sel && sel.sandbox && !sb.bodies.includes(sel) && phys.length) nav.selected = { type: 'body', body: phys.reduce((a, b) => (b.mass > a.mass ? b : a)) };
