@@ -146,7 +146,8 @@ export class StarField {
   }
   // is star i currently shining (catalogue fading, suppressed procedural stars, dead massive stars)?
   visible(cell, i) {
-    if (cell.catalog) return cell._w > 0.02 && !(this.deadCat && this.deadCat.has(i));
+    // (exploded catalogue stars stay reachable: their systems hold the remnant)
+    if (cell.catalog) return cell._w > 0.02;
     const T = cell.data[i * 5 + 4];
     if (T < 0 && world.catW > 0.98) return false;
     return true;

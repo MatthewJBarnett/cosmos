@@ -129,7 +129,8 @@ export function updateSupernovae(field, camLocal, gq) {
       const ts = realTyr - sn.tEm - dist * LY_PER_PC;
       if (ts < 0) return;
       dead.add(sn.i); field.deadList[j] = sn.i;
-      if (ts < 12 + win) {
+      // (from inside the star's own system the exploding star itself is drawn as a fireball instead of a point)
+      if (ts < 12 + win && dist > 0.05) {
         const f = meanFlux(ts, Math.min(win, ts + 12), false) / Math.max(dist * dist, 1e-12) * 100;
         const m = -2.5 * Math.log10(Math.max(f, 1e-30));
         out.points.push({ dir: Q.rot(gq, [rx, ry, rz]), color: colorAt(ts * 365.25, false), flux: Math.exp(-0.9210340372 * (m + 26.74)), m, dist, name: sn.name });
