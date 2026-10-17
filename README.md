@@ -284,7 +284,8 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
   (including the M5) is untested. Press F3 in the app to see GPU time per pass. If it is slow, use `?q=low`;
   dynamic resolution also lowers the render scale below 48 fps.
 - Brightness is physical, so a sunlit planet hides the stars and deep space needs long exposures. Auto exposure
-  handles this; `[` and `]` bias it. Galaxy and nebula surface brightness is boosted about 20 times to be visible.
+  handles this; `[` and `]` bias it. Galaxy and nebula surface brightness is boosted about 20 times to be visible (nebulae return to
+  their real brightness when seen from far away, so the Orion Nebula is a faint smudge from Earth).
 - Asteroid and dwarf planet orbits beyond the main planets use approximate elements, so their positions along the
   orbit are not exact.
 - Galactic dynamics: flat-ish rotation curve (223 km/s, 1.5 kpc core), spiral pattern speed 25 km/s/kpc, the Sun's

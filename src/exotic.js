@@ -1,7 +1,7 @@
 // Exotic objects and effects: black holes with gravitational lensing and accretion disks, stellar coronae,
 // volumetric nebulae.
 import { gl, Program, drawFS, FS_VS, makeVAO } from './gl.js';
-import { V, Q, C, clamp } from './math.js';
+import { V, Q, C, clamp, mix } from './math.js';
 import { RNG, hashCombine, makeName } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
 import { GLSL_BB, bbColor, vSurface } from './stars.js';
@@ -266,7 +266,7 @@ export function drawNebulaeAndFx(nav, o) {
       if (x1 <= x0 || y1 <= y0) continue; sc = [x0, y0, x1 - x0, y1 - y0];
     }
     if (sc) { gl.enable(gl.SCISSOR_TEST); gl.scissor(sc[0], sc[1], sc[2], sc[3]); }
-    pNeb.use().set({ uNoise3: o.noise3, uCamRot: o.camRot, uTanFov: o.tanFov, uCen: v.rel, uRad: nb.radius, uScale: GAL_I0 * nb.lum * skyCfg.galBoost * 0.25 * o.exposure, uSeed: nb.seed, uFrame: o.frame % 16, uType: nb.type, uColA: nb.colA, uColB: nb.colB });
+    pNeb.use().set({ uNoise3: o.noise3, uCamRot: o.camRot, uTanFov: o.tanFov, uCen: v.rel, uRad: nb.radius, uScale: GAL_I0 * nb.lum * mix(1, skyCfg.galBoost, clamp((14 - v.d / nb.radius) / 10, 0, 1)) * 0.25 * o.exposure, uSeed: nb.seed, uFrame: o.frame % 16, uType: nb.type, uColA: nb.colA, uColB: nb.colB });
     drawFS();
     gl.disable(gl.SCISSOR_TEST);
   }
