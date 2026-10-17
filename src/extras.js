@@ -146,6 +146,7 @@ export function drawOrbits(sys, nav, o) {
     for (let i = 0; i <= ORB_N; i++) {
       fake.M0 = M0 + i / ORB_N * Math.PI * 2;
       let p = path ? V.mul(path[i], eph) : keplerPos(fake, 0);
+      if (!path && b.parent === sys.root && sys.oScale && sys.oScale !== 1) p = V.mul(p, sys.oScale);
       if (b.equatorial && b.parent.axisQ) p = Q.rot(b.parent.axisQ, p);
       p = Q.rot(sys.worldQ, p);
       // fade the stretch right behind the body to show direction of motion

@@ -417,6 +417,13 @@ export class Nav {
       if (this.goto && this.goto.target.type === 'body' && this.goto.target.body.system === sys) anchor = this.goto.target.body;
     }
     this.anchor = anchor;
+    // among the stars: keep up with a nearby selected star as it moves through the Galaxy (fast time-lapses would
+    // otherwise leave it behind within seconds)
+    if (this.level === 'galaxy' && this.selected && this.selected.type === 'star' && this.selected.desc.galaxy === this.galaxy && !this.goto) {
+      const pw = Q.rot(this.galaxy.quat, descPosP(this.selected.desc)), f = this._follow;
+      if (f && f.desc === this.selected.desc && V.dist(f.pw, this.G) < 300) this.G = V.add(this.G, V.sub(pw, f.pw));
+      this._follow = { desc: this.selected.desc, pw };
+    } else this._follow = null;
     let alt = 1e30, up = null;
     if (anchor) { const rel = V.sub(this.S, anchor.wpos); const d = V.len(rel); alt = d - anchor.radius - (anchor._groundH || 0); up = V.mul(rel, 1 / d); }
 
