@@ -229,7 +229,7 @@ export class LocalGroup {
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.viewport(-GB, -GB, 256 + 2 * GB, 256 + 2 * GB);
       // seen from inside, both galaxies are diffuse glow across the sky: the same visibility boost as the Milky Way band
-      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.galBoost, 1.5);
+      this.drawPoints(camCOM, cubeViewProj(CUBE_FACES[f], k), { exposure: 1e10, pxSA: 1 / (128 * 128), pxPerRad: 128, maxPx: 26 }, wMW * skyCfg.galBoost, wM31 * skyCfg.galBoost, 2.5);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
