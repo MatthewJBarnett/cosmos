@@ -411,6 +411,14 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     above += max(h, 0.)/130. + nz;
     float sn = smoothstep(-1.5, 2.5, above)*(1. - smoothstep(0.55, 0.85, slope));
     float green = clamp((m.g - max(m.r, m.b))*6. + 0.3, 0., 1.);
+    // leaves turn and grass dries in the mid-latitude winter (relative to the July base map: the north browns in its
+    // winter, the south greens up in its summer)
+    if (uPaleo < 0.5) {
+      float zone = smoothstep(28., 40., abs(latD))*(1. - smoothstep(60., 68., abs(latD)));
+      float brownN = latD > 0. ? smoothstep(0.1, 0.8, -uSeason) : 0., greenS = latD < 0. ? smoothstep(0.1, 0.8, -uSeason) : 0.;
+      c = mix(c, c*vec3(1.35, 1.0, 0.72), green*zone*brownN*0.7);
+      c = mix(c, c*vec3(0.78, 1.12, 0.7), clamp((m.g - m.b)*5., 0., 1.)*zone*greenS*0.6);
+    }
     vec3 snowC = mix(vec3(0.8, 0.83, 0.88), vec3(0.32, 0.35, 0.38), green*0.75);   // forests stick out of the snow
     c = mix(c, snowC, sn);
   }

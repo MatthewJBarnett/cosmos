@@ -7,7 +7,7 @@ import { galaxyName, REAL_GALAXIES } from './universe.js';
 import { rcfg } from './render.js';
 import { cfg as planetCfg } from './planet.js';
 import { RNG } from './rng.js';
-import { visibleNebulae } from './exotic.js';
+import { visibleNebulae, nebulaAt } from './exotic.js';
 import { catalog, loadCatalog } from './assets.js';
 import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
@@ -341,11 +341,11 @@ export class UI {
     const r = Math.abs(nav.rate) / YEAR, lvl = nav.level, sys = nav.system, an = nav.anchor;
     const atEarth = an && an.name === 'Earth', sol = sys && sys.desc && sys.desc.sol, sandbox = sys && sys.sandbox;
     if (sandbox || r < 1e-4) return '';
-    if (lvl === 'universe') return r < 1e5 ? '' : r < 1e8 ? 'galaxies slowly turn; supernovae flare in some' : r < 3e9 ? 'galaxies turn, redden and recede; Andromeda and the Milky Way merge (2.6-6 Gyr ahead)' : 'galaxies recede beyond the horizon and fade as their stars die';
-    if (lvl === 'galaxy') return r < 1e4 ? 'stars barely move' : r < 1e6 ? 'nearby stars drift; massive stars explode; nebulae change' : r < 3e8 ? 'stars stream around the Galaxy; the spiral pattern turns; the Sun orbits the centre (218 Myr)' : 'the Galaxy turns many times; Andromeda arrives; stars fade';
-    if (atEarth && nav.altitude < 1e5) return r < 0.003 ? 'the sky turns; the Moon moves through its phases' : r < 1 ? 'seasons: snow and sea ice come and go' : r < 300 ? 'the stars stay put; the Sun\'s 11-year cycle shows in the aurora' : r < 3e4 ? 'precession: the pole star changes; constellations distort' : r < 3e6 ? 'ice ages advance and retreat; nearby stars pass; Betelgeuse explodes' : r < 3e8 ? 'continents drift; the day lengthens' : 'the Sun brightens: oceans boil, then the red giant';
-    if (atEarth || (sol && an)) return r < 0.01 ? 'clouds and weather move; the Moon orbits' : r < 3 ? 'seasons: snow and sea ice; planets orbit' : r < 1e4 ? 'planets orbit; orbits slowly precess' : r < 3e6 ? 'ice ages and sea level; orbits change shape (Milankovitch cycles)' : r < 3e8 ? 'continents drift; Phobos becomes a ring; Saturn\'s rings fade' : 'the Sun brightens and swells; planets are swallowed';
-    if (sys && !sol) return r < 10 ? 'planets orbit' : r < 1e6 ? 'orbits; flares and pulsations' : 'the star ages: it brightens, swells into a giant and dies';
+    if (lvl === 'universe') return r < 1e5 ? '' : r < 1e8 ? 'galaxies slowly turn; supernovae flare in some; quasars switch on and off' : r < 3e9 ? 'galaxies turn, redden and recede; Andromeda and the Milky Way merge (2.6-6 Gyr ahead)' : 'galaxies recede beyond the horizon and fade as their stars die';
+    if (lvl === 'galaxy') return r < 1e4 ? 'stars barely move' : r < 1e6 ? 'nearby stars drift; massive stars explode; nebulae are born, expand and fade' : r < 3e8 ? 'stars stream around the Galaxy; the spiral pattern turns; the Sun orbits the centre (218 Myr)' : 'the Galaxy turns many times; Andromeda arrives; stars fade';
+    if (atEarth && nav.altitude < 1e5) return r < 0.003 ? 'the sky turns; the Moon moves through its phases' : r < 1 ? 'seasons: snow and sea ice come and go' : r < 300 ? 'the stars stay put; the Sun\'s 11-year cycle shows in the aurora; leaves turn with the seasons' : r < 3e4 ? 'precession: the pole star changes; constellations distort' : r < 3e6 ? 'ice ages advance and retreat; the magnetic field reverses; nearby stars pass; Betelgeuse explodes' : r < 3e8 ? 'continents drift (Pangaea 250 Myr ago); the day lengthens' : 'the Sun brightens: oceans boil, then the red giant';
+    if (atEarth || (sol && an)) return r < 0.01 ? 'clouds and weather move; the Moon orbits' : r < 3 ? 'seasons: snow and sea ice; planets orbit' : r < 1e4 ? 'planets orbit; orbits slowly precess' : r < 3e6 ? 'ice ages and sea level; orbits change shape (Milankovitch cycles)' : r < 3e8 ? 'continents drift (Pangaea 250 Myr ago); Phobos becomes a ring; Saturn\'s rings fade' : 'the Sun brightens and swells; planets are swallowed';
+    if (sys && !sol) return r < 10 ? 'planets orbit' : r < 1e6 ? 'orbits; flares and pulsations' : 'the star ages: it brightens, swells into a giant and dies (rewind: it forms in a cloud)';
     return '';
   }
   search(text) {
@@ -492,8 +492,13 @@ export class UI {
       else if (t.type === 'body') { rows = describeBody(t.body); sub = t.body.kind === 'star' ? 'Star' : t.body.kind[0].toUpperCase() + t.body.kind.slice(1); if (t.body.parent && t.body.parent.kind !== 'barycenter') sub += ' of ' + t.body.parent.name; }
       else if (t.type === 'star') { const s = t.desc.star; sub = 'Star'; rows = [['Class', s.cls], ['Temperature', Math.round(s.T) + ' K'], ['Mass', (s.mass / C.Msun).toPrecision(3) + ' M<sub>Sun</sub>'], ['Radius', (s.radius / C.Rsun).toPrecision(3) + ' R<sub>Sun</sub>'], ['Luminosity', s.lum.toPrecision(3) + ' L<sub>Sun</sub>'], ['Abs. magnitude', s.MV.toFixed(2)]]; }
       else if (t.type === 'nebula') {
-        const nb = t.neb; sub = nb.cluster ? 'Globular cluster' : ['Emission nebula (H II region)', 'Planetary nebula', 'Supernova remnant', 'Protoplanetary disk'][nb.type] || 'Nebula'; rows = [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']];
-        if (nb.age !== undefined && nb.life) rows.push(['Age', fmtSpan(nb.age) + ' (lasts ~' + (nb.life < 1e6 ? Math.round(nb.life / 1e3) + ',000 years' : Math.round(nb.life / 1e6) + ' million years') + ')']);
+        // (catalogued nebulae: their state at the current time)
+        const base = t.neb.base || t.neb, real = base.gen === undefined && base.age !== undefined && !base.proc;
+        const nb = real ? (nebulaAt(base) || base) : t.neb, ageNow = real ? base.age + world.tyr : nb.age;
+        sub = nb.cluster ? 'Globular cluster' : ['Emission nebula (H II region)', 'Planetary nebula', 'Supernova remnant', 'Protoplanetary disk'][nb.type] || 'Nebula';
+        rows = real && ageNow < 0 ? [['Status', 'the star has not exploded yet (in ' + fmtSpan(-ageNow) + ')']] : [['Diameter', (nb.radius * 2 * 3.2616).toPrecision(3) + ' ly']];
+        if (real && ageNow >= 0) rows.push(['Age', fmtSpan(ageNow)]);
+        else if (nb.age !== undefined && nb.life && !real) rows.push(['Age', fmtSpan(nb.age) + ' (lasts ~' + (nb.life < 1e6 ? Math.round(nb.life / 1e3) + ',000 years' : Math.round(nb.life / 1e6) + ' million years') + ')']);
         if (nb.type === 0 && !nb.cluster) rows.push(['Lit by', 'young O and B stars, ionizing hydrogen (red H-alpha) and oxygen (teal [O III])']);
         else if (nb.type === 1) rows.push(['Lit by', 'the hot exposed core of a dying Sun-like star, now becoming a white dwarf']);
         else if (nb.type === 2) rows.push(['Shock', 'a supernova blast wave sweeping up interstellar gas (Sedov expansion, radius ~ t^0.4)']);
