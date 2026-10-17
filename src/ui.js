@@ -76,16 +76,20 @@ export class UI {
       <h3 style="margin-top:12px">Physics and deep time</h3>
       <p class="dim">The Rate menu runs the clock from slow motion to 10 billion years per second. The Timeline (U) lists what is
       coming (Betelgeuse's supernova, Andromeda's collision, the Sun's red giant phase, the last stars) with a slider from the Big Bang
-      to 100 trillion years ahead; the clock slows down for each event. Stars move, the Galaxy turns, the Sun evolves, galaxies recede.
+      to 100 trillion years ahead; the clock slows down for each event. Stars move, the Galaxy turns, the Sun evolves, galaxies recede,
+      the planets' orbits slowly change, ice ages come and go with them and the continents drift. Near a planet, fast time-lapses
+      advance in whole days and orbits so the view holds still.
       The Sandbox (V) is an N-body simulation with general relativistic corrections: merge black holes and neutron stars, hear the
-      gravitational wave chirp, shred a star, or send a black hole through the Solar System. M toggles relativistic flight.</p>
+      gravitational wave chirp, shred a star, form the Moon in a giant impact, detonate colliding white dwarfs, or send a black hole
+      through the Solar System. M toggles relativistic flight.</p>
       <h3 style="margin-top:12px">Data and credits</h3>
       <p class="dim credits">Earth: NASA Blue Marble NG, Black Marble 2016, Blue Marble clouds (NASA Earth Observatory); ETOPO 2022 (NOAA); Natural Earth.
       Moon: LRO LROC WAC and LOLA (NASA SVS CGI Moon Kit). Mars: Viking MDIM 2.1 and MOLA (USGS Astrogeology). Mercury, moons, Pluto, Ceres: USGS Astrogeology mosaics from MESSENGER, Galileo, Voyager, Cassini, New Horizons and Dawn.
       Gas giants, Venus clouds and Saturn's rings: Solar System Scope textures (CC BY 4.0).
       Stars: HYG database v4.4, David Nash / astronexus.com (CC BY-SA 4.0). Constellation figures: Stellarium (GPL).
       Milky Way: ESO/S. Brunier panorama (CC BY 4.0). Exoplanets: NASA Exoplanet Archive.
-      Ephemerides: JPL approximate planetary elements (E. M. Standish), J. Meeus, Astronomical Algorithms.</p>
+      Ephemerides: JPL approximate planetary elements (E. M. Standish), J. Meeus, Astronomical Algorithms.
+      Plate boundaries: P. Bird (2003), PB2002 (via github.com/fraxen/tectonicplates); plate motions NNR-NUVEL-1A (DeMets et al. 1994).</p>
       <p class="dim">Press H or ? to close.</p>`;
     // one-time note about the physics features
     try {
