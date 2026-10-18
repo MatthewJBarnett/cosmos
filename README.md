@@ -299,6 +299,10 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Exposure and aurora:** a small, very bright object away from the middle of the frame (the Moon in a corner, a
   supernova) may overexpose up to ~30x rather than darken everything else; aurora seen from orbit is sampled at fixed
   altitudes, so it is smooth instead of grainy.
+- **Great comets:** besides Halley, Hale-Bopp, Hyakutake and NEOWISE, nine more on their real orbits from JPL's
+  Small-Body Database: the Great Comet of 1811, Donati (1858), the Great September Comet of 1882 and Ikeya-Seki (Kreutz
+  sungrazers), the Great January Comet of 1910, West (1976), McNaught (2007), Lovejoy (2011) and Tsuchinshan-ATLAS
+  (2024), with timeline events for six of them.
 - **The far future:** past 100 trillion years the clock turns logarithmic again and runs to 10¹¹⁰ years: the
   degenerate era (a few red dwarfs lit by brown dwarf collisions, planets stripped from dead stars, black dwarfs), the
   galaxy evaporating (~10¹⁹ years, nine in ten remnants flung out, the rest feeding a 10¹⁰ M☉ central black hole),

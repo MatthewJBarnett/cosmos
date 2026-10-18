@@ -708,9 +708,15 @@ function buildSol(sys) {
     ob.orbit = { hyp: true, q: qm, e, a, inc: inc * D2R, node: node * D2R, argp: argp * D2R, tp: (tp - 2000) * C.YEAR, n: Math.sqrt(C.G * C.Msun / a ** 3) };
     ob.surface = surfacePreset('asteroid', rng, ob); addChild(sun, ob);
   }
-  // great comets of recent decades on their real orbits (J2000 ecliptic elements; perihelion dates as decimal years)
+  // great comets on their real orbits (J2000 ecliptic elements from JPL's Small-Body Database; perihelion dates as decimal
+  // years; slightly hyperbolic osculating orbits are taken as near-parabolic). Nucleus radii (m) are rough estimates.
   for (const [name, q, e, inc, node, argp, tp, R] of [['Comet Hyakutake', 0.2302, 0.9999, 124.92, 188.06, 130.18, 1996.329, 2000],
-    ['Comet Hale-Bopp', 0.9141, 0.99508, 89.43, 282.47, 130.59, 1997.248, 30000], ['Comet NEOWISE', 0.2946, 0.99918, 128.94, 61.01, 37.28, 2020.504, 2500]]) {
+    ['Comet Hale-Bopp', 0.9141, 0.99508, 89.43, 282.47, 130.59, 1997.248, 30000], ['Comet NEOWISE', 0.2946, 0.99918, 128.94, 61.01, 37.28, 2020.504, 2500],
+    ['Great Comet of 1811', 1.035412, 0.995125, 106.9342, 143.0497, 65.4097, 1811.6995, 15000], ["Donati's Comet", 0.578469, 0.996295, 116.9512, 167.3044, 129.1144, 1858.7487, 5000],
+    ['Great September Comet of 1882', 0.00775, 0.999899, 142.0112, 347.6563, 69.5843, 1882.7138, 15000], ['Great January Comet of 1910', 0.128958, 0.99978, 138.7780, 90.0294, 320.8918, 1910.0454, 5000],
+    ['Comet Ikeya-Seki', 0.007786, 0.999915, 141.8642, 346.9947, 69.0486, 1965.8034, 4000], ['Comet West', 0.196595, 0.99995, 43.0740, 118.9175, 358.4317, 1976.1498, 3000],
+    ['Comet McNaught', 0.170736, 0.99995, 77.8370, 267.4148, 155.9750, 2007.0316, 10000], ['Comet Lovejoy (2011)', 0.005554, 0.999929, 134.3558, 326.3691, 53.5092, 2011.9549, 500],
+    ['Comet Tsuchinshan-ATLAS', 0.391430, 0.99995, 139.1121, 21.5595, 308.4918, 2024.7399, 3000]]) {
     const cm = body({ name, kind: 'comet', cls: 'Long-period comet', mass: 1e3 * 4.19 * R ** 3 * 0.5, radius: R, albedo: 0.04, temp: 150, rotPeriod: 11 * 3600, real: true });
     const a = q / (1 - e) * C.AU, period = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * C.Msun));
     cm.orbit = { a, e, inc: inc * D2R, node: node * D2R, argp: argp * D2R, period, M0: -2 * Math.PI * (((tp - 2000) * C.YEAR / period) % 1) };
