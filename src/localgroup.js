@@ -306,6 +306,25 @@ export function updateLocalGroupPositions(tyr) {
   const lmcMoved = Math.abs(tMyr - lastLmcT) > 0.5; if (lmcMoved) lastLmcT = tMyr;
   return moved || lmcMoved;
 }
+// the Sagittarius stream: stars torn from the dwarf over the last ~3 Gyr spread along its orbit ahead of it and behind
+// it (Majewski et al. 2003); each point stands for a clump of ~50,000 suns. It keeps phase-mixing after the dwarf is gone.
+const SGR_N = 1400, sgrPts = [];
+for (let k = 0; k < SGR_N; k++) { const h = (x) => { const v = Math.sin(k * 12.9898 + x * 78.233) * 43758.5453; return v - Math.floor(v); };
+  sgrPts.push({ dt: (h(1) - 0.5) * 2 * (300 + 1500 * h(2) ** 1.5), off: [h(3) - 0.5, h(4) - 0.5, h(5) - 0.5], m: -6.9 + 1.5 * h(6) }); }
+export function sgrStreamPoints(camU, tyr, out) {
+  if (!SGR0) return out;
+  const t = (tyr - NOW_TYR) / 1e6; if (t < -3000) return out;
+  const age = Math.min(1, (t + 3000) / 3000), s0 = SGR_ORBIT.r0, mix = 1 + Math.max(0, t) / 800;
+  for (const q of sgrPts) {
+    if (Math.abs(q.dt) > 1800 * age) continue;
+    const sg = sgrAt(t + q.dt * mix), w = 2.5 * mix * (0.4 + Math.abs(q.dt) / 1500);       // kpc of spread, wider further along
+    const p = [SGR0[0] + (sg[0] - s0[0] + q.off[0] * w) * 1e-3, SGR0[1] + (sg[1] - s0[1] + q.off[1] * w) * 1e-3, SGR0[2] + (sg[2] - s0[2] + q.off[2] * w) * 1e-3];
+    const rel = V.sub(p, camU), d = V.len(rel) * 1e6; if (d < 50) continue;
+    const m = q.m + 5 * Math.log10(d) - 5 + (Math.abs(q.dt) < 60 ? 3 : 0);    // (the dwarf's body itself is drawn as a galaxy)
+    out.push({ dir: V.mul(rel, 1 / V.len(rel)), color: [1.0, 0.86, 0.66], flux: Math.exp(-0.9210340372 * (m + 26.74)) * age });
+  }
+  return out;
+}
 export const LG = new LocalGroup();
 // after the N-body takes over, the Sun's galactic position comes from its tracer particle
 sunHook.t0 = NOW_TYR + LG_START * 1e6;
