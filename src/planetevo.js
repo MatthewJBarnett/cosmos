@@ -240,6 +240,8 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       const sd = Math.sin((b.tilt || 0) * Math.PI / 180) * Math.sin(ph), sw = 22 * sd;
       b.seaIce = b.iceAge >= 3 ? null : [Math.min(89, base + sw), -Math.min(89, base - sw)];
     }
+    // mountains: plate tectonics keeps building them; on a stagnant lid they wear down (with weather) or stay (airless)
+    if (!giant && b.surface && b.surface.gen === 'terra' && !b.maps && b.hist.P0 > 1e3) b.mtnK = b.hist.plates ? 1 : Math.round(clamp(Math.exp(-(age - ageNow) / 4e9), 0.3, 2.5) * 8) / 8;
     // clouds follow the climate: none once the oceans are gone or frozen solid
     if (b.atmo && b.atmo.clouds && b.atmo.clouds.kind === 'earth' && !b.precessRA) b.noClouds = !!((b.climate && b.climate.dry > 0.9) || b.iceAge >= 3 || (b.atmoK !== undefined && b.atmoK < 0.05));
     // plate tectonics moves the continents (procedural worlds; Earth has its real plates): Myr of drift, in 4 Myr steps

@@ -292,6 +292,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   tides, with a graph of pressure, temperature and day length over the planet's life. Checked against Mars' escape
   today (~2 kg/s, MAVEN), its ~0.3 bar 3.6 Gyr ago, Venus's 243-day equilibrium, Jupiter's radius at 10 Myr and
   WASP-12b's orbital decay.
+- **Stars and giants change too:** cool main-sequence stars run starspot cycles of 5-20 years, stronger when young;
+  giant exoplanets change their cloud class as their star brightens or dies (ammonia, water, clear, alkali, silicate);
+  stagnant-lid worlds' mountains wear down while plate-tectonic worlds keep building them.
 - **Venus through time:** a magma ocean, then possibly a temperate ocean world under ~1 bar until ~1 Gyr ago (Way et
   al. 2016; others argue its oceans never condensed), a runaway greenhouse that boiled them off and freed the carbonate
   CO2 to 92 bar, global volcanic resurfacing ~750-500 Myr ago, and today's hothouse whose cloud deck super-rotates every

@@ -308,6 +308,12 @@ export class StarSystem {
       if (!!s.neutron !== ns) { s.neutron = ns; s.pulsar = ns; if (ns) { e.rot0 = e.rot0 || s.rotPeriod; s.rotPeriod = 0.033; } else if (e.rot0) s.rotPeriod = e.rot0; }
       if (ns) { s.rotPeriod = pulsarPeriod(st.snrAge); s.pulsar = st.snrAge < 1e7; }
       s.cls = st.kind === e.kind0 && Math.abs(Math.log10(Math.max(st.L, 1e-30) / e.L0)) < 0.25 ? e.cls0 : st.phase.charAt(0).toUpperCase() + st.phase.slice(1);
+      // starspot cycles: cool main-sequence stars have activity cycles of ~5-20 years (the Sun's is 11), stronger when young
+      if (s.surface && st.kind === KIND.MS && st.T < 7000 && s.surface.spots !== undefined) {
+        if (s._spot0 === undefined) { s._spot0 = s.surface.spots || 0.3; s._cyc = 5 + 15 * (((s.uid * 2654435761) >>> 0) / 4294967296); }
+        const ageK = s.ageYr > 0 ? clamp(Math.pow(Math.max(s.ageYr, 1e8) / 4.6e9, -0.5), 0.5, 3) : 1;
+        s.surface.spots = Math.round(Math.min(1.4, s._spot0 * ageK * (0.2 + 0.8 * (0.5 + 0.5 * Math.sin(2 * Math.PI * tyr / s._cyc)))) * 8) / 8;
+      }
       if (s === this.root) scale = e.m / Math.max(st.m, 0.05);
     }
     // planets inside a swollen star are swallowed; planets near a giant are heated until they glow
@@ -1198,6 +1204,9 @@ export function describeBody(b) {
     if (b.volcano) rows.push(['Sky', 'volcanic haze from ' + b.volcano + ' (vivid sunsets, global cooling)']);
     else if (b.haze > 0.05) rows.push(['Sky', 'orange organic haze (methane-rich air, like Titan)']);
     if (b.precessRA && b.system && b.system.tyr !== undefined) { const y = 2000 + b.system.tyr; if (y > 1979 && y < 2070) rows.push(['Ozone', 'a hole opens over Antarctica every spring (CFCs), ' + (y < 2000 ? 'deepening' : y < 2066 ? 'slowly healing since the Montreal Protocol (back to 1980 levels ~2066)' : 'healed')]); else if (b.ozoneK < 0.05) rows.push(['Ozone', 'none: no free oxygen, so the surface gets the Sun\'s full ultraviolet']); }
+    if (b.precessRA && b.system && b.system.tyr !== undefined) { const y = 2000 + b.system.tyr;
+      const lu = y < -10000 ? '' : y < -7000 ? 'farming begins in the Fertile Crescent, China and New Guinea' : y < 1700 ? 'farms and pastures spread slowly; forests are cleared around the cities' : y < 1950 ? 'farmland spreads fast across the Americas, Russia and Australia' : y < 2100 ? 'about 40% of the ice-free land is farmland and pasture; a third of the forests that stood 10,000 years ago are gone' : '';
+      if (lu) rows.push(['Land use', lu]); }
     if (b.dipPole) rows.push(['North magnetic pole', b.dipPole[0].toFixed(1) + '° N, ' + Math.abs(b.dipPole[1]).toFixed(1) + '° ' + (b.dipPole[1] < 0 ? 'W' : 'E') + ' (it has wandered from Canada towards Siberia since 1900)']);
     if (b.stratWater > 0.5) rows.push(['Stratosphere', '+' + Math.round(b.stratWater) + '% water vapour from Hunga Tonga (2022)']);
     if (b.seaRise !== undefined && Math.abs(b.seaRise) > 0.01 && !b.paleoMyr) rows.push(['Sea level', (b.seaRise > 0 ? '+' : '') + (Math.abs(b.seaRise) < 3 ? b.seaRise.toFixed(2) : Math.round(b.seaRise)) + ' m vs 2000' + (b.iceAge > 0.05 ? ' (ice sheets: ' + Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m)' : '')]);
