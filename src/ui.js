@@ -17,9 +17,9 @@ import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
 import { cosmo, galaxyView, apparentPosU, galaxyInfo, aOfTau } from './cosmology.js';
-import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights, LMC_MERGE } from './localgroup.js';
+import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights, LMC_MERGE, sgrLum } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
-import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, orbitEvents } from './lgorbit.js';
+import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, sgrAt, orbitEvents } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T, fmtEarly, sci, supYears } from './timeline.js';
 import { lateEra } from './farfuture.js';
 import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
@@ -594,6 +594,7 @@ export class UI {
           if (d > 2) { rows.push(['From the Milky Way', d.toFixed(0) + ' kpc (centre to centre)']); rows.push([vr < 0 ? 'Approaching at' : 'Receding at', Math.abs(vr).toFixed(0) + ' km/s']); }
         }
         if (/Large Magellanic/.test(g.name)) { const d = V.len(lmcAt(tMyr)); if (d > 3) rows.push(['From the Galactic centre', d.toFixed(0) + ' kpc']); }
+        if (g.sgr) { const d = V.len(sgrAt(tMyr)), f = sgrLum(tMyr); rows.push(['From the Galactic centre', d.toFixed(0) + ' kpc']); rows.push(['State', f <= 0 ? 'dissolved into the halo' : tMyr > 0 ? 'being torn apart: ' + Math.round(f * 100) + '% of its present stars left' : 'more massive than today (it has been losing stars to its stream)']); }
         const gi = g !== MILKY_WAY && galaxyInfo(V.len(g.posU));
         if (gi) {
           rows.push(['Redshift', 'z = ' + gi.z.toFixed(gi.z < 0.1 ? 4 : 2)]);
@@ -658,8 +659,8 @@ export class UI {
       }
       if (nav.level !== 'system' || (nav.system && V.len(nav.S) > 3e13)) {
         const cu = nav.camU();
-        const selG = nav.selected && nav.selected.galaxy, merged = LG_ORBIT.merged > 0 && world.tyr > 27 + LG_ORBIT.merged * 1e6, lmcGone = lgWeights(world.tyr).lmc < 0.5;
-        for (const g of REAL_GALAXIES) { const gv = galaxyView(V.len(g.posU)); if (gv.f < 1e-3 || g === selG) continue; const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (merged && g === M31 || lmcGone && /Magellanic/.test(g.name)) continue;
+        const selG = nav.selected && nav.selected.galaxy, merged = LG_ORBIT.merged > 0 && world.tyr > 27 + LG_ORBIT.merged * 1e6, lgw = lgWeights(world.tyr), lmcGone = lgw.lmc < 0.5, sgrGone = lgw.sgr < 0.05;
+        for (const g of REAL_GALAXIES) { const gv = galaxyView(V.len(g.posU)); if (gv.f < 1e-3 || g === selG) continue; const rel = V.sub(apparentPosU(g), cu), d = V.len(rel); if (d < g.radius * 1.5e-6) continue; if (merged && g === M31 || lmcGone && /Magellanic/.test(g.name) || sgrGone && g.sgr) continue;
           if (g.radius * 1e-6 / d * r.pxPerRad > 3) put(rel, (merged && g === MILKY_WAY ? 'Milkomeda (Milky Way + Andromeda)' : g.name) + (gv.z > 0.05 && Math.abs(nav.time) > 3e16 ? ' (z = ' + gv.z.toFixed(gv.z < 1 ? 2 : 1) + ')' : ''), 'galaxy', 10); }
       }
       // star, constellation and nebula labels only when the sky is dark enough to show them

@@ -11,8 +11,10 @@ page.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
 await page.goto(`http://localhost:${process.env.PORT || 8642}/?test=1&tex=49&cube=128&cloudres=256&scale=1&galr=0.2`, { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos !== undefined', { timeout: 120000 });
 if (!process.env.UI) await page.evaluate(() => { cosmos.ui.root.classList.add('hide'); cosmos.ui.hidden = true; });
-const ids = await page.evaluate(() => cosmos.ui.timeline.events.map(e => e.id));
-const sb = await page.evaluate(() => cosmos.ui.sbui.presets.map(p => p.id));
+// (ONLY=id1,id2 limits the run to those events and scenarios)
+const only = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
+const ids = (await page.evaluate(() => cosmos.ui.timeline.events.map(e => e.id))).filter(i => !only || only.has(i));
+const sb = (await page.evaluate(() => cosmos.ui.sbui.presets.map(p => p.id))).filter(i => !only || only.has(i));
 const out = (n) => new URL(`../shots/${n}.png`, import.meta.url).pathname;
 async function shot(name, code) {
   const n0 = errors.length, t0 = Date.now();

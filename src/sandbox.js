@@ -529,7 +529,7 @@ export function drawDebris(sb, nav, o) {
     const cen = [[0, 0, 0, 0], [0, 0, 0, 0]];
     for (let i = 0; i < n; i++) { const c = cen[mat[i]]; c[0] += X[i * 3]; c[1] += X[i * 3 + 1]; c[2] += X[i * 3 + 2]; c[3]++; }
     for (const c of cen) if (c[3]) { c[0] /= c[3]; c[1] /= c[3]; c[2] /= c[3]; }
-    const Rb = [S.cfg.R1, S.cfg.R2], size = 0.6 * Math.cbrt(S.mp / 4500), area = Math.PI * size * size, camL = Q.rot(Q.conj(sb.worldQ), nav.S);
+    const Rb = [S.cfg.R1, S.cfg.R2], size = 1.0 * Math.cbrt(S.mp / 4500), area = Math.PI * size * size, camL = Q.rot(Q.conj(sb.worldQ), nav.S);
     for (let i = 0; i < n; i++) {
       const c = cen[mat[i]], px = X[i * 3], py = X[i * 3 + 1], pz = X[i * 3 + 2];
       const dx = px - c[0], dy = py - c[1], dz = pz - c[2], r = Math.hypot(dx, dy, dz), R = Rb[mat[i]];
@@ -540,9 +540,9 @@ export function drawDebris(sb, nav, o) {
         if ((nx * tc[0] + ny * tc[1] + nz * tc[2]) / tl < -0.15) continue;   // (far side)
         lit = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
       }
-      const T = F.T[i], cc = bbColor(Math.min(T, 4e4)), mx = Math.max(...cc), rock = mat[i] ? [0.62, 0.55, 0.5] : [0.55, 0.5, 0.47];
+      const T = F.T[i], cc = bbColor(Math.min(T, 4e4)), mx = Math.max(...cc), rock = mat[i] ? [0.58, 0.47, 0.38] : [0.5, 0.43, 0.37];   // (dark basaltic rock; Theia a little redder)
       const glow = C.sigma * T ** 4 * area / C.Lsun * visFrac(T) / visFrac(5772), refl = 0.15 * area * 1361 * lit / C.Lsun;
-      const tot = glow + refl, col = [0, 1, 2].map(k => (cc[k] / mx * glow + rock[k] * refl * 1.6) / Math.max(tot, 1e-30));
+      const tot = glow + refl, col = [0, 1, 2].map(k => (cc[k] / mx * glow + rock[k] * refl) / Math.max(tot, 1e-30));
       const w = Q.rot(sb.worldQ, [px, py, pz]), rel = [w[0] - nav.S[0], w[1] - nav.S[1], w[2] - nav.S[2]], dAU = Math.hypot(...rel) / AU;
       sphPts.push([rel[0], rel[1], rel[2], col[0], col[1], col[2], tot / (dAU * dAU), size]);
     }

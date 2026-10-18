@@ -109,6 +109,7 @@ float cloudShadowAt(vec3 p, vec3 L){
   return smoothstep(0.15, 0.85, cov);
 }
 // aurora: emission from the auroral ovals around the geomagnetic poles (night side)
+float auroraLod = 0.;    // pixel footprint at the emitting shell (radians of arc on the planet)
 vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   if (alt < 85000. || alt > 380000.) return vec3(0.);
   vec3 n = normalize(p);
@@ -131,8 +132,9 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
   // folded curtains drifting slowly
   float t = uTime*0.003;
   float w = textureLod(uNoise3, vec3(phi*1.6, th*6., t*0.2), 0.).r;
-  float fold = exp(-pow((th - th0 - (w - 0.5)*0.09)/0.004, 2.)) + 0.5*exp(-pow((th - th0 + 0.02 - (w - 0.5)*0.07)/0.003, 2.));
-  float rays = 0.65 + 0.5*textureLod(uNoise3, vec3(phi*24., alt*1.5e-6, t), 0.).g;
+  float w1 = max(0.004, 1.5*auroraLod), w2 = max(0.003, 1.5*auroraLod);
+  float fold = exp(-pow((th - th0 - (w - 0.5)*0.09)/w1, 2.))*0.004/w1 + 0.5*exp(-pow((th - th0 + 0.02 - (w - 0.5)*0.07)/w2, 2.))*0.003/w2;
+  float rays = mix(0.65 + 0.5*textureLod(uNoise3, vec3(phi*24., alt*1.5e-6, t), 0.).g, 0.9, smoothstep(0.002, 0.01, auroraLod));
   float act = 0.35 + 0.9*smoothstep(0.35, 0.75, textureLod(uNoise3, vec3(phi*0.9 + t*0.3, 0.2, 0.7), 0.).b);
   float a = alt*1e-3;
   float green = exp(-pow((a - 112.)/14., 2.)) + 0.35*exp(-pow((a - 160.)/40., 2.));
@@ -353,22 +355,12 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       if (a1 > a0) {
         vec3 Ld0 = normalize(uLightPos[0] - uPlanetRel);
         vec3 Ea = vec3(0.);
-        // from orbit, looking down through the shell: sample at fixed altitudes (denser low down, where the green
-        // light is) rather than along the long slant path, so neighbouring pixels agree (no grain or streaks)
-        float cosI = 0., s0, s1;
-        if (o0 > 0. && raySphere(ro, rd, aR0 + 110000., s0, s1) > 0. && s0 > 0.) cosI = abs(dot(normalize(ro + rd*s0), rd));
-        if (cosI > 0.3) {
-          const int NL = 28;
-          for (int i = 0; i < NL; i++) {
-            float u = (float(i) + 0.5)/float(NL), alt = 85000. + 295000.*u*u, dalt = 295000.*2.*u/float(NL);
-            if (raySphere(ro, rd, aR0 + alt, s0, s1) > 0. && s0 > 0. && s0 < tmax + 1e6) { vec3 pa = ro + rd*s0; Ea += auroraEmission(pa, alt, Ld0)*dalt/max(abs(dot(normalize(pa), rd)), 0.3); }
-          }
-          L += Ea*(a0 < cloudDist ? 1. : cloudT);
-        } else {
-          const int NA = 40; float dta = (a1 - a0)/float(NA);
-          for (int i = 0; i < NA; i++) { vec3 pa = ro + rd*(a0 + (float(i) + jit)*dta); Ea += auroraEmission(pa, length(pa) - aR0, Ld0); }
-          L += Ea*dta*(a0 < cloudDist ? 1. : cloudT);
-        }
+        // (from far away the thin curtains are narrower than a pixel: widen them to the pixel footprint at the shell,
+        // keeping their total light, so they cannot alias into streaks or rings)
+        auroraLod = uPixAngle*max(a0, 1.)/aR0;
+        const int NA = 40; float dta = (a1 - a0)/float(NA);
+        for (int i = 0; i < NA; i++) { vec3 pa = ro + rd*(a0 + (float(i) + jit)*dta); Ea += auroraEmission(pa, length(pa) - aR0, Ld0); }
+        L += Ea*dta*(a0 < cloudDist ? 1. : cloudT);
       }
     }
   }
