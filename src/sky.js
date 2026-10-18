@@ -226,7 +226,8 @@ void main(){
 // the galaxy impostor (light travel delay, growth of structure, aberration).
 const DM_VS = GAL_VS.replace('uniform vec3 uSkip;', 'uniform vec3 uSkip; uniform int uMode;').split('vSN = vec3(0.);')[0] + `
   // (modes 1 and 2: the hot gas of the cluster around a giant elliptical, ~1 Mpc across)
-  if (uMode > 0 && !(aP0.x < 0.5 && aLum > 0.6)) { gl_Position = vec4(2., 2., 2., 1.); return; }
+  // (strong lensing needs the cluster far enough away: nearby ones, like Virgo, fall short of the critical density)
+  if (uMode > 0 && (!(aP0.x < 0.5 && aLum > (uMode == 3 ? 1.2 : 0.6)) || (uMode == 3 && chi < 150.))) { gl_Position = vec4(2., 2., 2., 1.); return; }
   float rad = aCen.w*(uMode > 0 ? 7. : 9.)*pow(clamp(aLum, 0.05, 8.), 0.33);
   vec3 f = c/d; vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
   vWorld = c + (r*aCorner.x + u*aCorner.y)*rad; vCen = c; vLum = vec2(aLum*cv.y*smoothstep(0.18, 1.0, vTauE), rad); vPx = rad/d*uPxPerRad;
@@ -244,8 +245,20 @@ void main(){
   o = vec4(vec3(0.55, 0.3, 1.0)*sig*vLum.x*uScale*0.18, 0.);
   // intracluster gas: a beta model (beta = 2/3, core ~1/10 of the extent); X-ray brightness goes as density squared
   // along the line of sight, the Sunyaev-Zel'dovich decrement as pressure (density) along it
-  if (uMode > 0) { float xc = b*10., bm = pow(1. + xc*xc, uMode == 1 ? -1.5 : -0.5)*smoothstep(1., 0.6, b);
+  if (uMode == 1 || uMode == 2) { float xc = b*10., bm = pow(1. + xc*xc, uMode == 1 ? -1.5 : -0.5)*smoothstep(1., 0.6, b);
     o = uMode == 1 ? vec4(vec3(0.55, 0.8, 1.0)*bm*vLum.x*uScale*0.35, 0.) : vec4(vec3(bm*0.12), 0.); }
+  // visible light: galaxies far behind a massive cluster, stretched by its gravity into thin arcs along the Einstein
+  // ring (~30 arcseconds for a rich cluster, here ~6% of the cluster's extent; Abell 370's arc, 1986)
+  if (uMode == 3) {
+    vec3 rel = vCen - dir*dot(vCen, dir), e1 = normalize(cross(vCen, vec3(0.31, 0.92, 0.23))), e2 = normalize(cross(vCen, e1));
+    float ang = atan(dot(rel, e2), dot(rel, e1)), h = fract(sin(dot(vCen, vec3(3.1, 7.7, 1.3)))*9631.7);
+    float arcs = 0.;
+    for (int k = 0; k < 4; k++) { float fk = float(k), rk = 0.055 + 0.02*fract(h*(7.1 + fk*3.3)), ak = 6.2832*fract(h*(1.7 + fk*5.9)), wk = 0.25 + 0.5*fract(h*(9.3 + fk));
+      float da = abs(mod(ang - ak + 3.1416, 6.2832) - 3.1416);
+      float on = step(0.35, fract(h*(2.3 + fk*7.7))), knots = 0.55 + 0.45*sin(ang*(23. + 11.*fk) + h*40.);
+      arcs += on*exp(-pow((b - rk)/0.0011, 2.))*smoothstep(wk, wk*0.3, da)*knots*(0.4 + fract(h*(4.4 + fk))); }
+    o = vec4(vec3(0.6, 0.75, 1.0)*arcs*uScale*0.3*min(vLum.x, 3.), 0.);
+  }
 }`;
 const GAL_FS2 = `
 in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN; flat in float vQSO;
@@ -477,7 +490,7 @@ export function drawGalaxies(camU, viewProj, o) {
     visibleGalaxyCells.push(cell);
     p.set({ uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
     gl.bindVertexArray(b.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, b.n);
-    const mode = GLOBAL_U.uBand === 6 ? 1 : GLOBAL_U.uBand === 4 ? 2 : 0;
+    const mode = GLOBAL_U.uBand === 6 ? 1 : GLOBAL_U.uBand === 4 ? 2 : GLOBAL_U.uBand === 0 ? 3 : 0;
     if (darkMatter.on || mode) {
       if (mode === 2) gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
       pDM.use().set({ uMode: darkMatter.on ? 0 : mode, uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
