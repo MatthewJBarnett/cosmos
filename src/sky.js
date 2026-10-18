@@ -490,7 +490,8 @@ export function drawGalaxies(camU, viewProj, o) {
     visibleGalaxyCells.push(cell);
     p.set({ uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
     gl.bindVertexArray(b.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, b.n);
-    const mode = GLOBAL_U.uBand === 6 ? 1 : GLOBAL_U.uBand === 4 ? 2 : GLOBAL_U.uBand === 0 ? 3 : 0;
+    // (lensing arcs: only out among the galaxies; from inside one, arcs 150+ Mpc away are far below a pixel)
+    const mode = GLOBAL_U.uBand === 6 ? 1 : GLOBAL_U.uBand === 4 ? 2 : GLOBAL_U.uBand === 0 && !skip ? 3 : 0;
     if (darkMatter.on || mode) {
       if (mode === 2) gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
       pDM.use().set({ uMode: darkMatter.on ? 0 : mode, uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
