@@ -541,6 +541,7 @@ vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis){
 
 export const GEN_GAS = `
 uniform vec3 uPal[4];
+uniform vec3 uSpotWarp;   // a storm in the map that has changed size: centre (u, v) and scale (0: off)
 uniform float uBands, uBandStr, uTurb, uStorms, uGasSeed;
 float bandProfile(float y){
   float v = 0.;
@@ -556,6 +557,14 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
   if (uHasC > 0.5) {
     // real map, with fine turbulent shear added below its resolution
     vec2 uv = mapUV(P);
+    if (uSpotWarp.z > 0.) {
+      // (Jupiter's Great Red Spot was longer in the past and is shrinking, more in length than in width: the map is
+      // stretched around it by its length relative to the map's, and the square root of that north-south)
+      vec2 dd = uv - uSpotWarp.xy; dd.x = fract(dd.x + 0.5) - 0.5;
+      float r = length(dd/vec2(0.07, 0.06)), k = uSpotWarp.z;
+      vec2 f = mix(1./vec2(k, sqrt(k)), vec2(1.), smoothstep(0.8, 1.5, r));
+      uv = uSpotWarp.xy + dd*f; uv.x = fract(uv.x);
+    }
     int o0 = int(uMapOct) - 1;
     float px = 1./float(textureSize(uCMap, 0).x);
     float tex = 0.;

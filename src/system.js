@@ -8,7 +8,7 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol, seaLevelRise, archeanHaze, impactFlux, lastBigImpact, stratWater } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol, seaLevelRise, archeanHaze, impactFlux, lastBigImpact, stratWater, grsLength } from './evolution.js';
 const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3).toLocaleString('en') + ',000 years' : (y / 1e6).toFixed(y < 1e7 ? 1 : 0) + ' million years';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START, paleoMap } from './paleo.js';
@@ -429,6 +429,8 @@ export class StarSystem {
       if (moonB) { moonB.mariaFill = clamp((tyr + 3.9e9) / 0.8e9, 0, 1); const mg = clamp((-4.42e9 - tyr) / 5e7, 0, 1); if (mg > 0) { moonB.heatT = 1200 + 500 * mg; moonB._mh = true; } else if (moonB._mh) { moonB.heatT = 0; moonB._mh = false; } }
       const jup = all.find(b => b.name === 'Jupiter');
       if (jup) {
+        // the Great Red Spot's size relative to the map's (~21,000 km, about 2000), in steps so the tiles rebake rarely
+        jup.grsK = Math.round(grsLength(2000 + tyr) / 21000 * 25) / 25;
         const t94 = (t / 86400) - (Date.UTC(1994, 6, 16) - Date.UTC(2000, 0, 1, 12)) / 864e5;    // days since 16 July 1994
         if (t94 > -1 && t94 < 400) {
           const hits = [[2.0, 25], [2.8, 55], [3.0, 120], [1.6, 160], [4.2, 230], [5.5, 300]];
@@ -1045,9 +1047,8 @@ export function describeBody(b) {
     if (b.name === 'Jupiter' && b.system && b.system.desc && b.system.desc.sol) {
       // the Great Red Spot's east-west length (Simon et al. 2018; Juno and Hubble since): shrinking for 150 years,
       // becoming rounder
-      const y = 2000 + (b.system.tyr || 0), G = [[1879, 39000], [1979, 23300], [1995, 21000], [2014, 16500], [2024, 14000], [2040, 11500]];
-      if (y >= 1830 && y <= 2040) { let i = 1; while (i < G.length - 1 && G[i][0] < y) i++; const [a, la] = G[i - 1], [c2, lc] = G[i], L = y < 1879 ? 39000 : la + (lc - la) * (y - a) / (c2 - a);
-        rows.push(['Great Red Spot', (Math.round(L / 500) * 500).toLocaleString('en') + ' km long' + (y > 1885 ? ' (shrinking: ~39,000 km in 1879)' : '') + (y > 2025 ? ', projected' : '')]); }
+      const y = 2000 + (b.system.tyr || 0), L = grsLength(y);
+      if (y >= 1830 && y <= 2040) rows.push(['Great Red Spot', (Math.round(L / 500) * 500).toLocaleString('en') + ' km long' + (y > 1885 ? ' (shrinking: ~39,000 km in 1879)' : '') + (y > 2025 ? ', projected' : '')]);
     }
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);

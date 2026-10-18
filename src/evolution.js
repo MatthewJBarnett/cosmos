@@ -371,3 +371,13 @@ export function lastBigImpact(tyr, win) {
 // Hunga Tonga-Hunga Ha'apai (15 Jan 2022) blew ~150 Tg of water into the stratosphere, about 10% more than was there;
 // it has been leaving over several years. Returns the excess in percent.
 export function stratWater(tyr) { const d = 2000 + tyr - 2022.04; return d < 0 || d > 15 ? 0 : 10 * Math.min(1, d / 0.1) * Math.exp(-d / 4); }
+
+// Jupiter's Great Red Spot: its east-west length (km) by year (Simon et al. 2018; Juno and Hubble since), shrinking for
+// 150 years and becoming rounder; held at the ends of the record
+const GRS = [[1879, 39000], [1979, 23300], [1995, 21000], [2014, 16500], [2024, 14000], [2040, 11500]];
+export function grsLength(year) {
+  if (year <= GRS[0][0]) return GRS[0][1];
+  if (year >= GRS[GRS.length - 1][0]) return GRS[GRS.length - 1][1];
+  let i = 1; while (GRS[i][0] < year) i++;
+  const [a, la] = GRS[i - 1], [b, lb] = GRS[i]; return la + (lb - la) * (year - a) / (b - a);
+}

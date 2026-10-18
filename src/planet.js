@@ -646,7 +646,7 @@ class PlanetState {
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
-    else if (s.gen === 'gas') prog.set({ uPal: new Float32Array(s.pal.flat()), uBands: s.bands, uBandStr: s.bandStr, uTurb: s.turb, uStorms: s.storms, uGasSeed: s.seed[0] });
+    else if (s.gen === 'gas') prog.set({ uPal: new Float32Array(s.pal.flat()), uBands: s.bands, uBandStr: s.bandStr, uTurb: s.turb, uStorms: s.storms, uGasSeed: s.seed[0], uSpotWarp: this.grsK && mp && mp.color ? [0.3687, 0.6177, this.grsK] : [0, 0, 0] });
     else prog.set({ uSpots: s.spots || 0, uGranOct: s.gran ? s.gran + 1 : clamp(Math.round(Math.log2(this.body.radius / 1.4e6)), 4, 12) });
   }
   bake(ch) {
@@ -748,9 +748,10 @@ export function planetState(body) {
   if (s && body.drift !== undefined && s.maps && Math.abs((body.paleoMap > 0 ? 0 : body.drift) - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
   const palNow = body.paleoMap > 0 && maps ? (paleoState(body.paleoMap) || { myr: 0 }).myr : 0;
   if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
+  if (s && body.grsK !== undefined && Math.abs(body.grsK - (s.grsK || 1)) > 0.03 && age > 1500) stale = true;     // (Jupiter's Great Red Spot)
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }

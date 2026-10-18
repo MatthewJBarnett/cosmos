@@ -318,8 +318,8 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   that rate; the Archean "pale orange dot" organic haze (episodes 2.72-2.47 Gyr ago); sea level following the tide
   gauges and the IPCC SSP2-4.5 path (+0.56 m in 2100, ~11 m over the following millennia), the coasts flooding to
   match, until the next ice age and later (+58 m) when the brightening Sun melts Antarctica; Hunga Tonga's 10% boost
-  to stratospheric water (2022) decaying over years; Jupiter's Great Red Spot shrinking from 39,000 km (1879) to
-  14,000 km (2024).
+  to stratospheric water (2022) decaying over years; Jupiter's Great Red Spot visibly shrinking and rounding from
+  39,000 km long (1879) to 14,000 km (2024): the map is stretched around it by its measured length for the date.
 - **Mars and Pluto:** Mars' obliquity swings by up to ±5.5° around 25° on 120,000-year cycles (Laskar 2004) with a
   2.4 Myr envelope, around a mean near 35° before ~5 Myr ago, with its caps following; Pluto's atmosphere freezes out towards aphelion.
 - **The Sagittarius dwarf:** a faint dwarf galaxy on a polar orbit integrated from its measured position and velocity
