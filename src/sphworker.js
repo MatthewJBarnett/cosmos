@@ -1,6 +1,6 @@
 // Runs the giant-impact SPH off the main thread and streams snapshots back (see sph.js).
 import { SPH } from './sph.js';
-let sim = null, stopped = false, nextSnap = 0, tMax = 0;
+let sim = null, stopped = false, nextSnap = 0, tMax = 0, ahead = 8 * 3600, done = false;
 const snapEvery = (t) => t < 6 * 3600 ? 120 : t < 24 * 3600 ? 600 : 1800;
 function snap() {
   const n = sim.n, x = new Float32Array(n * 3), T = new Float32Array(n);
@@ -11,15 +11,19 @@ function snap() {
 function loop() {
   if (stopped) return;
   const t0 = performance.now();
-  while (performance.now() - t0 < 120 && sim.t < tMax) {
+  // (compute only so far ahead of what is being watched: leaving the sandbox stops the work)
+  const lim = Math.min(tMax, ahead);
+  while (performance.now() - t0 < 120 && sim.t < lim) {
     sim.step();
     if (sim.t >= nextSnap) { snap(); nextSnap = sim.t + snapEvery(sim.t); }
   }
-  if (sim.t < tMax) setTimeout(loop, 0); else postMessage({ type: 'done', t: sim.t });
+  if (sim.t >= tMax && !done) { done = true; postMessage({ type: 'done', t: sim.t }); }
+  setTimeout(loop, sim.t < lim ? 0 : 200);
 }
 onmessage = (e) => {
   const m = e.data;
   if (m.cmd === 'stop') { stopped = true; return; }
+  if (m.cmd === 'ahead') { ahead = Math.max(ahead, m.t); return; }
   if (m.cmd === 'start') {
     const c = m.cfg; tMax = c.tMax;
     // each body relaxes on its own first (damped), so it starts near hydrostatic balance

@@ -141,8 +141,8 @@ export class SPH {
     this.dt = Math.min(dtn, 1.3 * dt, 60);
     return dt;
   }
-  // temperature (K) for display: specific heat of rock ~1,200 J/(kg K) above a ~1,500 K start (a crusted magma ocean)
-  temp(i) { return 1500 + this.u[i] / 1200; }
+  // temperature (K) for display: specific heat of rock ~1,200 J/(kg K) above a ~1,300 K start (a crusted magma ocean)
+  temp(i) { return 1300 + this.u[i] / 1200; }
 }
 
 // Main thread: starts the worker and keeps its snapshots; frame(t) interpolates between them.
@@ -160,6 +160,8 @@ export class SPHRun {
     this.worker.postMessage({ cmd: 'start', cfg });
   }
   stop() { this.worker.postMessage({ cmd: 'stop' }); this.worker.terminate(); }
+  // keep the worker computing up to 8 hours past what is being watched
+  watch(t) { if (t + 8 * 3600 > (this._ahead || 0) + 1800) { this._ahead = t + 8 * 3600; this.worker.postMessage({ cmd: 'ahead', t: this._ahead }); } }
   get latest() { return this.snaps.length ? this.snaps[this.snaps.length - 1].t : -1; }
   // positions and temperatures at time t (linear between snapshots)
   frame(t) {

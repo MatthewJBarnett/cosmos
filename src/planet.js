@@ -637,7 +637,8 @@ class PlanetState {
     const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
     // the deep past: whole paleogeographic maps instead
     const pal = this.body.paleoMap > 0 && mp ? paleoState(this.body.paleoMap) : null;
-    const pr = pal ? this.body.paleoRot || 0 : 0, pc = Math.cos(pr), ps = Math.sin(pr); this.paleoRot = pr;
+    // (the turn this tile set was created for: the staleness check compares against it, so it must not change here)
+    const pr = pal ? (this.paleoRot !== undefined ? this.paleoRot : this.body.paleoRot || 0) : 0, pc = Math.cos(pr), ps = Math.sin(pr);
     this.paleoMyr = pal ? pal.myr : 0;
     this.drift = dOn && !pal ? drift : 0;
     prog.set({ uDrift: this.drift, uPlates: dOn && !pal ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift),

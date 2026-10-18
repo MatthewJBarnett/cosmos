@@ -279,8 +279,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **The Moon-forming impact, simulated (sandbox):** smoothed-particle hydrodynamics in a Web Worker: ~1,600 particles
   of rock (cubic spline kernel, adaptive smoothing lengths, a stiff equation of state without tension plus thermal
   pressure, Monaghan viscosity, softened direct-sum gravity, each planet relaxed first). The sandbox plays back what has
-  been computed (the clock waits for it) and reports the mass in orbit and beyond the Roche limit. The scripted debris
-  version is still there for a quick look.
+  been computed (the clock waits for it) and reports the mass in orbit and beyond the Roche limit. A headless run gives
+  ~1.7 lunar masses in orbit after 14 hours, ~70% of it Theia's material, as in Canup (2004); at this resolution
+  (gravity softened over ~1,000 km) too much escapes (~4.7 lunar masses). The scripted debris version is still there.
 - **The cosmic web grows:** every procedural galaxy carries a Zel'dovich displacement (up the density gradient of the
   web, plus infall in clusters) scaled by the linear growth factor between the observer's epoch and when its light
   left, so the distant (earlier) universe looks less sharply clustered; about a quarter of spirals and three fifths

@@ -149,6 +149,7 @@ export class SandboxUI {
     if (st.sph) {
       const s = st.sph;
       html += `<div><b>Smoothed-particle hydrodynamics</b> · ${s.n || '…'} particles${s.status ? ' · ' + s.status : ''} · computed to ${fmtT(Math.max(s.computed, 0))}</div>`;
+      if (s.sep !== undefined) html += `<div>Theia is ${fmtDist(s.sep)} from impact</div>`;
       if (s.disk !== undefined) html += `<div>Material in orbit: ${s.disk.toFixed(1)} lunar masses (${s.beyond.toFixed(1)} beyond the Roche limit) · ${Math.round(s.hot * 100)}% of the rock above 4,000 K</div>`;
     } else if (st.pair) {
       html += `<div><b>${st.pair[0]}</b> – <b>${st.pair[1]}</b></div>`;

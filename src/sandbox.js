@@ -175,7 +175,7 @@ export class Sandbox {
     if (Math.abs(dt) > 1e15) dt = 0;
     // (a hydrodynamic run computes in a worker: play back what it has, and wait for it)
     if (this.sph) {
-      const nt = Math.max(0, this.sim.t + dt), lim = Math.max(this.sph.latest, 0);
+      const nt = Math.max(0, this.sim.t + dt), lim = Math.max(this.sph.latest, 0); this.sph.watch(this.sim.t);
       this.lag = nt > lim + 1; this.sim.t = Math.min(nt, lim);
       if (this.later.length && this.sim.t > this.later[0].t) { const l = this.later.shift(); if (this.onRate) this.onRate(l.rate); }
       this.sync(); return;
@@ -297,7 +297,11 @@ export class Sandbox {
       // gather from what lies outside the Roche limit (~2.9 Earth radii)
       const S = this.sph, f = S.frame(this.sim.t);
       out.sph = { status: S.status, computed: S.latest, n: S.n || 0 };
-      if (f && S.mp) {
+      if (f && S.mp && S.mat) {
+        // before contact: how far apart the two bodies are
+        const cm = [[0, 0, 0, 0], [0, 0, 0, 0]]; for (let i = 0; i < f.n; i++) { const c = cm[S.mat[i]]; c[0] += f.x[i * 3]; c[1] += f.x[i * 3 + 1]; c[2] += f.x[i * 3 + 2]; c[3]++; }
+        const sep = Math.hypot(...[0, 1, 2].map(k => cm[0][k] / cm[0][3] - cm[1][k] / cm[1][3]));
+        if (sep > 1.02 * (S.cfg.R1 + S.cfg.R2) && this.sim.t < 3600) { out.sph.sep = sep - S.cfg.R1 - S.cfg.R2; return out; }
         const n = f.n; let cx = 0, cy = 0, cz = 0, cnt = 0;
         for (let i = 0; i < n; i++) { const r = Math.hypot(f.x[i * 3], f.x[i * 3 + 1], f.x[i * 3 + 2]); if (r < 2e7) { cx += f.x[i * 3]; cy += f.x[i * 3 + 1]; cz += f.x[i * 3 + 2]; cnt++; } }
         cx /= cnt || 1; cy /= cnt || 1; cz /= cnt || 1;
