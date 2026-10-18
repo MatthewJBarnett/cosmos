@@ -124,7 +124,7 @@ export const PRESETS = [
       const r = [D * 0.8, 0, D * 0.6], rh = r.map(x => x / D), th = [-rh[2], 0, rh[0]], u = rh.map((x, k) => x * vr + th[k] * vt);
       const sph = { m1, R1, n1: 1400, m2, R2, n2: 175, relax: 60, tMax: 3 * DAY,
         x1: r.map(x => -x * m2 / M), v1: u.map(x => -x * m2 / M), x2: r.map(x => x * m1 / M), v2: u.map(x => x * m1 / M) };
-      return { rate: 30, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, sph, later: [{ t: 6 * 3600, rate: 600 }, { t: 30 * 3600, rate: 3600 }] };
+      return { rate: 30, scale: 3.5 * R1, cam: 1.7, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, sph, later: [{ t: 6 * 3600, rate: 600 }, { t: 30 * 3600, rate: 3600 }] };
     } },
   { id: 'wdia', name: 'White dwarfs collide (Type Ia supernova)', text: 'Two carbon-oxygen white dwarfs of 0.9 and 0.7 solar masses fall together, as can happen in triple systems and dense star clusters. The collision detonates the carbon: a Type Ia supernova, billions of times brighter than the Sun for weeks, its light coming from radioactive nickel decaying to cobalt and iron. Nothing is left behind.',
     setup(sim) {

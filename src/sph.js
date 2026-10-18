@@ -141,8 +141,10 @@ export class SPH {
     this.dt = Math.min(dtn, 1.3 * dt, 60);
     return dt;
   }
-  // temperature (K) for display: specific heat of rock ~1,200 J/(kg K) above a ~1,300 K start (a crusted magma ocean)
-  temp(i) { return 1300 + this.u[i] / 1200; }
+  // temperature (K) for display: specific heat of rock ~1,200 J/(kg K) above a ~1,300 K start (a crusted magma ocean),
+  // saturating towards ~7,000 K: melting and vaporising soak up much of the shock energy (this equation of state has no
+  // latent heat), and giant-impact simulations find the hot disk at ~3,000-7,000 K
+  temp(i) { return 1300 + 5700 * (1 - Math.exp(-this.u[i] / (1200 * 5700))); }
 }
 
 // Main thread: starts the worker and keeps its snapshots; frame(t) interpolates between them.
