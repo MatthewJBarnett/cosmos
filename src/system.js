@@ -1134,6 +1134,22 @@ function evoRows(b, rows) {
     const dd = (Math.abs(r1) - Math.abs(r0)) / 100;    // seconds per Myr
     rows.push(['Spin over time', lockedNow ? 'tidally locked: one face always towards its star' : h.P0 > 2e6 && r0 < 0 && Math.abs(Math.abs(r0) - P / 1.08) < P * 0.05 ? 'held slow and backwards by tides in its thick air (like Venus)' : Math.abs(dd) < 1e-4 ? 'steady (the star\'s tides are too weak this far out)' : 'the star\'s tides lengthen its day by ' + (dd < 1 ? (dd * 1000).toPrecision(2) + ' ms' : dd < 3600 ? dd.toPrecision(2) + ' s' : (dd / 3600).toPrecision(2) + ' h') + ' per million years' + (iL > 0 && h.ages[iL] > b.evoAge ? '; it locks in ' + fmtYr(h.ages[iL] - b.evoAge) : '')]);
   }
+  // neighbours: mean-motion resonances (period ratios of small whole numbers, like TRAPPIST-1's chain or Neptune and
+  // Pluto) and how tightly packed the pair is in mutual Hill radii (below ~3.5 the orbits cross; Gladman 1993, Chambers 1996)
+  if (b.orbit && b.parent && (b.parent.kind === 'star' || b.parent.kind === 'barycenter')) {
+    const sib = (b.parent.children || []).filter(c => c !== b && c.orbit && c.mass > 1e22 && c.kind !== 'star' && c.kind !== 'comet' && !c.gone).sort((x, y) => x.orbit.a - y.orbit.a);
+    const inner = sib.filter(c => c.orbit.a < b.orbit.a).pop(), outer = sib.find(c => c.orbit.a > b.orbit.a), M = b.parent.mass || C.Msun;
+    const res = [];
+    for (const c of [inner, outer]) {
+      if (!c) continue;
+      const r = Math.max(c.orbit.period, b.orbit.period) / Math.min(c.orbit.period, b.orbit.period);
+      for (const [p, q] of [[2, 1], [3, 2], [4, 3], [5, 4], [5, 3], [3, 1], [7, 5], [8, 5], [5, 2]]) if (Math.abs(r / (p / q) - 1) < 0.012) { res.push(p + ':' + q + ' with ' + c.name); break; }
+    }
+    if (res.length) rows.push(['Resonance', 'in or near ' + res.join(', ') + ': their conjunctions recur at the same places, so the tugs add up']);
+    let tight = null;
+    for (const c of [inner, outer]) { if (!c) continue; const a1 = Math.min(c.orbit.a, b.orbit.a), a2 = Math.max(c.orbit.a, b.orbit.a), RH = Math.cbrt((b.mass + c.mass) / (3 * M)) * (a1 + a2) / 2, D = (a2 - a1) / RH; if (!tight || D < tight[0]) tight = [D, c]; }
+    if (tight && tight[0] < 6 && !res.length) rows.push(['Stability', 'only ' + tight[0].toFixed(1) + ' mutual Hill radii from ' + tight[1].name + (tight[0] < 3.5 ? ': the orbits cross; one will be scattered out or the two will collide' : ': tightly packed; in systems of several planets this close, orbits can go unstable and scatter over millions to billions of years')]);
+  }
   if (b.evoKozai) rows.push(['Orbit over time', 'Kozai-Lidov cycles from its companion star: every ' + fmtYr(b.evoKozai.tK) + ' the orbit stretches to e = ' + b.evoKozai.eMax.toFixed(2) + ' while its tilt drops, then back']);
   else if (b.evoSecRate > 0) rows.push(['Orbit over time', 'the other planets turn it (perihelion every ~' + fmtYr(2 * Math.PI / b.evoSecRate) + ') and make its eccentricity and tilt swing; now e = ' + (b.orbit.e || 0).toFixed(3)]);
   if (b._axis0 && !h.giant) rows.push(['Axial tilt over time', b.evoBigMoon ? 'steadied by its big moon (swings ~1 degree)' : 'swings chaotically by up to ~' + Math.round(5 + 9 * (((b.uid * 2654435761) >>> 0) / 4294967296)) + ' degrees (no big moon to steady it)']);
