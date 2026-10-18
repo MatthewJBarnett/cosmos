@@ -134,6 +134,11 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
     check('BBN: lithium-7 7Li/H', f.Li7H * 1e10, '4.7 +- 0.7 e-10 (BBN prediction; stars show 1.6: the lithium problem)', (v) => v > 3.5 && v < 6, 'e-10');
     check('Neutrino / photon temperature after e+- annihilation', last.Tn / last.T, '(4/11)^1/3 = 0.7138', (v) => Math.abs(v - 0.7138) < 0.002);
     check('Neutron fraction at freeze-out (t = 10 s)', eu.bbnAt(10).nFrac, '~1/6 (freeze-out near 0.8 MeV)', (v) => v > 0.15 && v < 0.18);
+    { const tab = eu.getRecombination(); let half = 0, peak = 0, gm = -1; for (let i = 1; i < tab.length; i++) { const r = tab[i]; if (!half && r.xe < 0.5) half = r.z; const g = (tab[i - 1].tauObs - r.tauObs) * Math.exp(-r.tauObs); if (g > gm) { gm = g; peak = r.z; } }
+      check('Recombination: half ionized at z', half, '~1270 (RECFAST)', (v) => v > 1200 && v < 1340);
+      check('Last scattering (visibility peak) at z', peak, '1090 (Planck 2018: z* = 1089.9)', (v) => v > 1040 && v < 1120);
+      check('Residual free electron fraction (z = 50)', eu.xeAt(50) * 1e4, '~2e-4 (RECFAST)', (v) => v > 1 && v < 5, 'e-4');
+      check('Reionization midpoint (Planck tanh model)', eu.ionizedIGM(7.7), '0.5 at z = 7.7', 0.01); }
     check('Temperature 1 s after the Big Bang (K)', eu.earlyState(1).T / 1e10, '~1e10 K', (v) => v > 0.8 && v < 1.3, 'e10 K'); }
   check('Star formation 10 Gyr ago vs today (cosmic noon)', gd.sfrRel(-10e9), '~2-3x (Madau & Dickinson 2014)', (v) => v > 2 && v < 4);
   check('LMC merges with the Milky Way (Gyr)', lgo.LMC_ORBIT.merged / 1e3, '2.4 +- 0.8 (Cautun et al. 2019)', (v) => v > 1.6 && v < 3.2);

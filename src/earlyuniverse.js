@@ -272,3 +272,44 @@ export function popIIIPoints(cam, tauGyr, a, dtYr, out = []) {
   }
   return out;
 }
+
+// ---------- recombination (Peebles 1968 three-level atom, RECFAST fudge factor 1.14) ----------
+// Free electron fraction x_e(z) as hydrogen recombines near z ~ 1100: two-photon decay (8.227 /s) and the redshifting
+// of Lyman-alpha photons let electrons settle into the ground state; case-B recombination coefficient from Pequignot
+// et al. (1991). Helium is taken as already neutral. The visibility function g = -dtau/dt e^-tau peaks at last scattering.
+let recTab = null;
+export function getRecombination() {
+  if (recTab) return recTab;
+  const H0 = 67.7 * 1e3 / 3.0857e22, Om = 0.31, Or = 9.1e-5, OL = 0.69, nH0 = 0.19, Tc = 2.7255;   // nH0 per m^3 (Omega_b h^2 0.0224, Yp 0.245)
+  const kB = 1.380649e-23, hbar = 1.054572e-34, me = 9.10938e-31, c = 2.998e8, sT = 6.6524e-29;
+  const B2 = 3.4 * 1.602e-19, L2s = 8.227, lamA = 121.567e-9;
+  const Hz = (z) => H0 * Math.sqrt(Om * (1 + z) ** 3 + Or * (1 + z) ** 4 + OL);
+  const alphaB = (T) => { const t = T / 1e4; return 1.14 * 1e-19 * 4.309 * t ** -0.6166 / (1 + 0.6703 * t ** 0.53); };   // m^3/s
+  const tab = []; let xe = 1, tau = 0;
+  // Saha until x_e drops below 0.99, then integrate in z with small steps
+  for (let z = 1800; z >= 10; z -= 0.5) {
+    const T = Tc * (1 + z), nH = nH0 * (1 + z) ** 3, H = Hz(z);
+    const al = alphaB(T), be = al * Math.pow(me * kB * T / (2 * Math.PI * hbar * hbar), 1.5) * Math.exp(-B2 / (kB * T));
+    if (xe > 0.99) {
+      // Saha equation for hydrogen (ionization energy 13.6 eV)
+      const S = Math.pow(me * kB * T / (2 * Math.PI * hbar * hbar), 1.5) * Math.exp(-13.6 * 1.602e-19 / (kB * T)) / nH;
+      xe = (-S + Math.sqrt(S * S + 4 * S)) / 2;
+    } else {
+      const K = lamA ** 3 / (8 * Math.PI * H), n1s = nH * (1 - xe);
+      const C = (1 + K * L2s * n1s) / (1 + K * (L2s + be) * n1s);
+      // implicit step over dz = 0.5 (stiff): x' = x + dt C (beta (1 - x') - nH alpha x'^2), a quadratic in x'
+      const bq = be * Math.exp(-10.2 * 1.602e-19 / (kB * T));   // ionizations need the atom in n = 2 first
+      const dt = 0.5 / ((1 + z) * H), A = dt * C * nH * al, B = 1 + dt * C * bq, Cc = xe + dt * C * bq;
+      xe = (-B + Math.sqrt(B * B + 4 * A * Cc)) / (2 * A);
+    }
+    tau += nH * xe * sT * c * 0.5 / ((1 + z) * H);
+    tab.push({ z, xe, tau });
+  }
+  // visibility g(z) = dtau/dz e^-tau measured from today: integrate tau from z=0 upward
+  let t2 = 0; for (let i = tab.length - 1; i >= 0; i--) { const r = tab[i], nH = nH0 * (1 + r.z) ** 3; t2 += nH * r.xe * sT * c * 0.5 / ((1 + r.z) * Hz(r.z)); r.tauObs = t2; }
+  recTab = tab; return tab;
+}
+export function xeAt(z) { const tab = getRecombination(); if (z >= tab[0].z) return 1; if (z <= tab[tab.length - 1].z) return tab[tab.length - 1].xe; const i = Math.floor((tab[0].z - z) / 0.5); return tab[i].xe; }
+
+// reionization: intergalactic hydrogen ionized fraction (Planck 2018: tanh model, z_re = 7.7, width 0.5)
+export const ionizedIGM = (z) => 0.5 * (1 + Math.tanh(((1 + 7.7) ** 1.5 - (1 + z) ** 1.5) / (1.5 * Math.sqrt(1 + 7.7) * 0.5)));

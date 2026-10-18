@@ -688,7 +688,10 @@ export class Renderer {
         uCol: c0.map(v => v / y), uTime: (performance.now() / 1000) % 1000, uHot: clamp(Math.log10(Math.max(e.T, 1)) / 32, 0, 1) });
       drawFS();
     } else if (cosmo.T > 420) {
-      if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; void main(){ o = vec4(uCol, 0.); }`);
+      // (with the frozen density ripples on it: really 1 part in 100,000, drawn ~5,000x stronger)
+      if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov;
+        void main(){ vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.)); float n = 0., a = 0.5; vec3 p = d*1.6; for (int i = 0; i < 5; i++) { n += a*(texture(uNoise3, p).r - 0.5); p *= 2.1; a *= 0.5; }
+          o = vec4(uCol*(1. + 0.1*n), 0.); }`);
       const T = Math.min(cosmo.T, 1e9), c0 = bbColor(Math.min(T, 40000)), k = clamp((1600 - T) / 700, 0, 1);
       // (below ~1000 K a glow is a dull deep red)
       const c = c0.map((v, i) => v * (1 - k) + [1, 0.16, 0.03][i] * k), y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -696,7 +699,7 @@ export class Renderer {
       const L = heatGlow(Math.min(T, 1e6)) * Math.max(1, T / 1e6) * exposure;
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-      this.pGlow.use().set({ uCol: [Math.min(c[0] / y * L, 6e4), Math.min(c[1] / y * L, 6e4), Math.min(c[2] / y * L, 6e4)] }); drawFS();
+      this.pGlow.use().set({ uCol: [Math.min(c[0] / y * L, 6e4), Math.min(c[1] / y * L, 6e4), Math.min(c[2] / y * L, 6e4)], uNoise3: this.noise3, uRot: camRot, uTanFov: [tanX, tanY] }); drawFS();
       gl.disable(gl.BLEND);
     }
 

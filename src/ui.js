@@ -1,7 +1,7 @@
 // HUD, input handling, object info, search, time controls and labels.
 import { V, Q, C, clamp } from './math.js';
 import { targetName, findByName, searchList, solSystem, systemFor, earlyDecades, EARLY_MAX } from './nav.js';
-import { earlyEra, bbnAt, popIIIPoints } from './earlyuniverse.js';
+import { earlyEra, bbnAt, popIIIPoints, xeAt, ionizedIGM } from './earlyuniverse.js';
 import { describeBody } from './system.js';
 import { starName } from './system.js';
 import { galaxyName, REAL_GALAXIES } from './universe.js';
@@ -498,6 +498,13 @@ export class UI {
       } else {
       const ageY = cosmo.tau * 1e9, ageS = ageY < 1 ? (ageY * 365.25 * 24).toFixed(1) + ' hours' : ageY < 1e4 ? Math.round(ageY).toLocaleString('en') + ' years' : ageY < 1e7 ? (ageY / 1e3).toFixed(ageY < 1e5 ? 1 : 0) + ' thousand years' : ageY < 1e9 ? (ageY / 1e6).toFixed(ageY < 1e8 ? 1 : 0) + ' million years' : cosmo.tau.toFixed(cosmo.tau < 100 ? 3 : 0) + ' Gyr';
       const era = ageY < 1 / 30 ? 'Big Bang nucleosynthesis: helium and deuterium nuclei are forming' : ageY < 5e4 ? 'Radiation era: an opaque plasma of nuclei, electrons and light' : ageY < 3.7e5 ? 'An opaque glowing plasma: light cannot travel far' : ageY < 1.2e6 ? 'Recombination: atoms form and the universe turns transparent; this light is the cosmic microwave background' : ageY < 1.5e8 ? (cosmo.T > 500 ? 'Dark ages: no stars yet; the background still glows dull red' : 'Dark ages: no stars yet') : ageY < 1e9 ? 'Cosmic dawn: the first stars and galaxies light up and reionize the gas' : ageY < 2e9 ? 'Young galaxies grow fast through mergers and streams of cold gas' : ageY < 4.5e9 ? 'Cosmic noon: galaxies are forming stars faster than at any other time, and quasars blaze in their cores' : '';
+      // hydrogen through time: recombination (~380,000 years), then reionization (~0.7 Gyr)
+      { const zc = 1 / Math.max(cosmo.a, 1e-9) - 1;
+        if (zc > 900 && zc < 3000) deep += `<div class="dim">Hydrogen ${(100 * (1 - xeAt(zc))).toFixed(1)}% neutral (recombining; free electrons ${(100 * xeAt(zc)).toPrecision(2)}%)</div>`;
+        else if (zc > 5 && zc < 900) deep += `<div class="dim">Intergalactic hydrogen ${(100 * (1 - ionizedIGM(zc))).toFixed(zc > 9 ? 0 : 1)}% neutral${zc < 12 ? ' (reionizing)' : ''}</div>`;
+        // gravity amplifies the ripples: the linear growth factor (Carroll, Press & Turner 1992) scales sigma_8 = 0.81 today
+        if (zc > 0.5 && zc < 1100) { const g = (a) => { const om = 0.31 / (0.31 + 0.69 * a ** 3); return 2.5 * om / (om ** (4 / 7) - (1 - om) + (1 + om / 2) * (1 + (1 - om) / 70)); };
+          const sig = 0.81 * cosmo.a * g(cosmo.a) / g(1); deep += `<div class="dim">Matter clumping (σ₈) ${sig < 0.01 ? sig.toExponential(1) : sig.toFixed(2)} (0.81 today): ${sig < 0.1 ? 'still almost smooth' : sig < 0.5 ? 'the cosmic web is forming' : 'filaments, clusters and voids'}</div>`; } }
       deep += `<div class="dim">Universe ${ageS} old · background ${cosmo.T < 0.01 ? cosmo.T.toExponential(2) : cosmo.T < 1e4 ? cosmo.T.toFixed(cosmo.T < 100 ? 3 : 0) : cosmo.T.toExponential(2)} K${era ? '</div><div><b>Era</b> ' + era : ''}</div>`;
       }
       if (LG.active && LG.behind) deep += '<div class="dim">Simulating the galaxy collision…</div>';

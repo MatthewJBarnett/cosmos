@@ -214,6 +214,12 @@ vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1.,
   // once star formation has run out of gas, the hot blue stars die first: galaxies yellow, then glow dull red (red dwarfs)
   float old = smoothstep(14., 60., vTauE), dwarf = smoothstep(60., 2000., vTauE);
   evo *= mix(vec3(1.), mix(vec3(1.15, 0.9, 0.68), vec3(1.35, 0.62, 0.32), dwarf), old);
+  // the Lyman break: light emitted blueward of Lyman-alpha (121.6 nm) is absorbed by intergalactic hydrogen (all of it
+  // while the gas is still neutral, before z ~ 7, then the Lyman-alpha forest); in visible light (400-700 nm) galaxies
+  // beyond z ~ 5 fade out (they are found as "dropouts" and seen in the infrared)
+  float zr = vCos.y - 1., za = pow(13.79/max(vTauE, 0.05), 0.6667) - 1.;
+  float fb = clamp((121.6*(1. + zr) - 400.)/300., 0., 1.), ion = smoothstep(9., 6.5, za);
+  evo *= 1. - fb*(1. - exp(-mix(30., 0.0018*pow(1. + za, 3.92), ion)));
   return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5))*evo; }
 uniform float uScale; uniform int uMaxSteps;
 out vec4 o;
