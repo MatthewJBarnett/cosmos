@@ -70,7 +70,8 @@ export function buildHistory(b, ageNow, star, opt = {}) {
       if (!field) esc += (opt.strip || 8) * Math.pow(xr, 2.5) * Math.pow(R / 3.39e6, 2);              // ion pickup, sputtering and photochemical escape, steeply rising with EUV (Mars today ~1-3 kg/s, MAVEN)
       // outgassing from formation on (Earth today ~8,000 kg/s of CO2): plate tectonics needs water and size; a stagnant
       // lid lets out ~1% as much; on wet worlds weathering takes most of it back out of the air
-      const plates = wet && mE > 0.3, regime = opt.outgas !== undefined ? opt.outgas : plates ? 0.05 : 0.01;
+      // (on wet worlds the weathering thermostat takes the volcanic CO2 back into rock: the bulk air holds steady)
+      const plates = wet && mE > 0.3, regime = opt.outgas !== undefined ? opt.outgas : wet ? 0.0005 : 0.01;
       const out = 3.6e4 * mE * regime * Math.exp(-ages[i] / volcYr(mE));
       return { esc, out, Texo, field };
     };
@@ -195,7 +196,10 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       const g = 6.674e-11 * b.mass / (b._r0 * b._r0), P = s.Matm * g / (4 * Math.PI * b._r0 * b._r0);
       b.atmoK = clamp(P / b.hist.P0, 1e-3, 30); b.evoP = P;
       // a thin atmosphere on a tidally locked world freezes out on the night side
-      if (b._rot0 && b._p0 && Math.abs(Math.abs(b._rot0) - b._p0) < b._p0 * 0.02 && P < 3e4 && s.Ts < 260) { b.atmoK *= 0.05; b.evoCollapsed = true; } else b.evoCollapsed = false;
+      const Tn = b._temp0 ? s.Ts + b._temp0 - b.hist.Ts[b.hist.iNow] : s.Ts;
+      if (b._rot0 && b._p0 && Math.abs(Math.abs(b._rot0) - b._p0) < b._p0 * 0.02 && P < 3e4 && Tn < 260) { b.atmoK *= 0.05; b.evoCollapsed = 'locked'; }
+      // (too cold for its air: nitrogen and oxygen freeze out below ~75 K, CO2 below ~150 K, as when a star dies)
+      else if (Tn < ((b.atmo.comp && b.atmo.comp.CO2 > 0.5) ? 150 : 75)) { b.atmoK *= 0.01; b.evoCollapsed = 'frozen'; } else b.evoCollapsed = false;
     }
     // (temperatures anchored to the body's actual present value: the simple greenhouse is only used for changes)
     if (b.hist.Ts && !giant && !b.precessRA && b._temp0) { const T = Math.max(3, s.Ts + b._temp0 - b.hist.Ts[b.hist.iNow]); b.temp = T; b.meanT = T; }
@@ -223,6 +227,19 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       const n = [0, 1, 0], ax = V.norm(V.cross(n, a0.pole)), qr = Q.mul(Q.axis(n, -2 * Math.PI * tyr / (2.6e4 + 1.5e5 * hh)), Q.axis(V.len(ax) > 0 ? ax : [1, 0, 0], (eps - a0.tilt) * Math.PI / 180));
       b.axisQ = Q.mul(qr, a0.q); b.pole = Q.rot(qr, a0.pole); b.tilt = eps; b.evoBigMoon = a0.big;
     }
+    // airless worlds collect craters: the impact rate was thousands of times higher in the first few hundred Myr, so a
+    // surface has most of its craters by ~100 Myr (cumulative count relative to today's, in steps)
+    if (!giant && b.surface && b.surface.crater > 0.2 && (!b.atmo || b.hist.P0 < 1e3)) {
+      const C = (t) => t + 5e11 * (1 - Math.exp(-Math.max(t, 0) / 1e8));
+      b.craterK = Math.round(clamp(C(age) / C(ageNow), 0.05, 1.3) * 8) / 8;
+    }
+    // seasons: polar ice spreads in each hemisphere's winter and retreats in its summer, by tilt and orbital phase; colder
+    // worlds keep more ice
+    if (!isMoon && b.surface && b.surface.gen === 'terra' && b.surface.ocean > 0.5 && !b.precessRA && b.orbit && b.orbit.period) {
+      const T = b.temp || 280, base = clamp(62 + (T - 280) * 0.9, 25, 89), ph = 2 * Math.PI * ((tyr * 31557600 / b.orbit.period) % 1) + (b.poleLon || 0) * Math.PI / 180;
+      const sd = Math.sin((b.tilt || 0) * Math.PI / 180) * Math.sin(ph), sw = 22 * sd;
+      b.seaIce = b.iceAge >= 3 ? null : [Math.min(89, base + sw), -Math.min(89, base - sw)];
+    }
     // clouds follow the climate: none once the oceans are gone or frozen solid
     if (b.atmo && b.atmo.clouds && b.atmo.clouds.kind === 'earth' && !b.precessRA) b.noClouds = !!((b.climate && b.climate.dry > 0.9) || b.iceAge >= 3 || (b.atmoK !== undefined && b.atmoK < 0.05));
     // plate tectonics moves the continents (procedural worlds; Earth has its real plates): Myr of drift, in 4 Myr steps
@@ -230,7 +247,9 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
     // habitable worlds: life takes ~1 Gyr to start and ~3.5 Gyr to cover the land (Earth's pace); a fainter young star
     // and a weak thermostat can freeze a wet world solid for millions of years (snowball episodes)
     if (b.hist.wet && b.surface && b.surface.gen === 'terra' && !b.precessRA) {
-      const lifeK = b.life ? clamp((age - 3.5e9 * (b._lifeLag || (b._lifeLag = 0.7 + 0.6 * ((b.uid * 0.618) % 1)))) / 4e8, 0, 1) : 0;
+      // (anchored: a world that has land life now had it from before now)
+      const tGreen = Math.min(3.5e9 * (b._lifeLag || (b._lifeLag = 0.7 + 0.6 * ((b.uid * 0.618) % 1))), ageNow * 0.8);
+      const lifeK = b.life ? clamp((age - tGreen + 4e8) / 4e8, 0, 1) : 0;
       const c0 = b.climate || { dry: 0, life: 1, ice: 1 };
       b.climate = Object.assign({}, c0, { life: Math.min(c0.life === undefined ? 1 : c0.life, b.life ? lifeK : 1) });
       const sRel = s.S / b.hist.S[b.hist.iNow], cell = Math.floor(age / 2e7), hsh = ((cell * 2654435761) >>> 0) / 4294967296 % 1;

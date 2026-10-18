@@ -95,7 +95,7 @@ void main(){
 }`;
 
 export const LIGHT_UNIFORMS = `
-uniform int uNumLights; uniform vec3 uLightPos[3]; uniform vec3 uLightCol[3]; uniform float uLightRad[3];
+uniform int uNumLights; uniform vec3 uLightPos[3]; uniform vec3 uLightCol[3]; uniform float uLightRad[3]; uniform float uTsurf;
 uniform int uNumOcc; uniform vec4 uOcc[6];
 uniform float uHasRings, uRingIn, uRingOut, uRingFade; uniform vec3 uRingN, uPlanetRel; uniform sampler2D uRingTex;
 // fraction of light i visible from world point p (camera relative), accounting for eclipses by other bodies
@@ -395,6 +395,12 @@ void main(){
     float f3 = smoothstep(0.3, 1., ageH)*exp(-max(ageH - 1., 0.)/2.)*0.15;
     col += (vec3(1., 0.55, 0.25)*(f1 + f2) + vec3(0.9, 0.28, 0.08)*f3)*uImpactK;
   }
+  // other light: in the far infrared and microwaves a planet shines by its own heat, night side included (thermal
+  // emission ~ T^4, false colour); reflected sunlight fades out
+  if (uBand == 3 || uBand == 4) {
+    float th = pow(max(uTsurf, 3.)/300., 4.)*(0.85 + 0.3*max(dot(normalize(vDir), normalize(uRot*vDir)), 0.))*0.06*dot(uLightCol[0], vec3(0.33));
+    col = col*0.05 + (uBand == 3 ? vec3(1., 0.45, 0.2) : vec3(0.9, 0.6, 0.4))*th*(uBand == 4 ? 0.3 : 1.);
+  }
   oColor = vec4(min(col*uExposure, vec3(60000.)), 1.);
 }`;
 
@@ -529,7 +535,7 @@ let dummy = null;
 // scale a map so its mean brightness equals the body's real albedo (grayscale mosaics are contrast stretched)
 function mapTint(body, mp) {
   const m = body.maps; if (!m) return [1, 1, 1];
-  const t = m.tint || [1, 1, 1];
+  const t = (body.surface && body.surface.mapTint) || m.tint || [1, 1, 1];
   if (!m.albedo || !mp || !mp.color || !mp.color.mean) return t;
   const c = mp.color.mean, l = 0.2126 * c[0] * t[0] + 0.7152 * c[1] * t[1] + 0.0722 * c[2] * t[2];
   const k = m.albedo / Math.max(l, 1e-3);
@@ -651,9 +657,9 @@ class PlanetState {
       const offF = [], offI = []; for (let o = 0; o < 4; o++) for (let k = 0; k < 3; k++) { offF.push(this.off[o][k] - Math.floor(this.off[o][k])); offI.push(Math.floor(this.off[o][k])); }
       prog.set({ uPDrift: pd, uPOffF: new Float32Array(offF), uPOffI: new Int32Array(offI), uPCen: new Float32Array(pd ? this._plates.cen : new Array(24).fill(0)), uPAx: new Float32Array(pd ? this._plates.ax : new Array(24).fill(0)) });
     }
-    if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
+    if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater * (this.craterK === undefined ? 1 : this.craterK), uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
-    else if (s.gen === 'gas') prog.set({ uPal: new Float32Array(s.pal.flat()), uBands: s.bands, uBandStr: s.bandStr, uTurb: s.turb, uStorms: s.storms, uGasSeed: s.seed[0], uSpotWarp: this.grsK && mp && mp.color ? [0.3687, 0.6177, this.grsK] : [0, 0, 0] });
+    else if (s.gen === 'gas') prog.set({ uPal: new Float32Array(s.pal.flat()), uBands: s.bands, uBandStr: s.bandStr, uTurb: s.turb, uStorms: s.storms, uGasSeed: s.seed[0], uSpotWarp: this.grsK && mp && mp.color ? [0.3687, 0.6177, this.grsK] : [0, 0, 0], uWhiteSpot: this.whiteSpot ? [this.whiteSpot[0], this.whiteSpot[1], this.whiteSpot[2]] : [0, 0, 0] });
     else prog.set({ uSpots: s.spots || 0, uGranOct: s.gran ? s.gran + 1 : clamp(Math.round(Math.log2(this.body.radius / 1.4e6)), 4, 12) });
   }
   bake(ch) {
@@ -757,10 +763,12 @@ export function planetState(body) {
   if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
   if (s && Math.abs((body.greenSahara || 0) - (s.greenSahara || 0)) > 0.12 && age > 2000) stale = true;     // (the Green Sahara)
   if (s && Math.abs((body.pDrift || 0) - (s.pDrift || 0)) >= 4 && age > 1500) stale = true;     // (procedural plates drift)
+  if (s && Math.abs((body.whiteSpot ? body.whiteSpot[1] : 0) - (s.whiteSpot ? s.whiteSpot[1] : 0)) > 0.15 && age > 1500) stale = true;     // (Saturn's storms)
+  if (s && body.craterK !== undefined && Math.abs(body.craterK - (s.craterK === undefined ? 1 : s.craterK)) > 0.12 && age > 1500) stale = true;     // (craters accumulate)
   if (s && body.grsK !== undefined && Math.abs(body.grsK - (s.grsK || 1)) > 0.03 && age > 1500) stale = true;     // (Jupiter's Great Red Spot)
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.pDrift = body.pDrift || 0; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.pDrift = body.pDrift || 0; s.craterK = body.craterK; s.whiteSpot = body.whiteSpot; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }
@@ -846,7 +854,7 @@ export function drawPlanet(body, o) {
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
     uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uMariaFill: body.mariaFill === undefined ? 1 : body.mariaFill, uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
-    uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad,
+    uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad, uTsurf: body.meanT || body.heatT || body.temp || 200,
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';

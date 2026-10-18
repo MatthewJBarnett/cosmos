@@ -569,7 +569,7 @@ const paleoCloudKey = (body) => body.paleoMap > 0 ? Math.floor((body.paleoMyr ||
 function buildCloudCube(body, l) {
   const c = body.atmo.clouds, S = atmoCfg.cloudRes;
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
-  let ct = ms && ms.clouds && ms.clouds.tex, lonOff = 0, flip = 1, bias = 0;
+  let ct = c.useMap === false ? null : ms && ms.clouds && ms.clouds.tex, lonOff = 0, flip = 1, bias = 0;
   if (!ct && c.kind === 'earth') {
     // Earth-like worlds borrow real cloud morphology: Earth's cloud map, shifted and possibly mirrored,
     // with the coverage scaled to this planet's cloudiness
@@ -655,7 +655,7 @@ export function drawAtmosphere(body, o) {
   // cloud layer drifts slowly relative to the ground
   const rotInv = cloudRotInv(body, o.rotQ, o.time);
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
-  const cmap = ms && ms.clouds && ms.clouds.tex;
+  const cmap = c && c.useMap === false ? null : ms && ms.clouds && ms.clouds.tex;
   const rf = refractUniforms(body, o);
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set(rf).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,

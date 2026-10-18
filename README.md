@@ -276,6 +276,39 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   σ₈ grows with the linear growth factor; Population III stars (30-300 M☉, ~100,000 K, 2-6 Myr) light up in small
   halos from ~100 Myr, dying as pair-instability supernovae or collapsing to black holes; reionization follows the
   Planck tanh history (midpoint z = 7.7), and in visible light galaxies beyond z ~ 5 drop out behind the Lyman break.
+- **Every planet evolves (planetevo.js):** each planet and moon, in every system, gets a history from its formation to
+  tens of billions of years, anchored to its present state and driven by its star's luminosity, mass and XUV history
+  (saturated while young, then fading as age^-1.24; low-mass stars stay active for billions of years):
+  atmospheres thin by escape (energy-limited, switched on by the Jeans parameter at an exobase heated by XUV and cooled
+  by CO2; plus stellar-wind stripping once the magnetic dynamo dies) and thicken by outgassing (waning as the interior
+  cools; plate tectonics only on wet worlds of ~0.3 Earth masses and up); wet worlds keep CO2 on a weathering
+  thermostat; thin air on tidally locked worlds freezes onto the night side; stellar tides slow every spin towards
+  synchronous, while thick atmospheres hold a slow, retrograde spin by thermal tides (Venus); moons migrate under their
+  planet's tides until they are torn into rings or escape; hot Jupiters spiral into their stars; giant planets contract
+  and glow while young; rocky planets start as magma oceans; airless surfaces collect craters; sub-Neptunes lose their
+  envelopes to photoevaporation; living worlds green ~3.5 Gyr after forming and can freeze into snowballs when their
+  star was fainter; procedural continents drift on six plates; axial tilts swing (gently with a big moon). The info
+  panel shows the trend, escape and outgassing rates, past and future pressures, the magnetic field, the interior and
+  tides, with a graph of pressure, temperature and day length over the planet's life. Checked against Mars' escape
+  today (~2 kg/s, MAVEN), its ~0.3 bar 3.6 Gyr ago, Venus's 243-day equilibrium, Jupiter's radius at 10 Myr and
+  WASP-12b's orbital decay.
+- **Venus through time:** a magma ocean, then possibly a temperate ocean world under ~1 bar until ~1 Gyr ago (Way et
+  al. 2016; others argue its oceans never condensed), a runaway greenhouse that boiled them off and freed the carbonate
+  CO2 to 92 bar, global volcanic resurfacing ~750-500 Myr ago, and today's hothouse whose cloud deck super-rotates every
+  4 days.
+- **More of Earth's history:** the Green Sahara whenever strong northern summers push the monsoon north (14,800-5,500
+  years ago and every ~20,000 years before, suppressed in glacials); a thinner ~0.5 bar Archean atmosphere and no
+  ozone before the Great Oxidation; the Antarctic ozone hole; Arctic sea ice shrinking since 1979 and ice-free Septembers
+  from mid-century; the magnetic poles wandering on their IGRF tracks; great geomagnetic storms (Carrington 1859, 1921,
+  1989, 2003, 2024) pushing the aurora towards the equator; Yellowstone's three super-eruptions; the flood basalts
+  (Siberian Traps, Deccan, CAMP) in the Now line; days per year for comparison with fossil corals.
+- **More of the Solar System:** Leonid meteor storms (1833, 1866, 1966, 1999, 2001); T Coronae Borealis's outbursts;
+  Apophis on its JPL orbit; comet ISON breaking up at perihelion; Saturn's Great White Spots; notes on what is changing
+  at Mercury, Io, Europa, Enceladus, Titan, Neptune, Uranus, Triton and Ganymede. Events for Carrington, the 1833
+  Leonids, Tunguska, Chelyabinsk, ISON, Apophis, the brightest gamma-ray burst, T CrB, Yellowstone, the Siberian Traps
+  and the Gaia-Enceladus merger.
+- **Other light, continued:** planets glow by their own heat in the far infrared and microwaves (night sides
+  included); giant elliptical galaxies show radio jets and lobes; giant exoplanets list their cloud class (Sudarsky).
 - **Precessing black holes (sandbox):** spins can point any way. The 1.5PN spin-orbit acceleration is applied in full
   vector form (Kidder 1995, covariant spin condition) and each spin precesses about the orbital angular momentum, so a
   tilted binary's orbital plane wobbles around the total angular momentum, which keeps its direction to ~1° (a physics
@@ -457,7 +490,7 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 101 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 108 checks of the physics against published values (no browser needed)
     ONLY=nucleo,mcnaught node tools/eventtest.mjs   # just those events / sandbox scenarios
     node tools/multi.mjs scenes.json  # several scripted scenes in one page (see the file for the format)
     tools/runall.sh                   # everything above in sequence (about two hours under SwiftShader)

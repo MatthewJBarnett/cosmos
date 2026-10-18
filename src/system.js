@@ -471,6 +471,11 @@ export class StarSystem {
       }
       const sat = all.find(b => b.name === 'Saturn');
       // (and young: Cassini's dust-pollution clock says they formed 100-400 Myr ago, Kempf et al. 2023)
+      // Saturn's Great White Spots: a giant storm about once a Saturn year; the 1990 one near the equator, the 2010-11 one
+      // at 35 N, wrapping round the planet within two months and fading over the next half year
+      if (sat) { const y = 2000 + tyr, W = [[1876.9, 10], [1903.5, 36], [1933.6, 2], [1960.3, 58], [1990.73, 5], [2010.93, 35]]; let ws = null;
+        for (const [y0, lat] of W) { const d = y - y0; if (d > 0 && d < 1.2) ws = [lat, Math.round(Math.min(1, d / 0.15) * Math.exp(-Math.max(0, d - 0.25) / 0.3) * 8) / 8, (y0 * 37.1) % 6.28]; }
+        sat.whiteSpot = ws && ws[1] > 0 ? ws : null; }
       if (sat) { if (sat._rings0 === undefined) sat._rings0 = sat.rings; const f = clamp(1 - tyr / 3e8, 0, 1) * clamp((tyr + 4e8) / 2.5e8, 0, 1); if (sat._rings0) sat._rings0.fade = f; sat.rings = f > 0.01 ? sat._rings0 : null; }
       if (changed || !this._all) { this._all = this._all || this.bodies; this.bodies = this._all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
       // surfaces heated by the giant Sun glow
@@ -660,8 +665,8 @@ function buildSol(sys) {
     clouds: { base: 48000, top: 68000, cover: 1.0, density: 3.0, color: [1.0, 0.93, 0.72], kind: 'venus' } });
   // Venus through time (venusEra in system update): keep the present look, and build the ocean-world look
   venus._now = { surface: venus.surface, atmo: venus.atmo };
-  { const sOc = surfacePreset('terra', rng, venus); Object.assign(sOc, { veg: 0, ocean: 1, sea: 0.05 * sOc.contAmp, city: 0, tempEq: 300 });
-    venus._ocean = { surface: sOc, atmo: makeAtmosphere(venus, 1.2e5, { N2: 0.8, CO2: 0.2 }, { T: 290, clouds: { base: 1500, top: 10000, cover: 0.6, density: 1.2, color: [1, 1, 1], kind: 'earth' } }) };
+  { const sOc = surfacePreset('terra', rng, venus); Object.assign(sOc, { veg: 0, ocean: 1, sea: 0.05 * sOc.contAmp, city: 0, tempEq: 300, mapTint: [0.3, 0.42, 0.45] });   // (the radar map's orange, turned to bare brown rock)
+    venus._ocean = { surface: sOc, atmo: makeAtmosphere(venus, 1.2e5, { N2: 0.8, CO2: 0.2 }, { T: 290, clouds: { base: 1500, top: 10000, cover: 0.6, density: 1.2, color: [1, 1, 1], kind: 'earth', useMap: false } }) };
     const sLava = Object.assign({}, venus.surface, { lava: 0.35, tempEq: 900 }); venus._lava = { surface: sLava, atmo: venus.atmo }; }
   // Earth
   const earth = P('Earth', 'Terra', 1.00000261, 0.01671123, -0.00001531, 0, 102.93768193, 100.46457166, 1, 6371, 23.9345, 23.4393, 0.3, 288, { poleLon: 90, poleAbs: true, life: true });
@@ -1078,11 +1083,11 @@ const SOL_NOTES = {
 };
 // how this world is changing (planetevo.js)
 function evoRows(b, rows) {
-  const s = b.evoNow, h = b.hist, kgs = (x) => x < 0.01 ? x.toExponential(0) + ' kg/s' : x < 10 ? x.toFixed(x < 1 ? 2 : 1) + ' kg/s' : x < 1e4 ? Math.round(x).toLocaleString('en') + ' kg/s' : (x / 1e3).toPrecision(2) + ' t/s';
+  const s = b.evoNow, h = b.hist, kgs = (x) => x < 1e-6 ? '~0' : x < 0.01 ? x.toExponential(0) + ' kg/s' : x < 10 ? x.toFixed(x < 1 ? 2 : 1) + ' kg/s' : x < 1e4 ? Math.round(x).toLocaleString('en') + ' kg/s' : (x / 1e3).toPrecision(2) + ' t/s';
   const bar = (P) => P < 1 ? '0' : P < 1e3 ? (P / 1e5).toExponential(1) + ' bar' : P < 1e5 ? (P / 1e5).toFixed(P < 1e4 ? 3 : 2) + ' bar' : (P / 1e5).toPrecision(2) + ' bar';
   if (b.atmo && !h.giant && h.P0 > 0 && !b.evoOwnAir) {
     const g = C.G * b.mass / (b._r0 * b._r0), Pat = (age) => { const x = historyAt(h, age); return x.Matm * g / (4 * Math.PI * b._r0 * b._r0); };
-    const trend = b.evoCollapsed ? 'collapsed: frozen onto the night side (too thin to carry heat around a locked world)' : s.esc > s.out * 1.3 ? 'thinning' : s.out > s.esc * 1.3 ? 'thickening (volcanic gases)' : 'roughly steady';
+    const trend = b.evoCollapsed === 'frozen' ? 'frozen onto the ground as ice (too cold to stay a gas)' : b.evoCollapsed ? 'collapsed: frozen onto the night side (too thin to carry heat around a locked world)' : s.esc > s.out * 1.3 ? 'thinning' : s.out > s.esc * 1.3 ? 'thickening (volcanic gases)' : 'roughly steady';
     rows.push(['Air over time', trend + ' · escaping ' + kgs(s.esc) + (s.out > 0.001 ? ', volcanoes add ' + kgs(s.out) : '')]);
     const a = b.evoAge;
     rows.push(['Pressure history', [[-3e9, '3 Gyr ago'], [-1e9, '1 Gyr ago'], [1e9, 'in 1 Gyr'], [3e9, 'in 3 Gyr']].filter(([d]) => a + d > 1e7).map(([d, l]) => bar(Pat(a + d)) + ' ' + l).join(' · ')]);
@@ -1096,7 +1101,13 @@ function evoRows(b, rows) {
   } else rows.push(['Interior', 'contracting and cooling: internal heat ' + Math.round(s.Tint) + ' K' + (s.Tint > 650 ? ' (it glows)' : '')]);
   if (h.subNep) rows.push(['Envelope', s.env > 1e-4 ? (s.env * 100).toFixed(2) + '% of its mass is hydrogen and helium' + (s.xuv > 1 ? ', boiling off under the young star\'s X-rays' : '') : 'stripped by its star: a bare rocky core (the "radius valley")']);
   if (b.iceAge >= 3 && h.wet) rows.push(['Climate', 'a snowball: frozen to the equator while its star was fainter']);
-  if (b.life && b.climate && b.climate.life < 0.95 && h.wet) rows.push(['Life', b.climate.life < 0.05 ? 'microbes only: the land is still bare' : 'spreading over the land']);
+  if (b.life && h.wet) { const early = b.evoAge < h.ageNow, L = b.climate ? b.climate.life : 1; rows.push(['Life', early && L < 0.95 ? (L < 0.05 ? 'microbes only: the land is still bare' : 'spreading over the land') : L < 0.05 ? 'none (sterilized)' : L < 0.5 ? 'dying out as the star brightens' : 'organic, multicellular']); }
+  // tidal heating of a moon on an eccentric orbit close to its planet (Io: ~2.5 W/m^2): (21/2) (k2/Q) G M^2 R^5 n e^2 / a^6
+  if (b.parent && b.parent.kind !== 'star' && b.orbit && b.parent.mass > 50 * b.mass) {
+    const e = Math.max(b.orbit.e || 0, 0.004), a = b.orbit.a, n = 2 * Math.PI / b.orbit.period, Rm = b.radius;
+    const E = 10.5 * 0.015 * C.G * b.parent.mass ** 2 * Rm ** 5 * n * e * e / a ** 6, flux = E / (4 * Math.PI * Rm * Rm);
+    if (flux > 0.01) rows.push(['Tidal heating', flux.toPrecision(2) + ' W/m²' + (flux > 1 ? ': volcanoes (like Io)' : flux > 0.05 ? ': enough to keep an ocean under the ice' : '')]); }
+  if (b.parent && b.parent.kind === 'star' && b.parent.star && b.parent.blackHole === undefined && (b.parent.evoPhase || '').indexOf('white dwarf') >= 0) rows.push(['Around a white dwarf', 'asteroids and comets nudged inward are shredded by the dead star; their metals pollute its atmosphere']);
   if (b.evoMig && b.orbit && b._a0 && b.parent) {
     const m1 = moonA(Object.assign({}, b, { orbit: { a: b._a0, period: b._p0 } }), b.parent, (b.evoAge - h.ageNow) + 1e4);
     const rate = m1 ? (m1.a - b.orbit.a) / 1e4 * 100 : 0;
@@ -1192,7 +1203,7 @@ export function describeBody(b) {
     if (b.surface && b.surface.gen === 'gas' && !(b.system && b.system.desc && b.system.desc.sol) && b.temp) { const T = b.temp; rows.push(['Clouds', T < 150 ? 'ammonia ice (class I, like Jupiter)' : T < 300 ? 'water ice (class II)' : T < 800 ? 'too warm for clouds: a deep blue, clear sky (class III)' : T < 1400 ? 'alkali metal haze, dark (class IV)' : 'silicate and iron clouds (class V): it is a hot Jupiter' + (T > 1200 ? ', puffed up by its star\'s heat' : '')]); }
     if (b.hist && b.evoNow && !b.precessRA) evoRows(b, rows);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
-    else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
+    else if (b.life && !b.hist) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }
   // (the Moon is tidally locked: its day is its month, longer as it recedes)
   const rp = Math.abs(b.rotPeriod) * (b.name === 'Moon' && b.system && b.system.tyr !== undefined ? Math.pow(moonScale(b.system.tyr), 1.5) : 1);

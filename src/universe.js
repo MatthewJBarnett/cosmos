@@ -177,6 +177,10 @@ void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
   // beyond the stars
   if (uBand == 5 && g.type > 0.5) { float hzH = g.hz*(0.7 + 1.5*R*R);
     emis += vec3(0.25, 0.85, 0.5)*smoothstep(0.04, 0.22, R)*smoothstep(1.05, 0.65, R)*exp(-abs(p.y)/hzH)*(0.1 + 3.*max(gfbm(p*9. + g.type*3., 3) - 0.32, 0.))*0.06/hzH; }
+  // radio galaxies: jets from the central black hole and the lobes where they stop (giant ellipticals, like M87 and
+  // Centaurus A), along the galaxy's axis
+  if (uBand == 5 && g.type < 0.5 && g.lum > 0.6) { float rr = length(p.xz), z = abs(p.y);
+    emis += vec3(0.4, 1.0, 0.6)*(exp(-pow(rr/(0.015 + 0.04*z), 2.))*exp(-z/0.9)*0.8 + exp(-(pow(rr/0.35, 2.) + pow((z - 1.25)/0.35, 2.)))*0.5); }
   // hot gas: a diffuse X-ray halo (bright in ellipticals, which hold their gas) and the nucleus
   if (uBand == 6) emis += vec3(0.5, 0.75, 1.0)*(exp(-r*4.)*(g.type < 0.5 ? 1.2 : 0.25) + exp(-r*r*900.)*0.6);
   ext *= uBand == 1 ? 2.5 : uBand == 2 ? 0.12 : uBand == 6 ? 0.5 : 0.;

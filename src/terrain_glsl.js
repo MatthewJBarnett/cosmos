@@ -577,6 +577,7 @@ vec3 surfaceColorProc(vec3 d, vec3 P, float h, float slope, out float emis){
 export const GEN_GAS = `
 uniform vec3 uPal[4];
 uniform vec3 uSpotWarp;   // a storm in the map that has changed size: centre (u, v) and scale (0: off)
+uniform vec3 uWhiteSpot;  // a planet-encircling storm: latitude (deg), strength (0: none), head longitude (rad)
 uniform float uBands, uBandStr, uTurb, uStorms, uGasSeed;
 float bandProfile(float y){
   float v = 0.;
@@ -616,6 +617,13 @@ vec3 surfaceColor(vec3 d, vec3 P, float h, float slope, out float emis){
       tex = fbm(o0 + 1, min(uOMax, o0 + 9), 53u, d, 0.6);
     }
     vec3 c = texture(uCMap, uv).rgb;
+    if (uWhiteSpot.y > 0.) {
+      // (Saturn's Great White Spot: a thunderstorm head that wraps a bright band of ammonia cloud round the planet)
+      vec3 n = normalize(P); float latD = degrees(asin(clamp(n.y, -1., 1.))), lon = atan(-n.z, n.x);
+      float dl = mod(lon - uWhiteSpot.z + 3.1416, 6.2832) - 3.1416, nz = fbm(o0 + 1, min(uOMax, o0 + 6), 61u, d, 0.6);
+      float band = exp(-pow((latD - uWhiteSpot.x)/(3.5 + 2.*nz), 2.))*(0.45 + 0.55*smoothstep(-1.2, 0.3, -abs(dl) + 0.8*nz));
+      c = mix(c, vec3(0.97, 0.94, 0.86), clamp(band*uWhiteSpot.y*(0.7 + 0.6*nz), 0., 0.85));
+    }
     // local contrast: cloud texture modulates brightness, more in bright zones (thick ammonia clouds)
     float l = dot(c, vec3(0.3, 0.5, 0.2));
     c *= 1. + tex*(0.16 + 0.2*smoothstep(0.35, 0.7, l));
