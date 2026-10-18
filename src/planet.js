@@ -71,19 +71,22 @@ uniform sampler2D uHeightTex;
 uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
 uniform float uQcLen, uSize, uRadius, uSea, uOcean, uSkirt, uGrid, uTexStep, uOblate; uniform vec3 uShape;
+uniform vec4 uTideM, uTideS;
+// ocean tides: the equilibrium bulges under and opposite the Moon and the Sun (amplified to typical coastal ranges)
+float tideH(vec3 d){ float cm = dot(d, uTideM.xyz), cs = dot(d, uTideS.xyz); return uTideM.w*(1.5*cm*cm - 0.5) + uTideS.w*(1.5*cs*cs - 0.5); }
 out vec3 vDir; out vec2 vUV; out vec3 vWorld;
 ${ICE_GLSL}
 ${LOGDEPTH_VS}
 void main(){
   vec2 uv = aPos.xy / uGrid;
   float h = texelFetch(uHeightTex, ivec2(aPos.xy*uTexStep + 0.5), 0).r;
-  if (uOcean > 0.5) h = max(h, uSea);
   vec3 delta = ((uv.x - 0.5)*uSize)*uFaceA + ((uv.y - 0.5)*uSize)*uFaceB;
   float s2 = (2.*dot(uQc, delta) + dot(delta, delta)) / (uQcLen*uQcLen);
   float sq = sqrt(1. + s2); float k = -s2/(sq*(1.+sq));
   vec3 cdir = uQc/uQcLen;
   vec3 dd = cdir*k + delta/(uQcLen*sq);
   vec3 dir = cdir + dd;
+  if (uOcean > 0.5) h = max(h, uSea + tideH(normalize(dir)));
   if (uOcean > 0.5) h = iceSheetH(normalize(dir), h);
   vec3 local = uRadius*dd + dir*(h - aPos.z*uSkirt);
   local.y *= 1. - uOblate;
@@ -134,7 +137,9 @@ uniform sampler3D uNoise3;
 uniform mat3 uRot;
 uniform vec3 uFaceA;
 uniform float uPixAngle;
-uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK; uniform vec2 uCityGrow;
+uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK; uniform vec4 uTideM, uTideS;
+// ocean tides: the equilibrium bulges under and opposite the Moon and the Sun (amplified to typical coastal ranges)
+float tideH(vec3 d){ float cm = dot(d, uTideM.xyz), cs = dot(d, uTideS.xyz); return uTideM.w*(1.5*cm*cm - 0.5) + uTideS.w*(1.5*cs*cs - 0.5); } uniform vec2 uCityGrow;
 uniform vec2 uDetailO; uniform float uChunkA;
 uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK; uniform vec4 uScars[6]; uniform int uNumScars; uniform float uMariaFill;
 ${ICE_GLSL}
@@ -188,7 +193,7 @@ void main(){
     vec3 nt = texture(uNormTex, tuv).rgb; vec2 nn = nt.rg; aoT = nt.b;
     vec3 T1 = normalize(uFaceA - dir*dot(dir, uFaceA)), T2 = cross(dir, T1);
     N = normalize(uRot*(dir*sqrt(max(0., 1. - dot(nn, nn))) + T1*nn.x + T2*nn.y));
-    if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea - h; water = smoothstep(0., 0.4, depth);
+    if (uOcean > 0.5) { float h = heightAt(vUV); depth = uSea + tideH(normalize(dir)) - h; water = smoothstep(0., 0.4, depth);
       // ice ages: the sea falls as water is locked up in ice sheets, exposing the continental shelves
       if (uIceAge.y > 0. && water > 0.) {
         float ex = smoothstep(-uIceAge.y - 8., -uIceAge.y + 8., h)*water;
@@ -738,6 +743,15 @@ class PlanetState {
 }
 
 // city lights belong to an era: electric lighting spread from the 1880s; today's map is not extrapolated centuries ahead
+// Earth's tides: Moon and Sun directions in the body frame, with amplitudes (m) giving ~2-3 m spring ranges at the coast
+const TIDE0 = [0, 1, 0, 0];
+function tides(body, which) {
+  if (body.name !== 'Earth' || !body.wrot || !body.system) return TIDE0;
+  const src = which ? body.system.root : (body.children || []).find(c => c.name === 'Moon');
+  if (!src || !src.wpos || src.gone) return TIDE0;
+  const d = V.norm(Q.rot(Q.conj(body.wrot), V.sub(src.wpos, body.wpos)));
+  return [d[0], d[1], d[2], which ? 0.55 : 1.2];
+}
 // which lights are on: a brightness threshold falling as electricity spreads, and the LED fraction
 export function cityGrow(t) { const y = 2000 + t / 31557600; return [y > 2030 ? 0 : 0.45 * Math.exp(-Math.max(y - 1890, 0) / 28), Math.max(0, Math.min(1, (y - 2010) / 20)) * 0.8]; }
 export function cityEra(t) { const y = 2000 + t / 31557600; return Math.max(0, Math.min(1, (y - 1880) / 70)) * Math.max(0, Math.min(1, 1 - (y - 2200) / 300)); }
@@ -856,7 +870,7 @@ export function drawPlanet(body, o) {
   p.set(Object.assign({
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0) + (body.seaRise || 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
-    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uCityGrow: surf.city ? cityGrow(o.time) : [0, 0], uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
+    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uCityGrow: surf.city ? cityGrow(o.time) : [0, 0], uTideM: tides(body, 0), uTideS: tides(body, 1), uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
     uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uMariaFill: body.mariaFill === undefined ? 1 : body.mariaFill, uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad, uTsurf: body.meanT || body.heatT || body.temp || 200,
   }, o.light));
