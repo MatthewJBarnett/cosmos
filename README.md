@@ -9,7 +9,11 @@ Moon in a giant impact, detonate white dwarfs (V for the sandbox); fast-forward 
 continents drift, Betelgeuse explode, the Sun circle the Galaxy, Andromeda collide with the Milky Way, the Sun become
 a red giant and the other galaxies recede beyond our horizon (U for the timeline). Rewind and it all runs backwards:
 Pangaea reassembles, the magnetic field flips, Andromeda recedes towards its turnaround, stars and nebulae return to the
-clouds they formed from, and the young galaxies light up with quasars. PgUp and PgDn step through the events.
+clouds they formed from, and the young galaxies light up with quasars. Keep going back and the clock turns
+logarithmic: the first stars, recombination, helium being made in the first minutes, inflation, and the Planck time;
+forward past the last stars it runs to 10¹¹⁰ years, through evaporating galaxies and black holes to the dark era.
+PgUp and PgDn step through the events; I switches between visible light, ultraviolet, infrared, microwaves, radio and
+X-rays.
 
 **Play it:** https://matthewjbarnett.github.io/cosmos/ (press T for a guided tour, H for help)
 
