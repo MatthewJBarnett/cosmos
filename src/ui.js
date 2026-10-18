@@ -80,7 +80,7 @@ export class UI {
       </table>
       <h3 style="margin-top:12px">Physics and deep time</h3>
       <p class="dim">The Rate menu (or , . &lt; &gt;) runs the clock from slow motion to 10 billion years per second, forwards or back (J).
-      The Timeline (U) runs from the Big Bang to the last stars; Go jumps to an event, and the search box takes events
+      The Timeline (U) runs from the Planck time to 10<sup>110</sup> years (both ends on a logarithmic clock); Go jumps to an event, and the search box takes events
       ("dinosaurs") and times ("2 Gyr", "year 3000", "age 380 kyr"). What changes with time:</p>
       <ul class="dim physlist">
         <li><b>The universe</b>: expansion, redshift and the event horizon; galaxies form, start small, clumpy, blue and star-bursting with quasars in their cores, then age, redden and fade; supernovae flare in other galaxies; the early cosmos glows (try "age 380 kyr").</li>
@@ -89,7 +89,9 @@ export class UI {
         <li><b>The Sun</b>: its birth cloud and dusty disk, a fast-spinning active youth, the real sunspot record (the Maunder minimum), drift outward through the Galaxy, slow brightening, red giant, planetary nebula and white dwarf.</li>
         <li><b>The planets</b>: orbits precess and change shape (secular theory), planets are swallowed or heated by the giant Sun, Phobos and Triton break into rings, Saturn's young rings appear and rain away, Mars once had an ocean and has dust storms on their real dates; Halley, Hale-Bopp and interstellar visitors fly their real orbits.</li>
         <li><b>Earth</b>: magma ocean, the real continents of the last 540 Myr (Pangaea), its air, climate and life by epoch, bare continents before land plants, Snowball Earth, ice ages paced by its orbit (sea level and ice sheets), magnetic reversals, volcanic winters, seasons in the forests, drifting continents, a lengthening day and receding Moon, precession, and the oceans boiling away in a billion years.</li>
-        <li><b>The sandbox (V)</b>: N-body gravity with general relativity: merging black holes (Kerr shadows, gravitational waves you can hear), neutron star mergers and kilonovae, tidal disruption, the Moon-forming impact, Type Ia supernovae.</li>
+        <li><b>The sandbox (V)</b>: N-body gravity with general relativity: merging black holes (Kerr shadows, gravitational waves you can hear, precessing spins), neutron star mergers and kilonovae, tidal disruption, the Moon-forming impact (also as a hydrodynamic simulation), Type Ia supernovae.</li>
+        <li><b>The far future</b>: after the last stars, the degenerate era, the galaxy evaporating, proton decay, black holes evaporating and the dark era, to 10<sup>110</sup> years.</li>
+        <li><b>Other light (I)</b>: see everything in ultraviolet, near- or far-infrared, microwaves (the cosmic background), radio (21 cm hydrogen) or X-rays.</li>
       </ul>
       <p class="dim">Near a planet, fast time-lapses advance in whole days and orbits so the view holds still. M toggles relativistic flight.</p>
       <h3 style="margin-top:12px">Data and credits</h3>
