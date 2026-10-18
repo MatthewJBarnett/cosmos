@@ -10,7 +10,7 @@ import { globularPoints } from './globulars.js';
 import { getAtmoLUT, drawAtmosphere, cloudRotInv, getDummyCube, VolumetricTAA } from './atmosphere.js';
 import { vSurface } from './stars.js';
 import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './galdyn.js';
-import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31, sgrStreamPoints } from './localgroup.js';
+import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31, sgrStreamPoints, magStreamPoints, hvcPoints } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { stellarState } from './stellarevo.js';
 import { popIIIPoints, popIIIRate, ionizedIGM } from './earlyuniverse.js';
@@ -432,7 +432,7 @@ export class Renderer {
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
     // the first stars, in the dark ages: single massive stars in small halos all around (Population III)
     if (popIIIRate(cosmo.tau) > 0 && !cosmo.early) { const pp = popIIIPoints(nav.camU(), cosmo.tau, cosmo.a, world.dtyr); this.popIII = pp; if (pp.length) drawPoints(pp, viewProj, common); } else this.popIII = null;
-    if (exposure > 2e3 && (gal === MILKY_WAY || !insideGal) && nav.camU && V.len(nav.camU()) < 3) { const sp = sgrStreamPoints(nav.camU(), world.tyr, []); for (const q of sp) q.flux *= 25 * skyCfg.extBoost; if (sp.length) drawPoints(sp, viewProj, common); }
+    if (exposure > 2e3 && (gal === MILKY_WAY || !insideGal) && nav.camU && V.len(nav.camU()) < 3) { const sp = GLOBAL_U.uBand <= 2 ? sgrStreamPoints(nav.camU(), world.tyr, []) : []; for (const q of sp) q.flux *= 25 * skyCfg.extBoost; if (GLOBAL_U.uBand === 5) magStreamPoints(nav.camU(), world.tyr, sp); if (sp.length) drawPoints(sp, viewProj, common); }
     if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear, hideReal: hideReal.size ? hideReal : null }, common));
     // the colliding galaxies as particles
     if (lgCam && exposure > 2e3) {
@@ -492,6 +492,7 @@ export class Renderer {
       sne = updateSupernovae(nav.field, camLocal, gal.quat); this.supernovae = sne;
       if (sne.points.length) drawPoints(sne.points, viewProj, Object.assign({}, common, { refrUp }));
       // globular clusters too small or far to resolve, as points
+      if (gal === MILKY_WAY && GLOBAL_U.uBand === 5 && camLocal) { const hp = hvcPoints(camLocal, gal.quat, world.tyr, []); if (hp.length) drawPoints(hp, viewProj, Object.assign({}, common, { refrUp })); }
       if (gal === MILKY_WAY && starsVisible) { const gp = globularPoints(camLocal, gal.quat, world.tyr, pxPerRad, []); if (gp.length) drawPoints(gp, viewProj, Object.assign({}, common, { refrUp })); }
       // a supernova brighter than about magnitude -7 lights planets and skies like a second moon
       if (sys && nav.level === 'system') for (const p of sne.points.slice(0, 2)) {

@@ -325,6 +325,38 @@ export function sgrStreamPoints(camU, tyr, out) {
   }
   return out;
 }
+// radio (21 cm) only: the Magellanic Stream, hydrogen pulled out of the Clouds by their mutual tides and the Milky Way's
+// hot halo, trailing behind them along their orbit over ~150 degrees of sky (Mathewson et al. 1974; Nidever et al. 2010)
+const MS_PTS = [];
+for (let k = 0; k < 900; k++) { const h = (x) => { const v = Math.sin(k * 7.137 + x * 51.71) * 24634.6345; return v - Math.floor(v); };
+  MS_PTS.push({ dt: -(30 + 1400 * h(1) ** 1.3), off: [h(2) - 0.5, h(3) - 0.5, h(4) - 0.5], f: 0.4 + h(5) }); }
+export function magStreamPoints(camU, tyr, out) {
+  if (!LMC.length) return out;
+  const t = (tyr - NOW_TYR) / 1e6; if (t < -1500 || t > LMC_MERGE + 300) return out;
+  const l0 = LMC_ORBIT.r0, c0 = MC0[0], grow = Math.min(1, (t + 1500) / 1500), fade = clamp(1 - (t - LMC_MERGE) / 300, 0, 1);
+  for (const q of MS_PTS) {
+    if (-q.dt > 1400 * grow) continue;
+    const a = lmcAt(t + q.dt), w = 3 + Math.abs(q.dt) / 120;
+    const p = [c0[0] + (a[0] - l0[0] + q.off[0] * w) * 1e-3, c0[1] + (a[1] - l0[1] + q.off[1] * w) * 1e-3, c0[2] + (a[2] - l0[2] + q.off[2] * w) * 1e-3];
+    const rel = V.sub(p, camU), d = V.len(rel) * 1e6; if (d < 100) continue;
+    out.push({ dir: V.mul(rel, 1 / V.len(rel)), color: [0.3, 1.0, 0.55], flux: 1e-11 * q.f * fade * Math.pow(5e4 / d, 2) });
+  }
+  return out;
+}
+// radio only: high-velocity clouds, hydrogen raining onto the disk from the halo at 100-300 km/s (each falls for ~50
+// Myr from a few kpc up, then a new one appears); galaxy frame in pc
+const HVC = [];
+for (let k = 0; k < 160; k++) { const h = (x) => { const v = Math.sin(k * 3.917 + x * 17.13) * 15731.743; return v - Math.floor(v); };
+  HVC.push({ R: 4000 + 14000 * h(1), ph: h(2) * 6.283, z0: (2000 + 8000 * h(3)) * (h(4) < 0.5 ? -1 : 1), P: 30 + 60 * h(5), t0: h(6), f: 0.5 + h(7) }); }
+export function hvcPoints(camLocal, gq, tyr, out) {
+  const tm = tyr / 1e6;
+  for (const c of HVC) {
+    const u = ((tm / c.P + c.t0) % 1 + 1) % 1, z = c.z0 * (1 - u), ang = c.ph + tm * 220 / c.R * 1.023 * 0.5;
+    const p = [c.R * Math.cos(ang), z, -c.R * Math.sin(ang)], rel = V.sub(p, camLocal), d = V.len(rel); if (d < 50) continue;
+    out.push({ dir: Q.rot(gq, V.mul(rel, 1 / d)), color: [0.3, 1.0, 0.55], flux: 2e-11 * c.f * Math.min(1, u * 5) * Math.min(1, Math.pow(3000 / d, 2)) });
+  }
+  return out;
+}
 export const LG = new LocalGroup();
 // after the N-body takes over, the Sun's galactic position comes from its tracer particle
 sunHook.t0 = NOW_TYR + LG_START * 1e6;
