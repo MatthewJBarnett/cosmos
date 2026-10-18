@@ -329,6 +329,13 @@ export class StarSystem {
     if (root.evo && root.evo.x0 !== null && !sysUn) {
       const age0 = root.evo.x0 * root.evo.life;
       evolveBodies(this, tyr, age0, (ty) => { const st = stellarState(root, ty) || {}; return { L: st.unborn ? 0 : st.L || 0, M: st.m || root.evo.m, R: st.R || root.radius }; });
+      // giant planets change their clouds with temperature (Sudarsky classes): a red giant star cooks ammonia-cloud
+      // Jupiters into cloudless or alkali-hazed ones; a dead star lets them freeze
+      for (const b of root.children) if (b._gk0 && b.surface && !b.gone) {
+        const T = 278.6 * Math.pow(Math.max(root.lum, 1e-9) * 0.55 / Math.pow(b.orbit.a / C.AU, 2), 0.25);
+        const k = T > 900 ? 'hot' : T > 350 ? (b._gk0 === 'hot' ? 'sulfur' : 'cloudy') : T < 90 && b._gk0 !== 'uranus' ? 'uranus' : b._gk0;
+        if (k !== (b._gkNow || b._gk0)) { b._gkNow = k; if (!b._gSurf) b._gSurf = { [b._gk0]: b.surface }; b.surface = b._gSurf[k] || (b._gSurf[k] = gasPreset(k, new RNG(b._gSeed), b)); b.mapsVersion = (b.mapsVersion || 0) + 1; }
+      }
     }
     if (changed || !this._all) { this._all = all; this.bodies = all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
     return scale;
@@ -1001,7 +1008,7 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
     if (Teq > 900) gk = 'hot'; else if (Teq > 350) gk = rng.pick(['cloudy', 'sulfur', 'neptune']); else if (type === 'neptune') gk = Teq > 150 ? rng.pick(['neptune', 'cloudy', 'uranus']) : rng.pick(['uranus', 'neptune', 'neptune']);
     else gk = massE > 4000 ? 'brown' : rng.pick(['jupiter', 'jupiter', 'saturn', 'saturn', 'sulfur', 'neptune']);
     b.cls = type === 'gas' ? (Teq > 900 ? 'Hot Jupiter' : 'Gas giant') : (Teq > 350 ? 'Warm Neptune' : 'Ice giant');
-    b.surface = gasPreset(gk, rng, b);
+    b.surface = gasPreset(gk, rng, b); b._gk0 = gk; b._gSeed = rng.u32 ? rng.u32() : 1;
     b.albedo = gk === 'hot' ? 0.1 : 0.45; b.oblate = clamp(0.1 * Math.pow(10 * 3600 / Math.abs(b.rotPeriod), 2) * (1300 / (b.mass / (4.19 * b.radius ** 3))), 0, 0.15);
     const meth = gk === 'neptune' || gk === 'uranus';
     b.atmo = makeAtmosphere(b, meth ? 0.8e5 : 0.05e5, { H2: 0.86, He: 0.13, CH4: 0.01 }, { T: Math.max(Teq, 60), top: undefined, mieS: [1e-7, 1e-7, 1e-7], mieA: [0, 0, 0], absorb: meth ? [2e-6, 3e-7, 4e-8] : [0, 0, 0], absH: 0, absW: 4e5 });
@@ -1071,6 +1078,7 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
 // what is changing on Solar System bodies that have no model of their own (y: calendar year)
 const SOL_NOTES = {
   Mercury: () => 'its spin was captured into a 3:2 resonance with its orbit early on; as its big iron core cooled it shrank ~7 km in radius, wrinkling the crust into cliffs (lobate scarps)',
+  Moon: (y) => y < 2000 - 4.4e9 ? 'tidally locked to Earth within tens of millions of years of forming, when it was ~15 times closer' : 'it keeps one face to Earth (locked early by tides) and recedes 3.8 cm a year',
   Io: () => 'the most volcanic world known: ~400 active volcanoes, heated by tides as the Laplace resonance with Europa and Ganymede keeps its orbit eccentric',
   Europa: () => 'an ocean ~100 km deep under its ice; Hubble has glimpsed water plumes',
   Enceladus: () => 'geysers from its south polar "tiger stripes" spray its ocean into space, feeding Saturn\'s E ring',
@@ -1092,6 +1100,12 @@ function evoRows(b, rows) {
     const a = b.evoAge;
     rows.push(['Pressure history', [[-3e9, '3 Gyr ago'], [-1e9, '1 Gyr ago'], [1e9, 'in 1 Gyr'], [3e9, 'in 3 Gyr']].filter(([d]) => a + d > 1e7).map(([d, l]) => bar(Pat(a + d)) + ' ' + l).join(' · ')]);
     if (s.Texo > 1500) rows.push(['Upper atmosphere', Math.round(s.Texo).toLocaleString('en') + ' K, heated by the young star\'s X-rays and UV' + (s.esc > 1e3 ? ': escaping hydrodynamically' : '')]);
+  }
+  if (b._rot0 && b.orbit && b.orbit.period && !(b.parent && b.parent.kind !== 'star')) {
+    const r0 = historyAt(h, b.evoAge).rot, r1 = historyAt(h, b.evoAge + 1e8).rot, P = b.orbit.period, lockedNow = Math.abs(Math.abs(r0) - P) < P * 0.01;
+    const iL = h.rot.findIndex((r, i) => i > h.iNow && Math.abs(Math.abs(r) - P) < P * 0.01);
+    const dd = (Math.abs(r1) - Math.abs(r0)) / 100;    // seconds per Myr
+    rows.push(['Spin over time', lockedNow ? 'tidally locked: one face always towards its star' : h.P0 > 2e6 && r0 < 0 && Math.abs(Math.abs(r0) - P / 1.08) < P * 0.05 ? 'held slow and backwards by tides in its thick air (like Venus)' : Math.abs(dd) < 1e-4 ? 'steady (the star\'s tides are too weak this far out)' : 'the star\'s tides lengthen its day by ' + (dd < 1 ? (dd * 1000).toPrecision(2) + ' ms' : dd < 3600 ? dd.toPrecision(2) + ' s' : (dd / 3600).toPrecision(2) + ' h') + ' per million years' + (iL > 0 && h.ages[iL] > b.evoAge ? '; it locks in ' + fmtYr(h.ages[iL] - b.evoAge) : '')]);
   }
   if (b._axis0 && !h.giant) rows.push(['Axial tilt over time', b.evoBigMoon ? 'steadied by its big moon (swings ~1 degree)' : 'swings chaotically by up to ~' + Math.round(5 + 9 * (((b.uid * 2654435761) >>> 0) / 4294967296)) + ' degrees (no big moon to steady it)']);
   if (!h.giant) {
