@@ -264,6 +264,10 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   const a1 = pe.historyAt(hw, 2e9 + 1e3).a, a0 = pe.historyAt(hw, 2e9).a, Pdot = 1.5 * (a1 - a0) / a0 / 1e3;
   check('WASP-12b orbital decay timescale P/|dP/dt| (Myr, Q* = 1e6)', 1 / Math.abs(Pdot) / 1e6, '~18 for Q* = 1e6 (measured 3.25 Myr implies Q* ~ 1.8e5)', (v) => v > 8 && v < 40);
   check('Young Sun XUV at 100 Myr vs today', pe.xuvFraction(1e8, 1) / pe.xuvFraction(4.57e9, 1), '~100 (Ribas et al. 2005)', (v) => v > 50 && v < 200);
+  check('Hot Jupiter radius inflation at Teq 1500 K', pe.giantInflation(1500), '~1.2-1.4 (Thorngren & Fortney 2018)', (v) => v > 1.15 && v < 1.45);
+  const se = await imp('stellarevo.js');
+  check('Neutron star surface temperature at 1 Myr (K)', se.nsTemp(1e6), '~1e5-5e5 (standard cooling; Yakovlev & Pethick 2004)', (v) => v > 1e5 && v < 5e5);
+  check('Neutron star surface temperature at 1 kyr (MK)', se.nsTemp(1e3) / 1e6, '~1-3 (Cas A ~2 MK at 340 yr)', (v) => v > 1 && v < 3);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

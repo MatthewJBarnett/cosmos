@@ -515,7 +515,7 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 108 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 111 checks of the physics against published values (no browser needed)
     ONLY=nucleo,mcnaught node tools/eventtest.mjs   # just those events / sandbox scenarios
     node tools/multi.mjs scenes.json  # several scripted scenes in one page (see the file for the format)
     tools/runall.sh                   # everything above in sequence (about two hours under SwiftShader)
