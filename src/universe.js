@@ -86,6 +86,8 @@ export const REAL_GALAXIES = [
   realGal('Triangulum Galaxy (M33)', 133.61, -31.33, 0.86, GT.S, 9200, 54, 20, { arms: 3, pitch: 0.45, bulge: 1.5, rb: 0.04, young: 1.6 }),
   realGal('Large Magellanic Cloud', 280.47, -32.89, 0.0499, GT.IRR, 4900, 35, 0, { bar: 0.3, lum: 0.9 }),
   realGal('Small Magellanic Cloud', 302.8, -44.3, 0.0627, GT.IRR, 2900, 60, 40, { lum: 0.6 }),
+  // (a faint, elongated dwarf being torn apart on the far side of the bulge: stellar mass ~1e8 Msun)
+  realGal('Sagittarius Dwarf Galaxy', 5.57, -14.17, 0.0265, GT.E, 2600, 0, 0, { flat: 0.45, lum: 0.04, rb: 0.3, sgr: true }),
   realGal('Messier 87', 283.78, 74.49, 16.4, GT.E, 40000, 0, 0, { flat: 0.92, lum: 1.6 }),
   realGal('Bode\'s Galaxy (M81)', 142.09, 40.9, 3.6, GT.S, 14000, 59, 60, { arms: 2, pitch: 0.2, bulge: 8 }),
   realGal('Whirlpool Galaxy (M51)', 104.85, 68.56, 8.6, GT.S, 12000, 22, 10, { arms: 2, pitch: 0.36, armStr: 1, young: 1.5, dust: 1.2 }),
@@ -119,6 +121,13 @@ export function galaxyCell(level, cx, cy, cz) {
     const radius = r2.logRange(L.minR, L.maxR) * (type === GT.E && level === 0 && r2.chance(0.1) ? 1.8 : 1);
     const g = { id: 'G:' + key + ':' + i, seed, posU: p, type, radius, level };
     finishGalaxy(g, r2);
+    // structure growth (Zel'dovich): the galaxy's matter fell in up the density gradient, and in clusters from all
+    // around; psi is its comoving displacement since the Big Bang (Mpc), scaled back by the growth factor for earlier
+    // epochs. And a major merger: before g.mergeT (Gyr) it was two galaxies (more often for ellipticals and in clusters).
+    { const e = 1.5, gx = webDensity([p[0] + e, p[1], p[2]]) - webDensity([p[0] - e, p[1], p[2]]), gy = webDensity([p[0], p[1] + e, p[2]]) - webDensity([p[0], p[1] - e, p[2]]), gz = webDensity([p[0], p[1], p[2] + e]) - webDensity([p[0], p[1], p[2] - e]);
+      const gl = Math.hypot(gx, gy, gz) / (2 * e) / Math.max(wd, 0.05), u = gl > 1e-9 ? 1 / Math.hypot(gx, gy, gz) : 0, amp = 7 * Math.min(1, gl * 12), rd = r2.dir(), ra = 4 * dense;
+      g.psi = [gx * u * amp + rd[0] * ra, gy * u * amp + rd[1] * ra, gz * u * amp + rd[2] * ra];
+      g.mergeT = r2.f() < (type === GT.E ? 0.6 : 0.25) * (0.6 + 0.6 * dense) ? r2.range(1.5, 10) : 0; }
     list.push(g);
   }
   c = { key, level, cx, cy, cz, list, origin: [cx * L.cell, cy * L.cell, cz * L.cell] };
@@ -143,10 +152,39 @@ float gnoise(vec3 p){ return texture(uNoise3, p).r; }
 float gfbm(vec3 p, int oct){ float a=.5, s=0.; for(int i=0;i<oct;i++){ s += a*texture(uNoise3, p).r; p = p*2.03 + 17.3; a*=.5; } return s; }
 const float G_RD = 0.2;
 // Emission (rgb, per unit normalised length, in units of central disk face-on surface brightness) and extinction.
+// observing bands: how much old stars, young stars and glowing gas give off in each (false colours), how much the dust
+// absorbs, and what glows there that does not in visible light (warm dust, neutral hydrogen, hot gas)
+uniform int uBand;
+void bandCols(out vec3 cO, out vec3 cY, out vec3 cH){
+  cO = vec3(1.0, 0.78, 0.5); cY = vec3(0.42, 0.62, 1.0); cH = vec3(1.0, 0.22, 0.34);
+  if (uBand == 1) { cO = vec3(0.07, 0.05, 0.14); cY = vec3(1.2, 1.1, 2.2); cH = vec3(0.25, 0.2, 0.5); }            // UV: young hot stars
+  else if (uBand == 2) { cO = vec3(1.7, 1.2, 0.85); cY = vec3(0.3, 0.26, 0.24); cH = vec3(0.1); }                   // near-IR: old giants
+  else if (uBand == 3) { cO = vec3(0.01); cY = vec3(0.04, 0.02, 0.01); cH = vec3(0.35, 0.14, 0.05); }              // far-IR: stars faint
+  else if (uBand == 4) { cO = vec3(0.); cY = vec3(0.); cH = vec3(0.04, 0.03, 0.02); }                               // microwave
+  else if (uBand == 5) { cO = vec3(0.); cY = vec3(0.12, 0.45, 0.25); cH = vec3(0.3, 0.9, 0.5); }                    // radio: synchrotron, H II
+  else if (uBand == 6) { cO = vec3(0.01, 0.02, 0.03); cY = vec3(0.15, 0.3, 0.5); cH = vec3(0.); }                   // X-ray: binaries
+}
+void galSample0(Gal g, vec3 p, float detail, out vec3 emis, out float ext);
 void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
+  galSample0(g, p, detail, emis, ext);
+  if (uBand == 0) return;
+  float R = length(p.xz), r = length(p);
+  // warm dust glows in the far infrared (and faintly in microwaves) where it blocks visible light; dust is transparent
+  // in the near infrared and radio, and absorbs ultraviolet even more strongly
+  if (uBand == 3) emis += vec3(1.0, 0.42, 0.16)*ext*0.35;
+  if (uBand == 4) emis += vec3(0.8, 0.5, 0.3)*ext*0.05;
+  // neutral hydrogen (21 cm): a clumpy, flaring disk of near-constant surface density with a hole in the middle, reaching
+  // beyond the stars
+  if (uBand == 5 && g.type > 0.5) { float hzH = g.hz*(0.7 + 1.5*R*R);
+    emis += vec3(0.25, 0.85, 0.5)*smoothstep(0.04, 0.22, R)*smoothstep(1.05, 0.65, R)*exp(-abs(p.y)/hzH)*(0.1 + 3.*max(gfbm(p*9. + g.type*3., 3) - 0.32, 0.))*0.06/hzH; }
+  // hot gas: a diffuse X-ray halo (bright in ellipticals, which hold their gas) and the nucleus
+  if (uBand == 6) emis += vec3(0.5, 0.75, 1.0)*(exp(-r*4.)*(g.type < 0.5 ? 1.2 : 0.25) + exp(-r*r*900.)*0.6);
+  ext *= uBand == 1 ? 2.5 : uBand == 2 ? 0.12 : uBand == 6 ? 0.5 : 0.;
+}
+void galSample0(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
   emis = vec3(0.); ext = 0.;
   float R = length(p.xz);
-  vec3 colOld = vec3(1.0, 0.78, 0.5), colYoung = vec3(0.42, 0.62, 1.0), colH2 = vec3(1.0, 0.22, 0.34);
+  vec3 colOld, colYoung, colH2; bandCols(colOld, colYoung, colH2);
   if (g.type < 0.5) {
     float r = length(p * vec3(1., 1./g.flatn, 1./mix(g.flatn,1.,.5)));
     float d = pow(1. + (r*r)/(g.rb*g.rb), -1.5) * smoothstep(1.0, 0.5, r);

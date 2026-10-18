@@ -1,5 +1,6 @@
 // Frame pipeline: HDR scene (sky, stars, system bodies, atmospheres) then bloom, exposure and tone mapping.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead, GpuTimer } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead, GpuTimer, GLOBAL_U } from './gl.js';
+import { lateEra } from './farfuture.js';
 import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
 import { bbColor } from './stars.js';
@@ -12,7 +13,7 @@ import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './gald
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { stellarState } from './stellarevo.js';
-import { popIIIPoints, popIIIRate } from './earlyuniverse.js';
+import { popIIIPoints, popIIIRate, ionizedIGM } from './earlyuniverse.js';
 import { updateSupernovae } from './supernova.js';
 import { drawSandbox, sandboxPoints, drawLines, drawDebris, drawTrailsOverlay } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
@@ -203,6 +204,26 @@ const NEXT = { bake: 'setup', pre: 'galaxies', galaxies: 'galaxy sky', galsky: '
 // the very early universe, full screen: the Planck foam, the endless zoom of inflation (each octave of fluctuation
 // freezing as it leaves the horizon), and the hot plasma glowing at its temperature with its frozen density ripples
 // (real ripples are 1 part in 100,000; drawn ~1000x stronger so they can be seen)
+const BANDSKY_FS = `in vec2 vUV; out vec4 o;
+uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov; uniform int uMode; uniform float uIon, uZ;
+float fbm(vec3 p){ float a = 0.5, s = 0.; for (int i = 0; i < 6; i++) { s += a*(texture(uNoise3, p).r - 0.5); p *= 2.05; a *= 0.55; } return s; }
+void main(){
+  vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  vec3 c;
+  if (uMode == 0) {
+    // the CMB, +-200 microkelvin shown across the full colour scale (blue cold, red hot)
+    float n = clamp(fbm(d*1.3)*3.2, -1., 1.);
+    c = n < 0. ? mix(vec3(0.85, 0.88, 0.95), vec3(0.05, 0.15, 0.6), -n) : mix(vec3(0.85, 0.88, 0.95), vec3(0.75, 0.1, 0.05), n);
+    c *= 0.35;
+  } else {
+    // 21 cm: neutral gas glows; ionized bubbles (fraction uIon of space) are dark, carved where the density is highest
+    float n = fbm(d*2.4 + 0.3), b = fbm(d*0.9 + 7.1);
+    float thr = mix(0.6, -0.6, uIon), bubble = smoothstep(thr - 0.05, thr + 0.05, b*2.4);
+    float fl = 0.5 + 1.6*n;
+    c = vec3(0.25, 0.9, 0.5)*fl*(1. - bubble)*0.3*smoothstep(200., 30., uZ);
+  }
+  o = vec4(c, 1.);
+}`;
 const EARLY_FS = `in vec2 vUV; out vec4 o;
 uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uPhase, uN, uTime, uHot; uniform vec3 uCol;
 float fbm(vec3 p){ float a = 0.5, s = 0.; for (int i = 0; i < 5; i++) { s += a*(texture(uNoise3, p).r - 0.5); p *= 2.03; a *= 0.5; } return s; }
@@ -225,6 +246,35 @@ void main(){
     c = uCol*(0.75 + 0.25*uHot)*(1. + 0.08*n);
   }
   o = vec4(c*0.8, 1.);
+}`;
+// the far future (display-referred): almost nothing to see. A few red dwarfs lit by brown dwarf collisions, the
+// remnants' faint warmth (only in the far infrared and microwaves: black dwarfs held at ~60 K by dark matter), and the
+// flash of the galaxy's black hole as it finally evaporates
+const LATE_FS = `in vec2 vUV; out vec4 o;
+uniform mat3 uRot; uniform vec2 uTanFov; uniform float uRed, uRem, uFlash, uPix; uniform vec3 uCen; uniform int uBand;
+float h31(vec3 p){ p = fract(p*vec3(443.897, 441.423, 437.195)); p += dot(p, p.yzx + 19.19); return fract((p.x + p.y)*p.z); }
+// one candidate point per cell of a cube-face grid of directions; returns the summed point brightness
+float pts(vec3 d, float n, float prob, float seed){
+  vec3 a = abs(d); vec2 uv; float f;
+  if (a.x > a.y && a.x > a.z) { uv = d.yz/a.x; f = sign(d.x); } else if (a.y > a.z) { uv = d.xz/a.y; f = 2. + sign(d.y); } else { uv = d.xy/a.z; f = 4. + sign(d.z); }
+  vec2 g = (uv*0.5 + 0.5)*n, c = floor(g); float s = 0.;
+  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
+    vec2 cc = c + vec2(i, j); vec3 k = vec3(cc, f + seed);
+    if (h31(k) > prob) continue;
+    vec2 p = cc + vec2(h31(k + 7.1), h31(k + 3.3));
+    float dd = length(g - p)*2./n/uPix;   // distance in pixels (approximately)
+    s += exp(-dd*dd*0.6)*(0.4 + 0.6*h31(k + 1.7));
+  }
+  return s;
+}
+void main(){
+  vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  float cen = exp(-(1. - dot(d, uCen))*6.);
+  vec3 c = vec3(0.);
+  if (uRed > 0.) c += vec3(1., 0.32, 0.12)*pts(d, 9., 0.035*uRed*(0.3 + 2.*cen), 0.)*0.6;
+  if ((uBand == 3 || uBand == 4) && uRem > 0.) c += vec3(1., 0.55, 0.3)*pts(d, 70., 0.3*min(uRem, 1.)*(0.2 + 2.*cen), 5.)*0.25*sqrt(uRem);
+  if (uFlash > 0.) { float a = acos(clamp(dot(d, uCen), -1., 1.))/uPix; c += vec3(0.8, 0.88, 1.)*uFlash*(exp(-a*a*0.15)*4. + 0.25*exp(-a/40.)); }
+  o = vec4(c, 1.);
 }`;
 export class Renderer {
   constructor(canvas) {
@@ -326,6 +376,7 @@ export class Renderer {
     if (lgw.m31 < 0.5) { hideReal.add(M31); }
     if (lgw.mw < 0.5) hideReal.add(MILKY_WAY);
     if (lgw.lmc < 0.5) for (const g of REAL_GALAXIES) if (/Magellanic/.test(g.name)) hideReal.add(g);
+    if (lgw.sgr < 0.05) for (const g of REAL_GALAXIES) if (g.sgr) hideReal.add(g);
     hideReal.key = [...hideReal].map(g => g.name[0]).join('');
     const gal = nav.galaxy;
     let camLocal = null, insideGal = false, viewProjLocal = null;
@@ -364,9 +415,20 @@ export class Renderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
     gl.viewport(0, 0, w, h);
     gl.depthMask(true); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // other observing bands: the sky behind everything. Microwaves: the cosmic background (2.7 K today) with its ripples,
+    // contrast-stretched like a Planck map; radio in the dark ages and cosmic dawn: the 21 cm glow of neutral hydrogen,
+    // with ionized bubbles growing around the first galaxies until reionization is complete
+    { const band = GLOBAL_U.uBand, zc = 1 / Math.max(cosmo.a, 1e-9) - 1, q21 = band === 5 && zc > 5.5 && zc < 200 && !cosmo.early;
+      if ((band === 4 && !cosmo.early) || q21) {
+        if (!this.pBandSky) this.pBandSky = new Program('band-sky', FS_VS, BANDSKY_FS);
+        gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+        this.pBandSky.use().set({ uRot: Q.mat3(nav.q), uTanFov: [tanX, tanY], uNoise3: this.noise3, uMode: q21 ? 1 : 0, uIon: q21 ? ionizedIGM(zc) : 0, uZ: zc });
+        drawFS(); gl.depthMask(true);
+      }
+    }
     gl.depthMask(false);
     // galaxies
-    const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && this.realSkyWeight(camLocal) > 0.3;
+    const realSkyNear = gal === MILKY_WAY && rcfg.realSky && GLOBAL_U.uBand === 0 && camLocal && this.realSkyWeight(camLocal) > 0.3;
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
     // the first stars, in the dark ages: single massive stars in small halos all around (Population III)
     if (popIIIRate(cosmo.tau) > 0 && !cosmo.early) { const pp = popIIIPoints(nav.camU(), cosmo.tau, cosmo.a, world.dtyr); this.popIII = pp; if (pp.length) drawPoints(pp, viewProj, common); } else this.popIII = null;
@@ -384,7 +446,7 @@ export class Renderer {
       // near the Sun the real (photographed) Milky Way replaces the model, fading out over a few hundred parsecs
       let wReal = 0;
       const form = mwFormation(world.tyr);
-      if (gal === MILKY_WAY && rcfg.realSky) wReal = this.realSkyWeight(camLocal) * lgw.mw;
+      if (gal === MILKY_WAY && rcfg.realSky && GLOBAL_U.uBand === 0) wReal = this.realSkyWeight(camLocal) * lgw.mw;   // (the photograph is visible light)
       const wModel = (gal === MILKY_WAY ? lgw.mw : gal === M31 ? lgw.m31 : 1) * form;
       const drewReal = wReal > 0 && drawSkyMap(rl, [tanX, tanY], exposure, wReal * form, betaLocal);
       this.galSky.draw(rl, [tanX, tanY], exposure, (drewReal ? 1 - wReal : 1) * wModel, betaLocal);
@@ -687,6 +749,14 @@ export class Renderer {
       this.pEarly.use().set({ uRot: camRot, uTanFov: [tanX, tanY], uNoise3: this.noise3, uPhase: e.phase === 'planck' ? 0 : e.phase === 'inflation' ? 1 : 2, uN: e.efolds || 0,
         uCol: c0.map(v => v / y), uTime: (performance.now() / 1000) % 1000, uHot: clamp(Math.log10(Math.max(e.T, 1)) / 32, 0, 1) });
       drawFS();
+    } else if (nav.late) {
+      if (!this.pLate) this.pLate = new Program('far-future', FS_VS, LATE_FS);
+      const v = lateEra(nav.late.y).vis;
+      this.dimAdapt = true;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
+      gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+      this.pLate.use().set({ uRot: camRot, uTanFov: [tanX, tanY], uRed: v.red, uRem: v.remnants, uFlash: v.flash, uPix: 2 * tanY / h, uCen: [0.31, -0.12, -0.94] });
+      drawFS();
     } else if (cosmo.T > 420) {
       // (with the frozen density ripples on it: really 1 part in 100,000, drawn ~5,000x stronger)
       if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov;
@@ -802,6 +872,15 @@ export class Renderer {
       const x = (i % 64) / 63 * 2 - 1, y = Math.floor(i / 64) / 35 * 2 - 1, rr = x * x * 0.6 + y * y;
       cells.push([l, 0.03 + 0.97 * Math.exp(-rr / 0.12)]); lum0[i] = l;
     }
+    // a small, very bright object away from the middle of the frame (the Moon in a corner of a starry sky, a supernova)
+    // should not darken everything else: let it overexpose by up to ~30x. (One in the middle is what you are looking
+    // at, and is exposed for.)
+    { const srt = Array.from(lum0).sort((a, b) => a - b), N = srt.length, ref = srt[N - 7], top = srt[N - 1];
+      if (top > 30 * Math.max(ref, 1e-30)) {
+        let central = false, cap = Math.max(ref * 3, top / 30);
+        for (let i = 0; i < N; i++) if (lum0[i] > cap) { const x = (i % 64) / 63 * 2 - 1, y = Math.floor(i / 64) / 35 * 2 - 1; if (Math.abs(x) < 0.22 && Math.abs(y) < 0.3) central = true; }
+        if (!central) for (let i = 0; i < N; i++) if (lum0[i] > cap) { lum0[i] = cap; cells[i][0] = cap; }
+      } }
     cells.sort((a, b) => a[0] - b[0]);
     let wsum = 0; for (const c of cells) wsum += c[1];
     const q = (f) => { let acc = 0; for (const c of cells) { acc += c[1]; if (acc >= f * wsum) return c[0]; } return cells[cells.length - 1][0]; };

@@ -5,7 +5,7 @@ import { gl, unbindTextures, Program, tex2D, fbo, drawFS, FS_VS, makeVAO, AsyncR
 import { V, Q, clamp } from './math.js';
 import { RNG, hashCombine } from './rng.js';
 import { NOCT, GEN_COMMON, GEN_TERRA, GEN_GAS, GEN_STAR, GEN_MAIN } from './terrain_glsl.js';
-import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE } from './atmo_glsl.js';
+import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, WEATHER_GLSL, weatherUniform } from './atmo_glsl.js';
 import { GLSL_BB } from './stars.js';
 import { bodyMaps, loadTexture } from './assets.js';
 import { plateInverse } from './tectonics.js';
@@ -34,6 +34,36 @@ void logDepth(){ vFlogz = 1.0 + gl_Position.w; gl_Position.z = (log2(max(1e-6, v
 export const LOGDEPTH_FS = `uniform float uFcoef; in float vFlogz;
 void logDepth(){ gl_FragDepth = log2(vFlogz)*uFcoef*0.5; }`;
 
+// ice ages: the southern edge (deg N) of the Northern ice sheets for the current ice volume (uIceAge.x, 1 = Last
+// Glacial Maximum), from LGM limits every 20 deg of longitude from 180 W (Laurentide, Cordilleran, Fennoscandian, ...)
+const ICE_GLSL = `uniform vec2 uIceAge;
+const float ICE_LIM[19] = float[19](72., 66., 58., 47., 45., 40., 44., 58., 62., 52., 51., 57., 62., 66., 72., 75., 74., 70., 72.);
+float iceEdgeLat(vec3 dir){
+  float lonD = degrees(atan(-(abs(dir.z) < 1e-9 ? -1e-9 : dir.z), dir.x));
+  float fi = clamp((lonD + 180.)/20., 0., 17.999); int ii = int(fi);
+  float lim = mix(ICE_LIM[ii], ICE_LIM[ii + 1], smoothstep(0., 1., fi - float(ii)));
+  return mix(82., lim, pow(min(uIceAge.x, 1.15), 0.7));
+}
+// the ice sheets' surface: domes up to ~3.3 km thick at the Last Glacial Maximum (Vialov profile from the margin, ~2,000
+// km to the centre), grounded on land and shallow shelves only (the deep Arctic Ocean had sea ice)
+float iceSheetH(vec3 dir, float h){
+  if (uIceAge.x <= 0.05 || uIceAge.x >= 2.5) return h;
+  float d = degrees(asin(clamp(dir.y, -1., 1.))) - iceEdgeLat(dir);
+  if (d <= 0.) return h;
+  float x = min(d/18., 1.), T = 3300.*min(uIceAge.x, 1.)*pow(max(1. - pow(1. - x, 4./3.), 0.), 3./8.)*smoothstep(-900., -400., h);
+  return max(h, max(h, -200.)*0.3 + T);
+}`;
+const ICE_LIM = [72, 66, 58, 47, 45, 40, 44, 58, 62, 52, 51, 57, 62, 66, 72, 75, 74, 70, 72];
+// the same in JS, for the ground under the camera
+export function iceSheetH(body, dir, h) {
+  const ice = body.iceAge || 0; if (ice <= 0.05 || ice >= 2.5) return h;
+  const lonD = Math.atan2(-(Math.abs(dir[2]) < 1e-9 ? -1e-9 : dir[2]), dir[0]) * 180 / Math.PI;
+  const fi = clamp((lonD + 180) / 20, 0, 17.999), ii = Math.floor(fi), f = fi - ii, sm = f * f * (3 - 2 * f);
+  const lim = ICE_LIM[ii] + (ICE_LIM[ii + 1] - ICE_LIM[ii]) * sm, edge = 82 + (lim - 82) * Math.pow(Math.min(ice, 1.15), 0.7);
+  const d = Math.asin(clamp(dir[1], -1, 1)) * 180 / Math.PI - edge; if (d <= 0) return h;
+  const x = Math.min(d / 18, 1), sh = clamp((h + 900) / 500, 0, 1), T = 3300 * Math.min(ice, 1) * Math.pow(Math.max(1 - Math.pow(1 - x, 4 / 3), 0), 3 / 8) * sh * sh * (3 - 2 * sh);
+  return Math.max(h, Math.max(h, -200) * 0.3 + T);
+}
 const DRAW_VS = `
 layout(location=0) in vec3 aPos;
 ${REFRACT_VS}
@@ -42,6 +72,7 @@ uniform mat4 uViewProj; uniform mat3 uRot;
 uniform vec3 uCenterRel, uQc, uFaceA, uFaceB;
 uniform float uQcLen, uSize, uRadius, uSea, uOcean, uSkirt, uGrid, uTexStep, uOblate; uniform vec3 uShape;
 out vec3 vDir; out vec2 vUV; out vec3 vWorld;
+${ICE_GLSL}
 ${LOGDEPTH_VS}
 void main(){
   vec2 uv = aPos.xy / uGrid;
@@ -53,6 +84,7 @@ void main(){
   vec3 cdir = uQc/uQcLen;
   vec3 dd = cdir*k + delta/(uQcLen*sq);
   vec3 dir = cdir + dd;
+  if (uOcean > 0.5) h = iceSheetH(normalize(dir), h);
   vec3 local = uRadius*dd + dir*(h - aPos.z*uSkirt);
   local.y *= 1. - uOblate;
   local *= uShape;     // triaxial bodies (asteroids, small moons)
@@ -95,16 +127,6 @@ float ringShadow(vec3 p, vec3 L){
 }
 `;
 
-// ice ages: the southern edge (deg N) of the Northern ice sheets for the current ice volume (uIceAge.x, 1 = Last
-// Glacial Maximum), from LGM limits every 20 deg of longitude from 180 W (Laurentide, Cordilleran, Fennoscandian, ...)
-const ICE_GLSL = `uniform vec2 uIceAge;
-const float ICE_LIM[19] = float[19](72., 66., 58., 47., 45., 40., 44., 58., 62., 52., 51., 57., 62., 66., 72., 75., 74., 70., 72.);
-float iceEdgeLat(vec3 dir){
-  float lonD = degrees(atan(-(abs(dir.z) < 1e-9 ? -1e-9 : dir.z), dir.x));
-  float fi = clamp((lonD + 180.)/20., 0., 17.999); int ii = int(fi);
-  float lim = mix(ICE_LIM[ii], ICE_LIM[ii + 1], smoothstep(0., 1., fi - float(ii)));
-  return mix(82., lim, pow(min(uIceAge.x, 1.15), 0.7));
-}`;
 const DRAW_FS = `
 in vec3 vDir; in vec2 vUV; in vec3 vWorld;
 uniform sampler2D uHeightTex, uNormTex, uAlbTex, uIrrLUT, uParentH, uGParentH; uniform vec3 uParentUV, uGParentUV;
@@ -117,6 +139,11 @@ uniform vec2 uDetailO; uniform float uChunkA;
 uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK; uniform vec4 uScars[6]; uniform int uNumScars; uniform float uMariaFill;
 ${ICE_GLSL}
 uniform samplerCube uCloudMap; uniform mat3 uCloudRotInv; uniform float uHasClouds, uCloudAlt, uShadows, uCloudTime;
+// the whole body's measured height map (Earth today, the Moon, Mars), for shadows longer than the tiles reach
+uniform sampler2D uGlobH; uniform vec2 uGlobHRange; uniform float uHasGlobH;
+float globH(vec3 n){ vec2 uv = vec2(atan(-n.z, n.x)*0.15915494 + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))*0.31830989); ivec2 sz = textureSize(uGlobH, 0);
+  vec3 c = texelFetch(uGlobH, ivec2(uv*vec2(sz)) % sz, 0).rgb; return mix(uGlobHRange.x, uGlobHRange.y, (c.r*65280. + c.g*255.)/65535.); }
+${WEATHER_GLSL}
 ${LIGHT_UNIFORMS}
 ${ATMO_UNIFORMS}${ATMO_COMMON}${ATMO_LUT_SAMPLE}
 ${GLSL_BB}
@@ -204,6 +231,7 @@ void main(){
       if (uIceAge.x > 2.5) cov = max(cov, smoothstep(2., 10., abs(latD) + nz*2.));
       vec3 iceC = vec3(0.72, 0.77, 0.84)*(0.92 + 0.16*texture(uNoise3, dir*23.).b);
       alb.rgb = mix(alb.rgb, iceC, cov); water *= 1. - cov; depth *= 1. - cov;
+      N = normalize(mix(N, uRot*dir, cov*0.85*step(uIceAge.x, 2.5)));     // (the ice surface is smooth)
     }
     // fine surface grain close to the camera (pebbles, soil clumps), fading with distance
     float near = clamp(1. - dist/900., 0., 1.);
@@ -261,7 +289,7 @@ void main(){
         // cloud shadows: follow the sun ray up to the cloud deck and look up the weather map there
         vec3 pc = (vWorld - uPlanetRel) + L*(uCloudAlt/max(mus, 0.08));
         vec3 pl = uCloudRotInv*pc;
-        float cov = texture(uCloudMap, pl).r;
+        float cov = wxCube(uCloudMap, pl).r;
         // same cloud cells as the volumetric layer, so shadows fall where the clouds are
         float day = uCloudTime/86400.;
         float S = textureLod(uNoise3, pl/52000. + 0.53 + vec3(10., 0., 3.)*day, 0.).r*0.5 + textureLod(uNoise3, pl/15000. + 0.21 + vec3(30., 0., 11.)*day, 0.).g*0.33 + textureLod(uNoise3, pl/5200. + 0.7 + vec3(100., 0., 37.)*day, 0.).b*0.17;
@@ -299,7 +327,10 @@ void main(){
       float h0 = texelFetch(uHeightTex, ivec2(clamp(vUV, 0., 1.)*(uTexSize - 1.) + 0.5), 0).r;
       float occ = 0.; float s = 1.2;
       // march towards the sun through this tile, then its parent and grandparent (2x and 4x larger, coarser)
-      for (int k = 0; k < 22; k++) {
+      // (and beyond, over the global height map: low sun throws mountain shadows tens to hundreds of km long)
+      int nk = uHasGlobH > 0.5 ? 34 : 22;
+      for (int k = 0; k < 34; k++) {
+        if (k >= nk) break;
         float dm = s*texel;
         vec2 uv2 = vUV + sl*dm/uChunkM;
         float hk;
@@ -309,13 +340,15 @@ void main(){
           if (all(greaterThanEqual(up1, vec2(0.))) && all(lessThanEqual(up1, vec2(1.)))) hk = texelFetch(uParentH, ivec2(up1*(uTexSize - 1.) + 0.5), 0).r;
           else {
             vec2 up2 = uGParentUV.xy + uv2*uGParentUV.z;
-            if (any(lessThan(up2, vec2(0.))) || any(greaterThan(up2, vec2(1.)))) break;
-            hk = texelFetch(uGParentH, ivec2(up2*(uTexSize - 1.) + 0.5), 0).r;
+            if (any(lessThan(up2, vec2(0.))) || any(greaterThan(up2, vec2(1.)))) {
+              if (uHasGlobH < 0.5 || dm > 4e5) break;
+              hk = globH(normalize(dir + (t1*sl.x + t2*sl.y)*dm/(uRadius*max(length(sl), 1e-3))));
+            } else hk = texelFetch(uGParentH, ivec2(up2*(uTexSize - 1.) + 0.5), 0).r;
           }
         }
         hk -= dm*dm/(2.*uRadius);
         float rayH = h0 + lz*dm/max(length(sl), 1e-3);
-        occ = max(occ, (hk - rayH)/(dm*0.06 + texel*0.35));
+        occ = max(occ, (hk - rayH)/(dm*min(0.06, 600./dm + 0.012) + texel*0.35));   // (penumbra: the Sun is 0.0093 rad across)
         s *= 1.38;
       }
       shade *= 1. - clamp(occ, 0., 1.)*0.92;
@@ -483,7 +516,7 @@ function drawTrees(body, st, draws, o, R, rot3) {
     if (nx * nx > budget) break;
     budget -= nx * nx;
     if (!bound) {
-      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: st.surf.sea || 0, uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex(), uRange: RANGE, uIceAge: body.iceAge ? [body.iceAge, 0] : [0, 0] }, o.light));
+      p.set(Object.assign({ uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: (st.surf.sea || 0) + (body.seaRise || 0), uOcean: st.surf.ocean || 0, uTexSize: cfg.T, uExposure: o.exposure, uHasAtmo: o.atmoLUT ? 1 : 0, uIrrLUT: o.atmoLUT ? o.atmoLUT.irr : dummyTex(), uRange: RANGE, uIceAge: body.iceAge ? [body.iceAge, 0] : [0, 0] }, o.light));
       gl.bindVertexArray(treeVAO.vao); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); bound = true;
     }
     p.set({ uHeightTex: ch.tex.h, uAlbTex: ch.tex.a, uNormTex: ch.tex.n, uCenterRel: d.cRel, uQc: ch.qc, uQcLen: ch.qlen, uFaceA: F.A, uFaceB: F.B, uSize: ch.size,
@@ -603,11 +636,12 @@ class PlanetState {
     // drifting continents (Earth): the plate map loads the first time it is needed
     const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
     // the deep past: whole paleogeographic maps instead
-    const pal = this.body.paleoMyr > 0 && mp ? paleoState(this.body.paleoMyr) : null;
+    const pal = this.body.paleoMap > 0 && mp ? paleoState(this.body.paleoMap) : null;
+    const pr = pal ? this.body.paleoRot || 0 : 0, pc = Math.cos(pr), ps = Math.sin(pr); this.paleoRot = pr;
     this.paleoMyr = pal ? pal.myr : 0;
     this.drift = dOn && !pal ? drift : 0;
     prog.set({ uDrift: this.drift, uPlates: dOn && !pal ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift),
-      uPaleo: pal ? 1 : 0, uPaleoK: pal ? pal.k : 0, uPalA: pal ? pal.a : dummyTex(), uPalB: pal ? pal.b : dummyTex(), uPaleoClim: [pal && this.body.meanT ? this.body.meanT - 287.6 : 0, pal ? paleoSeaRise(this.body.paleoMyr) : 0] });
+      uPaleo: pal ? 1 : 0, uPaleoK: pal ? pal.k : 0, uPalA: pal ? pal.a : dummyTex(), uPalB: pal ? pal.b : dummyTex(), uPalRot: new Float32Array([pc, 0, ps, 0, 1, 0, -ps, 0, pc]), uPaleoClim: [pal && this.body.meanT ? this.body.meanT - 287.6 : 0, pal ? paleoSeaRise(this.body.paleoMyr) : 0] });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
@@ -710,12 +744,12 @@ export function planetState(body) {
   if (s && age > 3000 && (body.climate || s.climate)) { const a = body.climate || { dry: 0, life: 1, ice: 1 }, b = s.climate || { dry: 0, life: 1, ice: 1 }; if (Math.abs(a.dry - b.dry) > 0.08 || Math.abs(a.life - b.life) > 0.1 || Math.abs(a.ice - b.ice) > 0.1) stale = true; }
   if (s && body.kind === 'star' && s.bakeR && Math.abs(Math.log(body.radius / s.bakeR)) > 0.35 && age > 1500) stale = true;
   if (s && body.kind === 'star' && body.surface && Math.abs((body.surface.spots || 0) - (s.bakeSpots || 0)) > 0.2 && age > 5000) stale = true;
-  if (s && body.drift !== undefined && s.maps && Math.abs((body.paleoMyr > 0 ? 0 : body.drift) - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
-  const palNow = body.paleoMyr > 0 && maps ? (paleoState(body.paleoMyr) || { myr: 0 }).myr : 0;
-  if (s && s.maps && body.paleoMyr !== undefined && Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 && age > 1500) stale = true;
+  if (s && body.drift !== undefined && s.maps && Math.abs((body.paleoMap > 0 ? 0 : body.drift) - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
+  const palNow = body.paleoMap > 0 && maps ? (paleoState(body.paleoMap) || { myr: 0 }).myr : 0;
+  if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }
@@ -797,7 +831,7 @@ export function drawPlanet(body, o) {
   gl.bindVertexArray(gridVAO.vao);
   const atmo = body.atmo && o.atmoLUT;
   p.set(Object.assign({
-    uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
+    uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0) + (body.seaRise || 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
     uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
     uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uMariaFill: body.mariaFill === undefined ? 1 : body.mariaFill, uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
@@ -805,7 +839,10 @@ export function drawPlanet(body, o) {
   }, o.light));
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
-  p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1, uCloudTime: o.time % 86400 });
+  // (the measured global height map, only while the surface is today's: no drifted or ancient continents)
+  const gmp = st.maps && st.maps.height && st.maps.height.tex && !(body.drift && Math.abs(body.drift) > 0.05) && !(body.paleoMap > 0) && !body.iceAge ? st.maps.height : null;
+  p.set({ uHasGlobH: gmp ? 1 : 0, uGlobH: gmp ? gmp.tex : dummyTex(), uGlobHRange: (body.maps && body.maps.hRange) || [0, 1] });
+  p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1, uCloudTime: o.time % 86400, uWx: cl ? weatherUniform(body, o.time) : [0, 0, 0, 0] });
   for (const d of draws) {
     const ch = d.ch, F = FACES[ch.face];
     // origin of this tile in metres along the face, wrapped, for stable small scale effects

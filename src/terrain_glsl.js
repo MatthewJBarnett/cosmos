@@ -68,7 +68,7 @@ vec3 plateSrc(vec3 P){
 }
 // ---- paleogeography (Earth before ~3 Myr ago): PALEOMAP elevation grids (Scotese & Wright 2018), 1 degree, every
 // 5 Myr back to 540 Myr; two neighbouring epochs are blended. 361 x 181 nodes, 16-bit heights in R and G (-8 .. +8 km).
-uniform float uPaleo, uPaleoK; uniform sampler2D uPalA, uPalB;
+uniform float uPaleo, uPaleoK; uniform sampler2D uPalA, uPalB; uniform mat3 uPalRot;   // (illustrative maps: turned about the pole)
 uniform vec2 uPaleoClim;   // x: global mean temperature minus today's (C); y: sea level rise over the map (m)
 float palTexel(sampler2D s, ivec2 i){ i.x = (i.x % 360 + 360) % 360; i.y = clamp(i.y, 0, 180); vec3 c = texelFetch(s, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.*16000. - 8000.; }
 float palCubic(sampler2D s, vec2 uv){
@@ -81,7 +81,7 @@ float palCubic(sampler2D s, vec2 uv){
   }
   return r;
 }
-float paleoHeight(vec3 P){ vec2 uv = mapUV(P); return mix(palCubic(uPalA, uv), palCubic(uPalB, uv), uPaleoK); }
+float paleoHeight(vec3 P){ vec2 uv = mapUV(uPalRot*P); return mix(palCubic(uPalA, uv), palCubic(uPalB, uv), uPaleoK); }
 float hTexel(ivec2 i, ivec2 sz){ i.x = (i.x % sz.x + sz.x) % sz.x; i.y = clamp(i.y, 0, sz.y - 1); vec3 c = texelFetch(uHMap, i, 0).rgb; return (c.r*65280. + c.g*255.)/65535.; }
 // smooth (cubic B-spline) height lookup so map pixels never show as facets
 float heightMap(vec2 uv){
@@ -346,7 +346,7 @@ vec3 paleoAlbedo(vec3 P, float h, vec3 d){
   float sl = P.y*P.y, latD = degrees(asin(clamp(abs(P.y), 0., 1.))), an = uPaleoClim.x;
   float T = 28. - 45.*sl + an*(1. + 1.5*sl) - max(h, 0.)*0.0065;
   // moisture from the sea: upwind is east in the trade-wind belt, west under the westerlies
-  vec2 uv = mapUV(P); ivec2 c = ivec2(uv*vec2(360., 180.) + 0.5); float sea = 0.;
+  vec2 uv = mapUV(uPalRot*P); ivec2 c = ivec2(uv*vec2(360., 180.) + 0.5); float sea = 0.;
   for (int k = 0; k < 8; k++) {
     float a = float(k)*0.7854; ivec2 o = ivec2(round(vec2(cos(a), sin(a))*7.));
     float z = mix(palTexel(uPalA, c + o), palTexel(uPalB, c + o), uPaleoK) - uPaleoClim.y, w = latD < 33. ? 1. + 0.8*cos(a) : 1. - 0.8*cos(a);

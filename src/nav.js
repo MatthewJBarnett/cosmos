@@ -9,11 +9,12 @@ import { EXTRA_STARS, extraStarPos } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { StarField, sunDescriptor } from './starfield.js';
 import { StarSystem, starName } from './system.js';
-import { planetState } from './planet.js';
+import { iceSheetH, planetState } from './planet.js';
 import { descPosP, updateWorld, YEAR, world } from './galdyn.js';
 import { GLOBULARS, globularNebulae } from './globulars.js';
 import { apparentPosU, cosmo } from './cosmology.js';
 import { earlyState, T_PLANCK } from './earlyuniverse.js';
+import { LATE_START, LATE_END } from './farfuture.js';
 import { visibleGalaxyCells } from './sky.js';
 
 const PC = C.PC, MPC = C.PC * 1e6;
@@ -82,7 +83,9 @@ export function targetName(t) {
 
 // the Big Bang in simulation seconds (since J2000), and how long the early clock is used
 export const BB_S = -13.79e9 * YEAR, EARLY_MAX = 1e7;
-// decades of time per real second in the early universe, from the rate setting
+// where the late clock takes over (100 trillion years)
+export const LATE_T = LATE_START * YEAR;
+// decades of time per real second in the early universe (and the far future), from the rate setting
 export const earlyDecades = (rate) => Math.sign(rate) * clamp(0.1 + 0.15 * Math.log10(Math.max(Math.abs(rate), 1)), 0.05, 3);
 
 export class Nav {
@@ -244,6 +247,7 @@ export class Nav {
           if (h2 > sea + 60) { dir = d2; h = h2; break search; }
         }
       }
+      h = iceSheetH(body, Q.rot(inv, dir), h);    // (on an ice-age ice sheet: its surface)
     }
     const off = V.mul(dir, body.radius + h + (body.surface.gen === 'terra' ? 1200 : body.radius * 0.02));
     this.goTo({ type: 'body', body, offset: off }, Object.assign({ dist: 1, land: { dir } }, opt));
@@ -339,6 +343,7 @@ export class Nav {
   }
 
   // jump to t seconds after the Big Bang on the early clock
+  setLate(y) { this.early = null; this.late = { y: Math.min(Math.max(y, LATE_START), LATE_END) }; this.time = LATE_T; this.late.set = this.time; }
   setEarly(t) { this.early = { t: Math.max(t, T_PLANCK) }; this.time = BB_S + this.early.t; this.early.set = this.time; }
   // ----- per frame -----
   update(dt, input) {
@@ -354,6 +359,9 @@ export class Nav {
     // the first ~4 months: a clock in seconds since the Big Bang (J2000 seconds only resolve ~1 minute there), running
     // logarithmically, from ~0.1 decades per second at real time up to a few decades per second at fast rates
     if (this.early && Math.abs(this.time - this.early.set) > 1) this.early = this.time - BB_S < EARLY_MAX ? { t: Math.max(this.time - BB_S, T_PLANCK) } : null;
+    // (beyond the last stars the late clock runs instead; a time set from outside ends it)
+    if (this.late && Math.abs(this.time - this.late.set) > 1) this.late = null;
+    if (this.late) dAdv = 0;
     if (this.early) {
       if (!this.paused) this.early.t *= Math.pow(10, earlyDecades(this.rate) * dt);
       if (this.early.t <= T_PLANCK * 1.0001 && this.rate < 0) { this.early.t = T_PLANCK; this.paused = true; this.atPlanck = true; }
@@ -364,6 +372,14 @@ export class Nav {
       if (this.time < BB_S + EARLY_MAX) { this.early = { t: Math.max(this.time - BB_S, T_PLANCK) }; this.time = BB_S + this.early.t; }
     }
     if (this.early) this.early.set = this.time;
+    // after 100 trillion years: a logarithmic clock in years to 1e110, with the world held at its last state
+    if (this.late) {
+      if (!this.paused) this.late.y *= Math.pow(10, earlyDecades(this.rate) * dt);
+      if (this.late.y >= LATE_END && this.rate > 0) { this.late.y = LATE_END; this.paused = true; }
+      if (this.late.y < LATE_START && this.rate < 0) { this.late = null; this.time = LATE_T * (1 - 1e-6); }
+      else this.time = LATE_T;
+    } else if (this.time > LATE_T && !this.early) { this.late = { y: LATE_START * this.time / LATE_T }; this.time = LATE_T; }
+    if (this.late) this.late.set = this.time;
     const an0 = this.anchor;
     // time-lapse near a planet: faster than about a sixth of an orbit per second its phase and seasons would flicker
     // from frame to frame; advance in whole orbits instead so the lit face holds still while the ages pass
@@ -512,7 +528,8 @@ export class Nav {
       if (anchor.surface && anchor.surface.gen === 'terra' && d - anchor.radius < Math.max(anchor.radius * 0.02, (anchor.surface.hmax || 0) * 3 + 3000)) {
         const st = planetState(anchor), dirL = Q.rot(Q.conj(anchor.wrot), V.mul(rel, 1 / d));
         if (this.sync) h = st.queryHeight(dirL);
-        else { const r = st.queryHeightAsync(dirL); h = r === null ? (anchor._groundH || 0) : r; }
+        else { const r = st.queryHeightAsync(dirL); h = r === null ? (anchor._groundH || 0) : iceSheetH(anchor, dirL, r); }
+        if (this.sync) h = iceSheetH(anchor, dirL, h);
         st.groundH = h;
       } else if (anchor.surface) planetState(anchor).groundH = 0;
       anchor._groundH = h;

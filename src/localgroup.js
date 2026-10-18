@@ -5,7 +5,7 @@
 // Units: kpc, Myr, solar masses. Frame: centre of mass of the pair, axes of the Milky Way at the present epoch.
 import { gl, Program, tex2D, fbo, drawFS, FS_VS, texCube } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
-import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents, lmcAt, LMC_ORBIT } from './lgorbit.js';
+import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents, lmcAt, LMC_ORBIT, sgrAt, SGR_ORBIT } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
 import { sunPos, YEAR, sunHook, popFade } from './galdyn.js';
 import { CUBE_FACES } from './atmosphere.js';
@@ -26,6 +26,9 @@ const M33_OFF = M33 ? V.sub(M33.posU, M31.posU) : null;
 const LMC = REAL_GALAXIES.filter(g => /Magellanic/.test(g.name));
 // (the SMC rides along with the LMC; positions move from the catalogue ones by the orbit's displacement)
 const MC0 = LMC.map(g => g.posU.slice());
+const SGR = REAL_GALAXIES.find(g => g.sgr), SGR0 = SGR ? SGR.posU.slice() : null;
+// the Sagittarius dwarf's light: brighter when it fell in (~6 Gyr ago it had ~10x its present stars), gone in ~1 Gyr
+export const sgrLum = (tMyr) => tMyr < 0 ? 1 + 4 * clamp(-tMyr / 5000, 0, 1) : clamp(1 - tMyr / 1000, 0, 1);
 export const LMC_MERGE = LMC_ORBIT.merged > 0 ? LMC_ORBIT.merged : 2400;
 
 // GLSL acceleration from both galaxies (must match accJS below)
@@ -271,6 +274,7 @@ export function updateLocalGroupPositions(tyr) {
   const lm = lmcAt(tMyr), l0 = LMC_ORBIT.r0, dl = [(lm[0] - l0[0]) * 1e-3, (lm[1] - l0[1]) * 1e-3, (lm[2] - l0[2]) * 1e-3];
   const sink = clamp(1 - (tMyr - LMC_MERGE + 300) / 300, 0, 1);      // (the SMC is torn apart and falls in with it)
   LMC.forEach((g, i) => { const q = V.add(MC0[i], dl); g.posU = i ? V.add(LMC[0].posU, V.mul(V.sub(MC0[i], MC0[0]), sink)) : q; });
+  if (SGR) { const sg = sgrAt(tMyr), s0 = SGR_ORBIT.r0; SGR.posU = V.add(SGR0, [(sg[0] - s0[0]) * 1e-3, (sg[1] - s0[1]) * 1e-3, (sg[2] - s0[2]) * 1e-3]); SGR.lum = 0.04 * sgrLum(tMyr); }
   const lmcMoved = Math.abs(tMyr - lastLmcT) > 0.5; if (lmcMoved) lastLmcT = tMyr;
   return moved || lmcMoved;
 }
@@ -284,6 +288,6 @@ export function lgWeights(tyr) {
   const m31 = clamp(1 - (t - LG_START) / 250, 0, 1);
   const mw = clamp(1 - (t - MW_FADE[0]) / (MW_FADE[1] - MW_FADE[0]), 0, 1);
   const lmc = clamp(1 - (t - LMC_MERGE + 100) / 200, 0, 1);
-  return { m31, mw, lmc, tMyr: t };
+  return { m31, mw, lmc, sgr: sgrLum(t), tMyr: t };
 }
 export function initLocalGroupPrograms() { LG.initGL(); }

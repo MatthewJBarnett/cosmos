@@ -2,7 +2,7 @@
 import { cityEra } from './planet.js';
 import { gl, Program, tex2D, texCube, fbo, drawFS, FS_VS } from './gl.js';
 import { Q, V, clamp } from './math.js';
-import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, ATMO_TRANS_FS, ATMO_MULTI_FS, ATMO_IRR_FS } from './atmo_glsl.js';
+import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_SAMPLE, ATMO_TRANS_FS, ATMO_MULTI_FS, ATMO_IRR_FS, WEATHER_GLSL, weatherUniform } from './atmo_glsl.js';
 import { LIGHT_UNIFORMS } from './planet.js';
 import { loadTexture } from './assets.js';
 
@@ -81,6 +81,7 @@ in vec2 vUV;
 uniform sampler2D uScene, uDepth;
 uniform sampler3D uNoise3, uWorley3;
 uniform samplerCube uCloudMap; uniform sampler2D uCloudTex2; uniform vec4 uCyc[4]; uniform int uNumCyc;
+${WEATHER_GLSL}
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
@@ -103,8 +104,8 @@ float cloudShadowAt(vec3 p, vec3 L){
   vec3 q = p + L*((mid - r)/max(mu, 0.06));
   vec3 dir = normalize(uPlanetRotInv*q);
   float cov;
-  if (cMapped > 0.5) { vec2 uv = vec2(atan(-dir.z, dir.x)*0.15915494 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))*0.31830989); cov = smoothstep(0.12, 0.6, textureLod(uCloudTex2, uv, 2.).r); }
-  else cov = texture(uCloudMap, dir).r;
+  if (cMapped > 0.5) cov = smoothstep(0.12, 0.6, wxMap(uCloudTex2, dir, 2.));
+  else cov = wxCube(uCloudMap, dir).r;
   return smoothstep(0.15, 0.85, cov);
 }
 // aurora: emission from the auroral ovals around the geomagnetic poles (night side)
@@ -169,9 +170,9 @@ float cloudDensity(vec3 p, bool cheap, float lod, out float hfrac){
     // observed clouds straight from the equirectangular map (smoother than the cube), plus detail
     vec2 uv = vec2(atan(-dir.z, dir.x)*0.15915494 + 0.5, 0.5 - asin(clamp(dir.y, -1., 1.))*0.31830989);
     float mlod = log2(max(lodDist*uPixAngle/(6.2832*aR0/float(textureSize(uCloudTex2, 0).x)), 1.));
-    float v = textureLod(uCloudTex2, uv, mlod).r;
+    float v = wxMap(uCloudTex2, dir, mlod);
     wm = vec4(smoothstep(0.08, 0.55, v), smoothstep(0.4, 0.9, v), 1., 0.);
-  } else wm = texture(uCloudMap, dir);
+  } else wm = wxCube(uCloudMap, dir);
   float cov = wm.r;
   if (uNumCyc > 0) { float cy = cycloneCover(dir); cov = max(cov, cy); wm.g = max(wm.g, cy); }
   if (cov < 0.01) return 0.;
@@ -351,10 +352,23 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
       a1 = min(a1, tmax + 1e6);
       if (a1 > a0) {
         vec3 Ld0 = normalize(uLightPos[0] - uPlanetRel);
-        const int NA = 40; float dta = (a1 - a0)/float(NA);
         vec3 Ea = vec3(0.);
-        for (int i = 0; i < NA; i++) { vec3 pa = ro + rd*(a0 + (float(i) + jit)*dta); Ea += auroraEmission(pa, length(pa) - aR0, Ld0); }
-        L += Ea*dta*(a0 < cloudDist ? 1. : cloudT);
+        // from orbit, looking down through the shell: sample at fixed altitudes (denser low down, where the green
+        // light is) rather than along the long slant path, so neighbouring pixels agree (no grain or streaks)
+        float cosI = 0., s0, s1;
+        if (o0 > 0. && raySphere(ro, rd, aR0 + 110000., s0, s1) > 0. && s0 > 0.) cosI = abs(dot(normalize(ro + rd*s0), rd));
+        if (cosI > 0.3) {
+          const int NL = 28;
+          for (int i = 0; i < NL; i++) {
+            float u = (float(i) + 0.5)/float(NL), alt = 85000. + 295000.*u*u, dalt = 295000.*2.*u/float(NL);
+            if (raySphere(ro, rd, aR0 + alt, s0, s1) > 0. && s0 > 0. && s0 < tmax + 1e6) { vec3 pa = ro + rd*s0; Ea += auroraEmission(pa, alt, Ld0)*dalt/max(abs(dot(normalize(pa), rd)), 0.3); }
+          }
+          L += Ea*(a0 < cloudDist ? 1. : cloudT);
+        } else {
+          const int NA = 40; float dta = (a1 - a0)/float(NA);
+          for (int i = 0; i < NA; i++) { vec3 pa = ro + rd*(a0 + (float(i) + jit)*dta); Ea += auroraEmission(pa, length(pa) - aR0, Ld0); }
+          L += Ea*dta*(a0 < cloudDist ? 1. : cloudT);
+        }
       }
     }
   }
@@ -533,14 +547,17 @@ export function atmoUniforms(body) {
   const dq = Math.round((body.dust || 0) * 10) / 10, k = 1 + 8 * dq, aq = Math.round((body.aerosol || 0) * 10) / 10;
   // (an atmosphere that thickens and thins with the seasons, like Pluto's: a density factor, in steps)
   const ak = Math.exp(Math.round(Math.log(body.atmoK || 1) * 4) / 4);
-  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh.map(x => x * ak), aHR: a.hR, aMieS: a.mieS.map(x => x * (k + 3 * aq) * ak), aMieA: a.mieA.map(x => x * k * ak), aHM: a.hM * (1 + 1.2 * dq), aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
+  // (the Archean organic haze: brownish, absorbing blue, spread through the lower stratosphere; optical depth ~1 in blue)
+  const hz = Math.round((body.haze || 0) * 4) / 4, hM = a.hM * (1 + 1.2 * dq) + 6000 * hz;
+  const HS = [5e-5, 4e-5, 2.6e-5], HA = [0.4e-5, 1.6e-5, 5e-5];
+  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh.map(x => x * ak), aHR: a.hR, aMieS: a.mieS.map((x, i) => x * (k + 3 * aq) * ak + HS[i] * hz), aMieA: a.mieA.map((x, i) => x * k * ak + HA[i] * hz), aHM: hM, aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
 }
 
 const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y,-Y,+Z,-Z)
   [0, 0, -1, 0, -1, 0, 1, 0, 0], [0, 0, 1, 0, -1, 0, -1, 0, 0], [1, 0, 0, 0, 0, 1, 0, 1, 0], [1, 0, 0, 0, 0, -1, 0, -1, 0], [1, 0, 0, 0, -1, 0, 0, 0, 1], [-1, 0, 0, 0, -1, 0, 0, 0, -1]];
 export { CUBE_FACES };
 
-const paleoCloudKey = (body) => body.paleoMyr > 0 ? Math.floor(body.paleoMyr / 50) + 1 : 0;
+const paleoCloudKey = (body) => body.paleoMap > 0 ? Math.floor((body.paleoMyr || 1e4 + body.paleoMap) / 50) + 1 : 0;
 function buildCloudCube(body, l) {
   const c = body.atmo.clouds, S = atmoCfg.cloudRes;
   const ms = body.maps && body.maps._state && body.maps._state.ready ? body.maps._state : null;
@@ -583,7 +600,7 @@ export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
   // (dusty atmospheres are rebuilt when the dust load changes by a step)
-  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4);
+  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4) + 1e6 * Math.round((body.haze || 0) * 4);
   if (l && (l.dq || 0) !== dq) { gl.deleteTexture(l.trans); gl.deleteTexture(l.multi); gl.deleteTexture(l.irr); if (l.cloud) gl.deleteTexture(l.cloud); luts.delete(body.uid); l = null; }
   if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)) || (l.palCl || 0) !== paleoCloudKey(body))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
@@ -636,7 +653,7 @@ export function drawAtmosphere(body, o) {
     uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0], uAurB: body.auroraB || 1,
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds && !(body.climate && body.climate.dry > 0.98) ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density * (body.climate ? 1 - body.climate.dry : 1) : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
-    uCyc: cycUniform(body, o.time), uNumCyc: body.cyclones ? Math.min(4, body.cyclones.length) : 0,
+    uCyc: cycUniform(body, o.time), uNumCyc: body.cyclones ? Math.min(4, body.cyclones.length) : 0, uWx: weatherUniform(body, o.time),
   });
   drawFS();
 }

@@ -8,9 +8,10 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol, seaLevelRise, archeanHaze, impactFlux, lastBigImpact, stratWater } from './evolution.js';
+const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3).toLocaleString('en') + ',000 years' : (y / 1e6).toFixed(y < 1e7 ? 1 : 0) + ' million years';
 import { driftMyr } from './tectonics.js';
-import { PALEO_START } from './paleo.js';
+import { PALEO_START, paleoMap } from './paleo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
@@ -509,7 +510,11 @@ export class StarSystem {
         b.cyclones = tropicalCyclones(t, b.solarLon || 0, b.climate);
         // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W today; in the PALEOMAP frame the
         // globe shows then, Yucatan sat at about 24.4 N 66.5 W
-        { const ageH = (t / YEAR - KPG_YR) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 24.4 * D2R, lo = -66.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null; }
+        { const ageH = (t / YEAR - KPG_YR) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 24.4 * D2R, lo = -66.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null;
+          // other giant impacts, at the rate of the epoch (hundreds of times today's during the heavy bombardment)
+          const bi = !b.impact && b.climate.magma === 0 ? lastBigImpact(tyr, 15) : null;
+          if (bi) { b.impact = [Math.cos(bi.lat) * Math.cos(bi.lon), Math.sin(bi.lat), -Math.cos(bi.lat) * Math.sin(bi.lon), bi.ago * 8766]; if (bi.ago * 8766 < 30) b.noClouds = true; } }
+        b.impactFlux = impactFlux(tyr); b.haze = archeanHaze(tyr); b.stratWater = stratWater(tyr);
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
         // (an icier Earth reflects more: brighter earthshine on the Moon; Snowball Earth ~0.6)
         b.albedo = 0.3 + (b.climate.snowball ? 0.3 : 0.025 * Math.min(b.iceAge || 0, 1.1));
@@ -517,7 +522,9 @@ export class StarSystem {
         b.meanT = earthMeanT(tyr, b.climate, b.climate.snowball ? 0 : iceAge(tyr) * b.climate.ice) - 3 * Math.min(b.aerosol || 0, 1); b.air = earthAir(tyr); b.lifeNow = earthLife(tyr, b.climate);
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
+        b.seaRise = seaLevelRise(tyr, b.climate);
         b.drift = driftMyr(tyr); b.paleoMyr = tyr < -PALEO_START * 1e6 ? -tyr / 1e6 : 0;
+        { const pm = paleoMap(tyr); b.paleoMap = pm ? pm.map : 0; b.paleoRot = pm ? pm.rot : 0; b.paleoStand = pm ? pm.stand : ''; }
       }
       // sea ice follows the seasons (lagging the solstices): the Arctic peaks in March and is smallest in September,
       // the Antarctic the other way round; the Sun's longitude from the equinox of date sets the phase
@@ -1029,6 +1036,19 @@ export function describeBody(b) {
     } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P * (b.atmoK || 1) / 101325) + ' atm' + (b.atmoK && b.atmoK < 0.3 ? ' (freezing out onto the surface)' : '')]); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
     if (b.volcano) rows.push(['Sky', 'volcanic haze from ' + b.volcano + ' (vivid sunsets, global cooling)']);
+    else if (b.haze > 0.05) rows.push(['Sky', 'orange organic haze (methane-rich air, like Titan)']);
+    if (b.stratWater > 0.5) rows.push(['Stratosphere', '+' + Math.round(b.stratWater) + '% water vapour from Hunga Tonga (2022)']);
+    if (b.seaRise !== undefined && Math.abs(b.seaRise) > 0.01 && !b.paleoMyr) rows.push(['Sea level', (b.seaRise > 0 ? '+' : '') + (Math.abs(b.seaRise) < 3 ? b.seaRise.toFixed(2) : Math.round(b.seaRise)) + ' m vs 2000' + (b.iceAge > 0.05 ? ' (ice sheets: ' + Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m)' : '')]);
+    else if (b.iceAge > 0.05 && b.iceAge < 2.5) rows.push(['Sea level', Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m (water locked in ice sheets)']);
+    if (b.impactFlux > 3 || (b.name === 'Moon' && b.system && impactFlux(b.system.tyr || 0) > 3)) { const f = b.impactFlux || impactFlux(b.system.tyr || 0), T = -(b.system && b.system.tyr || 0) / 1e9;
+      rows.push(['Impacts', Math.round(f).toLocaleString('en') + 'x today' + (T > 3.8 && T < 4.0 ? ' (the Late Heavy Bombardment, if it happened)' : '') + (b.impactFlux ? '; a 10 km asteroid every ~' + fmtYr(1e8 / f) : '')]); }
+    if (b.name === 'Jupiter' && b.system && b.system.desc && b.system.desc.sol) {
+      // the Great Red Spot's east-west length (Simon et al. 2018; Juno and Hubble since): shrinking for 150 years,
+      // becoming rounder
+      const y = 2000 + (b.system.tyr || 0), G = [[1879, 39000], [1979, 23300], [1995, 21000], [2014, 16500], [2024, 14000], [2040, 11500]];
+      if (y >= 1830 && y <= 2040) { let i = 1; while (i < G.length - 1 && G[i][0] < y) i++; const [a, la] = G[i - 1], [c2, lc] = G[i], L = y < 1879 ? 39000 : la + (lc - la) * (y - a) / (c2 - a);
+        rows.push(['Great Red Spot', (Math.round(L / 500) * 500).toLocaleString('en') + ' km long' + (y > 1885 ? ' (shrinking: ~39,000 km in 1879)' : '') + (y > 2025 ? ', projected' : '')]); }
+    }
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);

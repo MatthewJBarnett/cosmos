@@ -1,6 +1,6 @@
 // Deep sky rendering: distant galaxies (ray marched impostors), the host galaxy seen from inside (cubemap),
 // and point light sources (stars, unresolved planets) with photometric brightness.
-import { gl, Program, texCube, fbo, drawFS, FS_VS, makeVAO } from './gl.js';
+import { gl, Program, texCube, fbo, drawFS, FS_VS, makeVAO, GLOBAL_U } from './gl.js';
 import { V, Q } from './math.js';
 import { GLSL_GALAXY, GLEVELS, galaxyCell, REAL_GALAXIES, galUniforms } from './universe.js';
 import { GLSL_BB } from './stars.js';
@@ -105,11 +105,12 @@ void main(){
     float tw = sin(ph) * 0.6 + sin(ph*2.31 + 1.7)*0.4;
     flux *= max(0., 1. + tw*uTwinkle*min(0.15*am, 0.85));
   }
+  flux *= bandBB(T);                          // (in another observing band: the black body's emission there)
   float I = flux/uPxSA*uExposure*uBoost;     // energy in units of one fully lit pixel
   float sig = 0.62*uPixScale;
   float peak = I/(6.2832*sig*sig);
   if (peak > 3.) { sig = min(sqrt(I/(6.2832*3.)), 2.6*uPixScale); peak = I/(6.2832*sig*sig); }
-  vec3 c = bbColor(T); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec3 c = bandColor(T, bbColor(T)); c /= dot(c, vec3(0.2126, 0.7152, 0.0722));
   vCol = c*min(peak, 4000.); vSig = sig;
   gl_Position = uViewProj*vec4(refractLift(p), 1.); gl_Position.z = 0.;
   gl_PointSize = peak < 0.0012 || distance(p, uHide) < 2e-3 ? 0. : ceil(sig*6. + 1.) * (peak > 30. ? min(1. + log(peak/30.)*0.9, 6.) : 1.);
@@ -152,20 +153,33 @@ void main(){
 // ---------- galaxy impostors ----------
 const GAL_VS = `
 layout(location=0) in vec2 aCorner;
-layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum;
+layout(location=1) in vec4 aCen; layout(location=2) in vec4 aQuat; layout(location=3) in vec4 aP0; layout(location=4) in vec4 aP1; layout(location=5) in vec4 aP2; layout(location=6) in float aLum; layout(location=7) in vec4 aPsi;
 uniform mat4 uViewProj; uniform vec3 uOffset, uOrigin, uCamU; uniform float uPxPerRad, uScale, uTmyr, uYrs, uDtYrs; uniform vec3 uSkip;
 out vec3 vWorld; flat out vec3 vCen; flat out vec4 vQuat, vP0, vP1, vP2; flat out vec2 vLum; flat out float vPx; flat out vec2 vCos; flat out float vTauE; flat out vec3 vSN; flat out float vQSO;
 ${COSMO_GLSL}
 ${REL_GLSL}
+float growthD(float a){ float om = 0.31/(0.31 + 0.69*a*a*a); return a*2.5*om/(pow(om, 4./7.) - (1. - om) + (1. + om/2.)*(1. + (1. - om)/70.)); }
 void main(){
   // expanding universe: seen with the light travel delay, smaller, dimmer and redder as time goes on
-  vec3 wp = aCen.xyz + uOrigin; vec3 cv = cosmoView(length(wp));
+  vec3 wp = aCen.xyz + uOrigin;
+  // the galaxy as it was when this light left it: none before ~300 Myr, then small, blue and star-bursting
+  float chi = length(wp), aE = chi < 3. ? uAobs : exp(cosmoLnA(uUobs + chi));
+  vTauE = chi < 3. ? uTauObs : cosmoTau(aE);
+  // structure grows: seen earlier, galaxies sit back towards where their matter came from (the web is less sharp), by
+  // the linear growth factor between then and the observer's now (Carroll, Press & Turner 1992)
+  wp -= (1. - growthD(aE)/growthD(uAobs))*aPsi.xyz;
+  // a merger: the companion closes in over its last ~2 Gyr (orbiting, the separation shrinking) and is gone after
+  if (aPsi.w < 0.) {
+    float mt = -aPsi.w, s = clamp((mt - vTauE)/2., 0., 1.), h = fract(sin(dot(aCen.xyz, vec3(17.1, 31.7, 7.3)))*43758.5);
+    vec3 ax = normalize(vec3(h - 0.5, fract(h*13.7) - 0.5, fract(h*91.3) - 0.5)), e1 = normalize(cross(ax, vec3(0.31, 0.83, 0.47))), e2 = cross(ax, e1);
+    float ang = h*6.2832 + (mt - vTauE)*2.2, sep = aCen.w*(1.15 + 9.*pow(s, 0.7));
+    wp += (e1*cos(ang) + e2*sin(ang))*sep;
+    if (vTauE >= mt) { gl_Position = vec4(2., 2., 2., 1.); return; }
+  }
+  vec3 cv = cosmoView(length(wp));
   vec3 c = wp*cv.x - uCamU; float d = length(c);
   float Dop; c = aberrate(c/max(d, 1e-12), Dop)*d;
   vCos = vec2(cv.y*Dop*Dop*Dop, cv.z/Dop);
-  // the galaxy as it was when this light left it: none before ~300 Myr, then small, blue and star-bursting
-  float chi = length(wp);
-  vTauE = chi < 3. ? uTauObs : cosmoTau(exp(cosmoLnA(uUobs + chi)));
   // supernovae: roughly one per 60 years in a Milky Way sized galaxy (more while young and star forming); at peak one
   // can rival its whole galaxy for a few weeks. Too short to see once a frame spans more than a few months.
   vSN = vec3(0.);
@@ -209,6 +223,10 @@ const GAL_FS2 = `
 in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN; flat in float vQSO;
 // cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
 // Young galaxies (seen as they were in the first few billion years) are forming stars fast: brighter and bluer.
+
+uniform float uScale; uniform int uMaxSteps;
+out vec4 o;
+${GLSL_GALAXY}
 vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1., 6., vTauE);
   vec3 evo = smoothstep(0.18, 1.0, vTauE)*(1. + 1.2*young)*mix(vec3(1.), vec3(0.72, 0.88, 1.3), young*0.7);
   // once star formation has run out of gas, the hot blue stars die first: galaxies yellow, then glow dull red (red dwarfs)
@@ -218,12 +236,10 @@ vec3 zTint(){ float k = log2(max(vCos.y, 1.)); float young = 1. - smoothstep(1.,
   // while the gas is still neutral, before z ~ 7, then the Lyman-alpha forest); in visible light (400-700 nm) galaxies
   // beyond z ~ 5 fade out (they are found as "dropouts" and seen in the infrared)
   float zr = vCos.y - 1., za = pow(13.79/max(vTauE, 0.05), 0.6667) - 1.;
-  float fb = clamp((121.6*(1. + zr) - 400.)/300., 0., 1.), ion = smoothstep(9., 6.5, za);
+  float lo = uBand == 1 ? 150. : uBand == 2 ? 1000. : uBand == 0 ? 400. : 1e9, wd = uBand == 2 ? 1500. : 300.;   // (the band's blue edge)
+  float fb = clamp((121.6*(1. + zr) - lo)/wd, 0., 1.), ion = smoothstep(9., 6.5, za);
   evo *= 1. - fb*(1. - exp(-mix(30., 0.0018*pow(1. + za, 3.92), ion)));
   return vCos.x*exp2(-k*vec3(0.15, 0.7, 1.5))*evo; }
-uniform float uScale; uniform int uMaxSteps;
-out vec4 o;
-${GLSL_GALAXY}
 vec3 qrot(vec4 q, vec3 v){ return v + 2.*cross(q.xyz, cross(q.xyz, v) + q.w*v); }
 float ign(vec2 p){ return fract(52.9829189*fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main(){
@@ -245,6 +261,9 @@ void main(){
     float t = sqrt(t2);
     float tot = (g.type < 0.5 ? 0.45 : 0.2 + 0.02*g.bulge)/(vLum.y*vLum.y)*1.6;
     vec3 col = mix(vec3(1.0, 0.82, 0.6), vec3(0.8, 0.86, 1.0), clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.));
+    // (the same mix of old and young light, dust and gas in other bands)
+    if (uBand != 0) { vec3 cO, cY, cH; bandCols(cO, cY, cH); float yy = clamp(g.young*0.5, 0., 1.)*(g.type < 0.5 ? 0. : 1.);
+      col = cO*(1. - yy) + cY*yy*1.5 + cH*yy*0.5 + (uBand == 3 ? vec3(1., 0.42, 0.16)*g.dust*0.3*(g.type < 0.5 ? 0.1 : 1.) : vec3(0.)) + (uBand == 6 ? vec3(0.5, 0.75, 1.)*(g.type < 0.5 ? 0.3 : 0.06) : vec3(0.)); }
     // a supernova in this galaxy: a point (one pixel wide) at its position in the disk
     vec3 sn = vec3(0.);
     if (vSN.z > 0.001) {
@@ -253,7 +272,7 @@ void main(){
       sn = vec3(0.85, 0.9, 1.0)*vSN.z*tot*0.98*exp(-dot(dd, dd)/(2.*sg*sg))/(6.2832*sg*sg);
     }
     // an active nucleus: a point at the centre (blue-white, power-law continuum)
-    if (vQSO > 0.) { float sg = 0.7/max(vPx*1.08*vLum.y, 1e-3); sn += vec3(0.8, 0.88, 1.0)*vQSO*tot*exp(-(x*x + y*y)/(2.*sg*sg))/(6.2832*sg*sg); }
+    if (vQSO > 0.) { float sg = 0.7/max(vPx*1.08*vLum.y, 1e-3), qb = uBand == 6 ? 8. : uBand == 5 ? 3. : uBand == 1 ? 2. : uBand >= 3 ? 0.3 : 1.; sn += vec3(0.8, 0.88, 1.0)*qb*vQSO*tot*exp(-(x*x + y*y)/(2.*sg*sg))/(6.2832*sg*sg); }
     o = vec4((col*tot*gsn + sn)*g.lum*uScale*zTint(), 1.); return;
   }
   vec4 qi = vec4(-vQuat.xyz, vQuat.w);
@@ -389,18 +408,22 @@ const galBuffers = new Map();
 function galCellVAO(cell) {
   let b = galBuffers.get(cell.key);
   if (b) return b;
-  const n = cell.list.length, data = new Float32Array(n * 21);
-  cell.list.forEach((g, i) => {
-    const o = i * 21, u = galUniforms(g);
-    data.set([g.posU[0] - cell.origin[0], g.posU[1] - cell.origin[1], g.posU[2] - cell.origin[2], g.radius * 1e-6], o);
-    data.set(g.quat, o + 4);
-    data.set([u.type, u.bulge, u.rb, u.arms, u.pitch, u.armStr, u.dust, u.seed, u.hz, u.bar, u.flatn, u.young, u.lum], o + 8);
-  });
+  // (galaxies that merged within the last ~10 Gyr get a second instance, the companion, drawn only before the merger)
+  const comp = cell.list.filter(g => g.mergeT > 0), n = cell.list.length + comp.length, S = 25, data = new Float32Array(n * S);
+  const put = (g, i, c) => {
+    const o = i * S, u = galUniforms(g);
+    data.set([g.posU[0] - cell.origin[0], g.posU[1] - cell.origin[1], g.posU[2] - cell.origin[2], g.radius * 1e-6 * (c ? 0.6 : 1)], o);
+    data.set(c ? [g.quat[1], g.quat[2], g.quat[3], g.quat[0]] : g.quat, o + 4);
+    data.set([c && u.type < 0.5 ? 2 : u.type, u.bulge, u.rb, u.arms, u.pitch, u.armStr, u.dust, u.seed + (c ? 37.3 : 0), u.hz, u.bar, u.flatn, u.young, u.lum * (c ? 0.45 : 1)], o + 8);
+    const ps = g.psi || [0, 0, 0]; data.set([ps[0], ps[1], ps[2], c ? -g.mergeT : g.mergeT || 0], o + 21);
+  };
+  cell.list.forEach((g, i) => put(g, i, false));
+  comp.forEach((g, j) => put(g, cell.list.length + j, true));
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-  const st = 84;
-  [[1, 4, 0], [2, 4, 16], [3, 4, 32], [4, 4, 48], [5, 4, 64], [6, 1, 80]].forEach(([loc, size, off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, st, off); gl.vertexAttribDivisor(loc, 1); });
+  const st = S * 4;
+  [[1, 4, 0], [2, 4, 16], [3, 4, 32], [4, 4, 48], [5, 4, 64], [6, 1, 80], [7, 4, 84]].forEach(([loc, size, off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, st, off); gl.vertexAttribDivisor(loc, 1); });
   gl.bindVertexArray(null);
   b = { vao, buf, n, last: 0 }; galBuffers.set(cell.key, b);
   return b;
@@ -455,8 +478,8 @@ export class GalaxySky {
   update(gal, camN, noise3, sync) {
     if (this.gal !== gal) { this.gal = gal; this.valid = false; this.face = -1; this.pos = null; }
     // (rebuilt when the galaxy's young population changes with time)
-    if (this.face < 0 && this.young !== undefined && this.young !== gal.young) this.pos = null;
-    this.young = gal.young;
+    if (this.face < 0 && ((this.young !== undefined && this.young !== gal.young) || (this.band !== undefined && this.band !== GLOBAL_U.uBand))) this.pos = null;
+    this.young = gal.young; this.band = GLOBAL_U.uBand;
     if (this.face < 0) {
       const moved = this.pos ? V.dist(camN, this.pos) : 1e9;
       const scale = Math.max(0.0012, 0.02 * Math.min(1, Math.abs(camN[1]) * 8 + 0.03));

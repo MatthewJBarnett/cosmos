@@ -1,6 +1,8 @@
 // HUD, input handling, object info, search, time controls and labels.
 import { V, Q, C, clamp } from './math.js';
 import { targetName, findByName, searchList, solSystem, systemFor, earlyDecades, EARLY_MAX } from './nav.js';
+import { GLOBAL_U, BANDS } from './gl.js';
+const BAND_NOTE = ['', 'hot young stars; dust blocks more', 'old stars, seen through the dust', 'warm dust glows', 'the cosmic microwave background (ripples stretched to full contrast)', 'neutral hydrogen (21 cm) and synchrotron; in the dark ages, the hydrogen fog and its reionization bubbles', 'hot gas, active nuclei, very hot stars'];
 import { earlyEra, bbnAt, popIIIPoints, xeAt, ionizedIGM } from './earlyuniverse.js';
 import { describeBody } from './system.js';
 import { starName } from './system.js';
@@ -18,7 +20,8 @@ import { cosmo, galaxyView, apparentPosU, galaxyInfo, aOfTau } from './cosmology
 import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights, LMC_MERGE } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, orbitEvents } from './lgorbit.js';
-import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T, fmtEarly, sci } from './timeline.js';
+import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T, fmtEarly, sci, supYears } from './timeline.js';
+import { lateEra } from './farfuture.js';
 import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
 
 export function fmtDist(m) {
@@ -56,7 +59,7 @@ export class UI {
       <button id="bGo" title="Go to selection (G)">Go to</button><button id="bLand" title="Land on selection (L)">Land</button><button id="bOrbit" title="Enter a circular orbit around the nearest body (Y)">Orbit</button><button id="bSys" title="System browser (Tab)">System</button><button id="bTour" title="Guided tour (T)">Tour</button><button id="bSandbox" title="Physics sandbox: black holes, neutron stars, gravitational waves (V)">Sandbox</button><select id="marks" title="Saved views (B saves the current one)"><option value="">Saved…</option></select><select id="bRand" title="Travel somewhere new"><option value="">Explore…</option><option value="star">Random star</option><option value="earthlike">Earth-like planet with life</option><option value="rings">Ringed planet</option><option value="giant-star">Giant star</option><option value="galaxy">Another galaxy</option><option value="earth-past">A moment in Earth's past</option><option value="event">A random event in time</option></select><button id="bSet" title="Settings">⚙</button><button id="bHelp" title="Help (H)">?</button>`;
     this.status = root.appendChild(el('div', 'panel status'));
     this.timebar = root.appendChild(el('div', 'panel time'));
-    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><select id="tRate" title="Time rate"><option value="">Rate…</option><option value="0.01">Slow motion 1/100</option><option value="1">Real time</option><option value="60">1 minute/s</option><option value="3600">1 hour/s</option><option value="86400">1 day/s</option><option value="2629800">1 month/s</option><option value="31557600">1 year/s</option><option value="3155760000">100 years/s</option><option value="3.15576e10">1,000 years/s</option><option value="3.15576e11">10,000 years/s</option><option value="3.15576e12">100,000 years/s</option><option value="3.15576e13">1 million years/s</option><option value="3.15576e14">10 million years/s</option><option value="3.15576e15">100 million years/s</option><option value="3.15576e16">1 billion years/s</option><option value="3.15576e17">10 billion years/s</option></select><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline from the Big Bang to the far future (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><span id="tText"></span>
+    this.timebar.innerHTML = `<button id="tRev" title="Reverse (J)">⏪</button><button id="tSlow" title="Slower (,)">−</button><button id="tPause" title="Pause (Space)">⏸</button><button id="tFast" title="Faster (.)">+</button><button id="tReal" title="Real time (\\)">1×</button><select id="tRate" title="Time rate"><option value="">Rate…</option><option value="0.01">Slow motion 1/100</option><option value="1">Real time</option><option value="60">1 minute/s</option><option value="3600">1 hour/s</option><option value="86400">1 day/s</option><option value="2629800">1 month/s</option><option value="31557600">1 year/s</option><option value="3155760000">100 years/s</option><option value="3.15576e10">1,000 years/s</option><option value="3.15576e11">10,000 years/s</option><option value="3.15576e12">100,000 years/s</option><option value="3.15576e13">1 million years/s</option><option value="3.15576e14">10 million years/s</option><option value="3.15576e15">100 million years/s</option><option value="3.15576e16">1 billion years/s</option><option value="3.15576e17">10 billion years/s</option></select><button id="tNow" title="Current date">Now</button><button id="tDate" title="Set date and time">Date</button><button id="tEcl" title="Go to the next solar or lunar eclipse (E: next)">Eclipse</button><button id="tLine" title="Timeline from the Big Bang to the far future (U)">Timeline</button><button id="bShare" title="Copy a link to this place and time">Link</button><select id="tBand" title="Observing band: see the universe in other light (I cycles)">${BANDS.map((b, i) => `<option value="${i}">${b}</option>`).join('')}</select><span id="tText"></span>
       <input id="tDateIn" type="datetime-local" step="60" class="hidden">`;
     this.labels = root.appendChild(el('div', 'labels'));
     this.perf = root.appendChild(el('div', 'panel perf hidden'));
@@ -71,7 +74,7 @@ export class UI {
       <tr><td>Wheel</td><td>Change flight speed (Ctrl + wheel: zoom to selection)</td></tr>
       <tr><td>W A S D, R F</td><td>Fly (Shift faster, Ctrl slower)</td></tr><tr><td>Q E, arrows</td><td>Roll, turn</td></tr>
       <tr><td>Click / double click</td><td>Select / go to object</td></tr><tr><td>G, L, C</td><td>Go to, land on, look at selection</td></tr>
-      <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr><tr><td>&lt; &gt; Home</td><td>Speed three steps at a time; back to the present</td></tr><tr><td>PgUp PgDn</td><td>Previous / next event on the timeline</td></tr>
+      <tr><td>Space , . J \\</td><td>Pause, slower, faster, reverse, real time</td></tr><tr><td>&lt; &gt; Home</td><td>Speed three steps at a time; back to the present</td></tr><tr><td>PgUp PgDn</td><td>Previous / next event on the timeline</td></tr><tr><td>I</td><td>Observing band: visible, ultraviolet, near- and far-infrared, microwave, radio, X-ray</td></tr>
       <tr><td>T</td><td>Guided tour (T again: next stop)</td></tr><tr><td>0 – 9</td><td>Sun, Mercury … Pluto</td></tr><tr><td>Y</td><td>Orbit mode: circular orbit, W A S D R F thrust</td></tr><tr><td>Shift+E</td><td>Next solar or lunar eclipse</td></tr><tr><td>U</td><td>Timeline of events, from the Big Bang to the far future</td></tr><tr><td>V</td><td>Physics sandbox: black holes, neutron stars, gravitational waves</td></tr><tr><td>M</td><td>Relativistic flight: below light speed, with aberration, Doppler shift, beaming, time dilation</td></tr><tr><td>Rate menu</td><td>Slow motion to 10 billion years per second</td></tr><tr><td>B</td><td>Save this view (Saved menu)</td></tr><tr><td>Tab</td><td>System browser</td></tr><tr><td>O, N, K</td><td>Toggle orbits, labels, constellations</td></tr>
       <tr><td>[ ]</td><td>Exposure down / up</td></tr><tr><td>Z X</td><td>Zoom field of view</td></tr><tr><td>F2, F3</td><td>Hide interface, GPU timings</td></tr><tr><td>P</td><td>Save screenshot</td></tr>
       </table>
@@ -212,10 +215,11 @@ export class UI {
         // the next (or previous) event on the timeline, from the current moment (in seconds since the Big Bang)
         e.preventDefault();
         const tl = this.timeline, kn = tl.nowKey(), evs = tl.events, tyr = nav.time / YEAR, gap = (Math.max(1, Math.abs(tyr) * 1e-9) + 0.02) * YEAR;
-        const ev = k === 'pagedown' ? evs.find(x => nav.early ? x.k > kn * 2.5 : x.k > kn + gap)
-          : evs.filter(x => nav.early ? x.k < kn / 2.5 : x.k < kn - gap - 0.5 * YEAR - Math.abs(nav.rate) * 8).pop();   // (skipping the one just passed)
+        const ev = k === 'pagedown' ? evs.find(x => nav.early || nav.late ? x.k > kn * 2.5 : x.k > kn + gap)
+          : evs.filter(x => nav.early || nav.late ? x.k < kn / 2.5 : x.k < kn - gap - 0.5 * YEAR - Math.abs(nav.rate) * 8).pop();   // (skipping the one just passed)
         if (ev) { this.timeline.go(ev); this.toast(ev.title); } else this.toast(k === 'pagedown' ? 'No later events' : 'No earlier events');
       }
+      else if (k === 'i') this.setBand((GLOBAL_U.uBand + 1) % BANDS.length);
       else if (k === 'j') nav.rate = -nav.rate; else if (k === '\\') { nav.rate = 1; nav.paused = false; }
       else if (k === 'h' || k === '?') this.toggle(this.help);
       else if (k === 'k') rcfg.constellations = !rcfg.constellations;
@@ -255,12 +259,16 @@ export class UI {
       'Interstellar visitors': ["1I/'Oumuamua", '2I/Borisov', '3I/ATLAS'],
       'Stars passing the Sun': ["Scholz's Star", "Barnard's Star", 'Gliese 710', 'Rigil Kentaurus'],
       'Star clusters': ['Omega Centauri', '47 Tucanae', 'M13 (Hercules Cluster)', 'M22', 'M4'],
-      'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };
+      'Galaxies': ['Milky Way', 'Andromeda Galaxy (M31)', 'Triangulum Galaxy (M33)', 'Large Magellanic Cloud', 'Sagittarius Dwarf Galaxy', 'Whirlpool Galaxy (M51)', 'Sombrero Galaxy (M104)', 'Messier 87', 'Centaurus A'] };
     $('places').innerHTML = '<option value="">Places…</option>' + Object.entries(groups).map(([g, l]) => `<optgroup label="${g}">${l.map(n => `<option>${n}</option>`).join('')}</optgroup>`).join('');
     $('places').onchange = (e) => { if (e.target.value) this.search(e.target.value); e.target.value = ''; e.target.blur(); };
     $('tPause').onclick = () => { nav.paused = !nav.paused; };
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
     $('tRate').onchange = (e) => { const v = +e.target.value; e.target.value = ''; e.target.blur(); if (v) { nav.rate = v * (nav.rate < 0 ? -1 : 1); nav.paused = false; } };
+    // the observing band
+    const setBand = (b) => { GLOBAL_U.uBand = b; $('tBand').value = String(b); this.toast(BANDS[b] + (b ? ': ' + BAND_NOTE[b] : '')); };
+    this.setBand = setBand;
+    $('tBand').onchange = (e) => { setBand(+e.target.value); e.target.blur(); };
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
     $('tNow').onclick = () => { nav.time = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 1000; };
     $('tEcl').onclick = () => this.goNextEclipse();
@@ -434,8 +442,8 @@ export class UI {
   update(dt) {
     if (this.tour) this.tour.update(dt);
     if (this.timeline) this.timeline.update(dt);
-    // the clock runs from the Big Bang to 100 trillion years from now
-    if (this.nav.time > MAX_T) { this.nav.time = MAX_T; this.nav.paused = true; }
+    // the clock runs from the Big Bang to 100 trillion years from now; beyond that the late clock takes over
+    if (this.nav.time > MAX_T && !this.nav.late) this.nav.setLate(this.nav.time / YEAR);
     if (this.nav.time < -13.79e9 * YEAR) { this.nav.time = -13.79e9 * YEAR; this.nav.paused = true; this.toast('The Big Bang: time cannot run further back'); }
     this.updateTimeline();
     if (this.sbui) this.sbui.update();
@@ -443,7 +451,7 @@ export class UI {
     const nav = this.nav, r = this.r;
     // status
     const loc = nav.level === 'system' ? nav.system.name : nav.level === 'galaxy' ? galaxyName(nav.galaxy) : 'Intergalactic space';
-    const dstr = nav.early ? 't = ' + fmtEarly(nav.early.t) + ' after the Big Bang' : fmtSimDate(nav.time);
+    const dstr = nav.early ? 't = ' + fmtEarly(nav.early.t) + ' after the Big Bang' : nav.late ? 't = ' + supYears(nav.late.y) + ' after the Big Bang' : fmtSimDate(nav.time);
     let alt = '';
     if (nav.anchor && nav.altitude < nav.anchor.radius * 30) {
       alt = `<div><b>Altitude</b> ${fmtDist(nav.altitude)} · ${nav.anchor.name}</div>`;
@@ -480,10 +488,15 @@ export class UI {
       // (computed from the models directly: the Solar System is not updated while you are elsewhere)
       const ss = sunState(tyr), sunAge = ss.age;
       if (Math.abs(tyr) > 1e6) { const sol = solSystem(), e = sol.find('Earth'), eGone = engulfed('Earth', tyr), mGone = engulfed('Moon', tyr);
-        if (e && !eGone) deep += `<div><b>Earth</b> day ${(earthDay(tyr) / 3600 * 1.0027).toFixed(2)} h${!mGone ? ' · Moon ' + Math.round(384400 * moonScale(tyr)).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.paleoMyr > 0 ? ' · continents as ' + Math.min(Math.round(e.paleoMyr), 540) + ' Myr ago' + (e.paleoMyr > 541 ? ' (oldest map: 540 Myr)' : '') + ' (PALEOMAP)' : e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
+        if (e && !eGone) deep += `<div><b>Earth</b> day ${(earthDay(tyr) / 3600 * 1.0027).toFixed(2)} h${!mGone ? ' · Moon ' + Math.round(384400 * moonScale(tyr)).toLocaleString('en') + ' km' : ''}${e.climate && e.climate.dry > 0.05 ? ' · oceans ' + Math.round((1 - e.climate.dry) * 100) + '%' : ''}${e.paleoStand ? ' · continents illustrative only (' + e.paleoStand + '; real shapes unknown)' : e.paleoMyr > 0 ? ' · continents as ' + Math.round(e.paleoMyr) + ' Myr ago (PALEOMAP)' : e.drift ? ' · continents drifted ' + Math.abs(e.drift).toFixed(e.drift < 10 ? 1 : 0) + ' Myr ' + (e.drift > 0 ? 'ahead' : 'back') + (tyr > 1e8 || tyr < -5e7 ? ' (held)' : '') : ''}</div>`; }
       if (sunAge < 0 && !nav.early && tyr > -12.9e9) deep += `<div><b>Sun</b> not yet formed: its gas is still part of a molecular cloud</div>`;
-      else if (ss && sunAge >= 0 && Math.abs(tyr) > 2e7) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K${nav.level === 'galaxy' && tyr < 1e10 ? ' · ' + (Math.hypot(world.sunI[0], world.sunI[2]) / 1000).toFixed(1) + ' kpc from the centre' : ''}</div>`;
-      if (nav.early) {
+      else if (ss && sunAge >= 0 && Math.abs(tyr) > 2e7 && !nav.late) deep += `<div><b>Sun</b> ${ss.phase} · ${ss.L < 10 ? ss.L.toFixed(2) : Math.round(ss.L).toLocaleString('en')} L☉ · ${ss.R < 10 ? ss.R.toFixed(2) : Math.round(ss.R)} R☉ · ${Math.round(ss.T).toLocaleString('en')} K${nav.level === 'galaxy' && tyr < 1e10 ? ' · ' + (Math.hypot(world.sunI[0], world.sunI[2]) / 1000).toFixed(1) + ' kpc from the centre' : ''}</div>`;
+      if (nav.late) {
+        // the far future: era, background, what is left of our galaxy, protons, black holes
+        const le = lateEra(nav.late.y);
+        deep += `<div><b>${le.name}</b> <span class="dim">${le.text}</span></div>`;
+        for (const [k, v] of le.rows) deep += `<div class="dim"><b>${k}</b> ${v}</div>`;
+      } else if (nav.early) {
         // the first moments: temperature (and the matching particle energy), the size of today's observable universe,
         // what exists, and the light elements as they are made
         const er = earlyEra(nav.early.t), fx = sci;
@@ -532,10 +545,10 @@ export class UI {
     }
     // the next event in the direction time is running
     { const tl = this.timeline, back = nav.rate < 0 && !nav.paused, nx = back ? tl.prev() : tl.next(), kn = tl.nowKey();
-      if (nx && !(nav.system && nav.system.sandbox)) deep += `<div class="dim"><b>Next</b> ${nx.title}, ${nx.tBB !== undefined ? 'at t = ' + fmtEarly(nx.tBB) + (back ? ' (PgUp)' : ' (PgDn)') : back ? fmtSpan((kn - nx.k) / YEAR) + ' back (PgUp)' : 'in ' + fmtSpan((nx.k - kn) / YEAR) + ' (PgDn)'}</div>`; }
-    const watch = nav.paused ? '' : this.watchHint(nav);
+      if (nx && !(nav.system && nav.system.sandbox)) deep += `<div class="dim"><b>Next</b> ${nx.title}, ${nx.tBB !== undefined || nx.tLate !== undefined ? 'at t = ' + (nx.tLate !== undefined ? supYears(nx.tLate) : fmtEarly(nx.tBB)) + (back ? ' (PgUp)' : ' (PgDn)') : back ? fmtSpan((kn - nx.k) / YEAR) + ' back (PgUp)' : 'in ' + fmtSpan((nx.k - kn) / YEAR) + ' (PgDn)'}</div>`; }
+    const watch = nav.paused || nav.late || nav.early ? '' : this.watchHint(nav);
     this.status.innerHTML = `<div><b>${loc}</b></div>${alt}${deep}${watch ? '<div class="dim"><b>At this rate</b> ' + watch + '</div>' : ''}<div><b>Speed</b> ${fmtSpeed(nav.speedNow)} <span class="dim">(set ${fmtSpeed(nav.speed)})</span></div><div class="dim">${Math.round(this.fps)} fps · EV ${(-Math.log2(r.exposure)).toFixed(1)}${r.stats.pending ? ' · loading ' + r.stats.pending : ''}</div>`;
-    document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? (nav.atPlanck && nav.early ? 'the Planck time: the earliest moment physics can describe' : 'paused') : nav.early ? '×10 every ' + (1 / Math.abs(earlyDecades(nav.rate))).toFixed(1) + ' s' + (nav.rate < 0 ? ' (backwards)' : '') : fmtRate(nav.rate));
+    document.getElementById('tText').textContent = dstr + ' · ' + (nav.paused ? (nav.atPlanck && nav.early ? 'the Planck time: the earliest moment physics can describe' : nav.late && nav.late.y >= 1e110 ? 'the end of the clock' : 'paused') : nav.early || nav.late ? '×10 every ' + (1 / Math.abs(earlyDecades(nav.rate))).toFixed(1) + ' s' + (nav.rate < 0 ? ' (backwards)' : '') : fmtRate(nav.rate));
     document.getElementById('tPause').textContent = nav.paused ? '▶' : '⏸';
     this.updateInfo(); this.updateLabels(); this.updateSys();
     if (rcfg.gpuTimes) {
@@ -702,7 +715,7 @@ export class UI {
     if (key === this.lineKey) return; this.lineKey = key;
     const rows = tl.events.map((e, i) => {
       const dt = (e.k - tl.nowKey()) / YEAR, past = dt < 0;
-      return `<div class="row${past ? ' past' : ''}${e === nx ? ' sel' : ''}" data-i="${i}" title="${e.text.replace(/"/g, '&quot;')}"><span class="nm">${e.title}${e.est ? ' <span class="dim">(estimate)</span>' : ''}</span><span class="ds">${e.tBB !== undefined ? 't = ' + fmtEarly(e.tBB) : past ? fmtSpan(dt) + ' ago' : 'in ' + fmtSpan(dt)}</span><button data-i="${i}">Go</button></div>`;
+      return `<div class="row${past ? ' past' : ''}${e === nx ? ' sel' : ''}" data-i="${i}" title="${e.text.replace(/"/g, '&quot;')}"><span class="nm">${e.title}${e.est ? ' <span class="dim">(estimate)</span>' : ''}</span><span class="ds">${e.tBB !== undefined ? 't = ' + fmtEarly(e.tBB) : e.tLate !== undefined ? 't = ' + supYears(e.tLate) : past ? fmtSpan(dt) + ' ago' : 'in ' + fmtSpan(dt)}</span><button data-i="${i}">Go</button></div>`;
     }).join('');
     this.linePanel.innerHTML = `<h3>Timeline</h3>
       <div class="tlslider"><input type="range" id="tlSlide" min="-100" max="140" step="0.1" value="${this.sliderPos(tyr)}"><div class="tlticks">${[[-100, 'Big Bang'], [-60, '−1 Myr'], [0, 'now'], [60, '+1 Myr'], [90, '+1 Gyr'], [140, '+10¹⁴ yr']].map(([x, l]) => `<span style="left:${((x + 100) / 240 * 100).toFixed(1)}%">${l}</span>`).join('')}</div></div>
@@ -864,7 +877,7 @@ export class UI {
       if (pts.length) { const p = pts[0], d = V.len(p.dir), u = V.mul(p.dir, 1 / d); nav.U = V.add(cam0, V.mul(u, d - 4e-5)); nav.q = Q.look(u, [0, 1, 0]); }
       return;
     }
-    if (v.cosmos || v.early) {
+    if (v.cosmos || v.early || v.late) {
       // out among the galaxies (in the early universe there is nothing else to look at)
       nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null; nav.selected = null;
       nav.U = [3, 2, 4]; nav.q = Q.look([1, 0.1, -0.3], [0, 1, 0]); nav.fov = 70 * Math.PI / 180;

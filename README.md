@@ -82,7 +82,8 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
-| U | Timeline from the Big Bang to the last stars (the universe turning transparent, the Milky Way forming, ice ages, Betelgeuse, Andromeda, the Sun's death...) with Go buttons and a Jump box that takes `2 Gyr`, `-65 Myr`, `65 million years ago`, `year 3000` or `age 380 kyr` |
+| I | Observing band: visible, ultraviolet, near-infrared, far-infrared, microwave, radio, X-ray (also a menu in the time bar) |
+| U | Timeline from the Planck time to 10¹¹⁰ years (the universe turning transparent, the Milky Way forming, ice ages, Betelgeuse, Andromeda, the Sun's death...) with Go buttons and a Jump box that takes `2 Gyr`, `-65 Myr`, `65 million years ago`, `year 3000` or `age 380 kyr` |
 | V | Physics sandbox: black holes, neutron stars, stars and planets under full gravity |
 | M | Relativistic flight: speed below c, with aberration, Doppler shift, beaming and time dilation |
 | B | Save the current view (Saved menu) |
@@ -267,6 +268,49 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   σ₈ grows with the linear growth factor; Population III stars (30-300 M☉, ~100,000 K, 2-6 Myr) light up in small
   halos from ~100 Myr, dying as pair-instability supernovae or collapsing to black holes; reionization follows the
   Planck tanh history (midpoint z = 7.7), and in visible light galaxies beyond z ~ 5 drop out behind the Lyman break.
+- **The cosmic web grows:** every procedural galaxy carries a Zel'dovich displacement (up the density gradient of the
+  web, plus infall in clusters) scaled by the linear growth factor between the observer's epoch and when its light
+  left, so the distant (earlier) universe looks less sharply clustered; about a quarter of spirals and three fifths
+  of ellipticals had a major merger 1.5-10 Gyr ago and are seen before it as a pair spiralling together.
+- **Weather that moves:** Earth's observed cloud map drifts with the zonal winds (trades west, westerlies east,
+  polar easterlies) as two copies that fade in and out over three days at new longitudes, so cloud systems form,
+  travel and dissipate while the ITCZ, the subtropical clear belts and the storm tracks stay put (shadows on the
+  ground follow). Tropical cyclones are drawn on top as before.
+- **Ice sheets with thickness:** ice-age ice sheets rise as domes up to ~3.3 km thick (a Vialov profile from the
+  margin, grounded on land and shallow shelves), with smooth surfaces; you can land on them.
+- **Supercontinents (illustrative):** beyond the 540 Myr of PALEOMAP maps, and more than 100 Myr into the future, the
+  continents follow a supercontinent cycle using the maps' own Pangaea assembly and breakup, turned about the pole:
+  Rodinia ~1,000-750 Myr ago, Columbia ~1,800-1,400 Myr ago and a future supercontinent ~250 Myr from now appear at
+  about the right times. The HUD says these are stand-ins; their real shapes are unknown.
+- **Exposure and aurora:** a small, very bright object away from the middle of the frame (the Moon in a corner, a
+  supernova) may overexpose up to ~30x rather than darken everything else; aurora seen from orbit is sampled at fixed
+  altitudes, so it is smooth instead of grainy.
+- **The far future:** past 100 trillion years the clock turns logarithmic again and runs to 10¹¹⁰ years: the
+  degenerate era (a few red dwarfs lit by brown dwarf collisions, planets stripped from dead stars, black dwarfs), the
+  galaxy evaporating (~10¹⁹ years, nine in ten remnants flung out, the rest feeding a 10¹⁰ M☉ central black hole),
+  proton decay (lifetime assumed 10³⁷ years; the measured limit is 2.4 × 10³⁴), the black hole era (Hawking
+  evaporation in 2.1 × 10⁶⁷ (M/M☉)³ years: stellar holes by ~10⁶⁸, our galaxy's at 2 × 10⁹⁷ in a flash) and the dark
+  era after 10¹⁰⁰. The background settles at the 2 × 10⁻³⁰ K of the de Sitter horizon. In the far infrared the
+  remnants' faint warmth shows. Six timeline events (PgDn steps through them).
+- **Observing bands (I, or the band menu in the time bar):** visible, ultraviolet, near-infrared, far-infrared,
+  microwave, radio (21 cm) and X-ray, in false colour. Stars are weighted by the Planck function at each band's
+  wavelength; galaxies change what dominates (young arms in UV, the old bulge in near-IR with the dust turning
+  transparent, glowing dust in far-IR, a clumpy neutral hydrogen disk with a central hole reaching past the stars in
+  radio, hot gas and the nucleus in X-rays); the microwave sky is the CMB with its ripples, and in radio at
+  redshifts 6-200 the 21 cm hydrogen glow with reionization bubbles carved into it. In the near-IR the earliest
+  galaxies reappear behind the Lyman break, as the James Webb telescope sees them.
+- **Earth processes:** the impact flux from the lunar crater chronology (Neukum: hundreds of times today's 3.9 Gyr ago,
+  thousands at 4.4 Gyr) blended with a possible Late Heavy Bombardment spike, with random Chicxulub-size impacts at
+  that rate; the Archean "pale orange dot" organic haze (episodes 2.72-2.47 Gyr ago); sea level following the tide
+  gauges and the IPCC SSP2-4.5 path (+0.56 m in 2100, ~11 m over the following millennia), the coasts flooding to
+  match, until the next ice age and later (+58 m) when the brightening Sun melts Antarctica; Hunga Tonga's 10% boost
+  to stratospheric water (2022) decaying over years; Jupiter's Great Red Spot shrinking from 39,000 km (1879) to
+  14,000 km (2024).
+- **Mars and Pluto:** Mars' obliquity swings by up to ±5.5° around 25° on 120,000-year cycles (Laskar 2004) with a
+  2.4 Myr envelope, around a mean near 35° before ~5 Myr ago, with its caps following; Pluto's atmosphere freezes out towards aphelion.
+- **The Sagittarius dwarf:** a faint dwarf galaxy on a polar orbit integrated from its measured position and velocity
+  (Vasiliev & Belokurov 2020) with dynamical friction: pericentre 15 kpc, apocentre ~60 kpc, past disk crossings ~1
+  and 2 Gyr ago matching the star formation bursts Gaia found; it fades as it is torn apart and is gone in ~1 Gyr.
 - **The early universe:** rewinding toward the Big Bang the galaxies get smaller, bluer and brighter (young,
   star-forming) as seen at their light's emission time, then vanish before ~300 Myr; the Milky Way fades out
   before ~13 Gyr ago. The cosmic background (radiation era included) is hot enough to see for the first few million

@@ -3,6 +3,7 @@
 // (spherically averaged) gravity plus Chandrasekhar dynamical friction of each against the other's halo,
 // starting from M31's measured distance and velocity (van der Marel et al. 2012: 770 kpc, -109 km/s radial,
 // tangential ~17-57 km/s; we use 30), giving a first passage at 3.8 Gyr (35 kpc), a second at 5.3 Gyr and a merger at 6.0 Gyr.
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 export const G = 4.4985e-12;                   // kpc^3 / (Msun Myr^2)
 export const KMS = 1.02271e-3;                 // km/s in kpc/Myr
 export const GAL = {
@@ -160,5 +161,41 @@ export const LMC_ORBIT = (() => {
 // LMC centre (kpc, Milky Way frame) at tMyr from now
 export function lmcAt(tMyr) {
   const tab = tMyr >= 0 ? LMC_ORBIT.fwd : LMC_ORBIT.back, f = Math.min(Math.abs(tMyr), tab.length - 1.001), i = Math.floor(f), u = f - i;
+  return [0, 1, 2].map(j => tab[i][j] + (tab[i + 1][j] - tab[i][j]) * u);
+}
+
+// The Sagittarius dwarf spheroidal: on a polar orbit through the Milky Way's disk (pericentre ~15 kpc, apocentre ~50-60
+// kpc, period ~0.8 Gyr), now 18 kpc from the centre just past a disk crossing and being torn into the stream that wraps
+// the sky. Position from l, b, d = 5.57, -14.17, 26.5 kpc and velocity (237.9, -24.3, 209.0) km/s galactocentric
+// (Vasiliev & Belokurov 2020). Its bound mass is ~4e8 Msun now; it was ~1e10 when it fell in, so dynamical friction is
+// scaled up into the past. It is expected to dissolve within about a billion years.
+export const SGR_ORBIT = (() => {
+  const D2R = Math.PI / 180, l = 5.57 * D2R, b = -14.17 * D2R, d = 26.5, LNL = 3;
+  const r0 = [SUN[0] + Math.cos(b) * Math.cos(l) * d, SUN[1] + Math.sin(b) * d, SUN[2] - Math.cos(b) * Math.sin(l) * d];
+  const v0 = [237.9, 209.0, 24.3].map(x => x * KMS);
+  const acc = (r, v, t) => {
+    const M = 4e8 * Math.pow(10, clamp(-t / 2000, 0, 1.4));
+    const dd = Math.max(Math.hypot(...r), 0.3), m = Menc(GAL.mw, dd), a = r.map(x => -x * G * m / dd ** 3);
+    const vv = Math.hypot(...v), sig = Math.sqrt(G * m / dd) / Math.SQRT2, X = vv / (Math.SQRT2 * sig), f = erf(X) - 2 * X / Math.sqrt(Math.PI) * Math.exp(-X * X);
+    const k = -4 * Math.PI * G * G * LNL * M * rhoHalo(GAL.mw, dd) * f / Math.max(vv ** 3, 1e-12);
+    for (let i = 0; i < 3; i++) a[i] += k * v[i];
+    return a;
+  };
+  const run = (dt, N) => {
+    let r = r0.slice(), v = v0.slice(); const tab = [r.slice()];
+    for (let i = 1; i <= N; i++) for (let s = 0; s < 4; s++) {
+      const t = (i - 1 + s / 4) * dt, h = dt / 4;
+      const k1 = acc(r, v, t), r2 = r.map((x, j) => x + v[j] * h / 2), v2 = v.map((x, j) => x + k1[j] * h / 2), k2 = acc(r2, v2, t);
+      const r3 = r.map((x, j) => x + v2[j] * h / 2), v3 = v.map((x, j) => x + k2[j] * h / 2), k3 = acc(r3, v3, t);
+      const r4 = r.map((x, j) => x + v3[j] * h), v4 = v.map((x, j) => x + k3[j] * h), k4 = acc(r4, v4, t);
+      r = r.map((x, j) => x + h / 6 * (v[j] + 2 * v2[j] + 2 * v3[j] + v4[j])); v = v.map((x, j) => x + h / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+      if (s === 3) tab.push(r.slice());
+    }
+    return tab;
+  };
+  return { fwd: run(1, 1500), back: run(-1, 6000), r0 };
+})();
+export function sgrAt(tMyr) {
+  const tab = tMyr >= 0 ? SGR_ORBIT.fwd : SGR_ORBIT.back, f = Math.min(Math.abs(tMyr), tab.length - 1.001), i = Math.floor(f), u = f - i;
   return [0, 1, 2].map(j => tab[i][j] + (tab[i + 1][j] - tab[i][j]) * u);
 }

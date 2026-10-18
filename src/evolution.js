@@ -324,3 +324,50 @@ export function volcanicAerosol(tyr) {
   for (const [y0, peak, n] of ERUPTIONS) { const d = y - y0; if (d < 0 || d > 8) continue; const v = peak * Math.min(1, d / 0.3) * Math.exp(-d / 1.2); if (v > tau) { tau = v; name = n; } }
   return { tau, name };
 }
+
+// ---- sea level, haze, impacts, stratospheric water ----
+// Global mean sea level relative to 2000 (m): tide gauges and altimetry to the present, then a middle-of-the-road
+// emissions path (IPCC AR6 SSP2-4.5 medians to 2150) and the slow commitment after it, as Greenland and West Antarctica
+// shrink over millennia (Clark et al. 2016: ~2.3 m per degree of warming over 2,000 years). The ice returns as the next
+// glaciation builds (~50,000 years on). Much later the brightening Sun melts Antarctica too (+58 m).
+const SEA = [[-100, -0.17], [0, 0], [23, 0.08], [50, 0.22], [100, 0.56], [150, 0.92], [300, 1.8], [1000, 4], [2000, 7], [10000, 11]];
+export function seaLevelRise(tyr, clim) {
+  let r;
+  if (tyr <= SEA[0][0]) r = tyr > -8000 ? SEA[0][1] : 0;
+  else if (tyr >= SEA[SEA.length - 1][0]) r = SEA[SEA.length - 1][1] * clamp((7e4 - tyr) / 2e4, 0, 1);
+  else { let i = 1; while (SEA[i][0] < tyr) i++; const [a, ra] = SEA[i - 1], [b, rb] = SEA[i]; r = ra + (rb - ra) * (tyr - a) / (b - a); }
+  if (tyr > 1e5 && clim) r += 58 * (1 - clim.ice);
+  return r;
+}
+// The "pale orange dot": when methane rivalled CO2 in the Archean air (CH4/CO2 > ~0.1), sunlight turned it into an
+// organic haze like Titan's (Arney et al. 2016). Sulfur isotopes record haze episodes ~2.72-2.47 Gyr ago (Zerkle et al.
+// 2012) and earlier ones are likely; the Great Oxidation ended them. Returns 0..1.
+export function archeanHaze(tyr) {
+  const myr = -tyr / 1e6;
+  if (myr < 2450 || myr > 3500) return 0;
+  if (myr <= 2720) return clamp((myr - 2450) / 20, 0, 1);
+  const k = Math.floor(myr / 25);          // earlier: 25-Myr episodes, about half of them hazy
+  return hash01(k + 911) < 0.5 ? 0.6 * clamp(Math.min(myr - k * 25, (k + 1) * 25 - myr) / 3, 0, 1) : 0;
+}
+// The impact flux on the Earth-Moon system relative to today, from the lunar crater chronology (Neukum et al. 2001:
+// N(1 km) = 5.44e-14 (e^(6.93 T) - 1) + 8.38e-4 T per km^2, T in Gyr) with an optional cataclysm ~3.9 Gyr ago (the
+// Late Heavy Bombardment of the Nice model; the Apollo basin ages that suggested it are now debated).
+export function impactFlux(tyr) {
+  const T = -tyr / 1e9; if (T > 4.5) return 0;
+  const f = (6.93 * 5.44e-14 * Math.exp(6.93 * Math.max(T, 0)) + 8.38e-4) / (6.93 * 5.44e-14 + 8.38e-4);
+  return f * (1 + 4 * Math.exp(-(((T - 3.9) / 0.08) ** 2)));
+}
+// Chicxulub-size impactors (~10 km) hit Earth about once per 100 million years today. The most recent such impact
+// before tyr, if any happened in the last `win` years: { ago (yr), lat, lon } (Poisson process in 10,000-year bins).
+export function lastBigImpact(tyr, win) {
+  const B = 1e4, r = impactFlux(tyr) / 1e8, p = 1 - Math.exp(-r * B);
+  if (p < 1e-5) return null;
+  for (let j = Math.floor(tyr / B); j >= Math.floor((tyr - win) / B); j--) {
+    const h = (n) => hash01((j * 7 + n) | 0);
+    if (h(1) < p) { const ti = (j + h(2)) * B; if (ti <= tyr && tyr - ti < win) return { ago: tyr - ti, lat: Math.asin(2 * h(3) - 1), lon: 2 * Math.PI * h(4) }; }
+  }
+  return null;
+}
+// Hunga Tonga-Hunga Ha'apai (15 Jan 2022) blew ~150 Tg of water into the stratosphere, about 10% more than was there;
+// it has been leaving over several years. Returns the excess in percent.
+export function stratWater(tyr) { const d = 2000 + tyr - 2022.04; return d < 0 || d > 15 ? 0 : 10 * Math.min(1, d / 0.1) * Math.exp(-d / 4); }

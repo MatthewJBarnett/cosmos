@@ -132,3 +132,38 @@ void main(){
   }
   o = vec4(E, 1.);
 }`;
+
+// ---- weather that moves and changes (Earth) ----
+// The observed cloud map is one snapshot. Two copies of it drift with the zonal winds (trade winds west, ~6 deg/day;
+// westerlies east, ~11 deg/day at 45 deg; polar easterlies), each fading in and out over a 3 day cycle at a new
+// longitude: cloud systems form, travel and dissipate while the climate (the ITCZ, the subtropical clear belts and the
+// storm tracks) stays where it belongs.
+export const WEATHER_GLSL = `uniform vec4 uWx;   // x: phase of copy 1 (copy 2 half a cycle on), y, z: their longitude offsets (rad), w: cycle (days; 0 = off)
+float wxWind(float latD){ float a = abs(latD); return -6.*exp(-pow(latD/14., 2.)) + 11.*exp(-pow((a - 45.)/14., 2.)) - 3.*exp(-pow((a - 75.)/8., 2.)); }
+float wxW(float ph){ return smoothstep(0., 0.35, ph)*smoothstep(1., 0.65, ph); }
+float wxMap(sampler2D tex, vec3 dir, float lod){
+  float lat = asin(clamp(dir.y, -1., 1.)), lon = atan(-dir.z, dir.x);
+  if (uWx.w <= 0.) return textureLod(tex, vec2(lon*0.15915494 + 0.5, 0.5 - lat*0.31830989), lod).r;
+  float u = radians(wxWind(degrees(lat))), v = 0.;
+  for (int i = 0; i < 2; i++) {
+    float ph = fract(uWx.x + 0.5*float(i)), l = lon - u*(ph - 0.5)*uWx.w - (i == 0 ? uWx.y : uWx.z);
+    v = max(v, wxW(ph)*textureLod(tex, vec2(fract(l*0.15915494 + 0.5), 0.5 - lat*0.31830989), lod).r);
+  }
+  return v;
+}
+vec4 wxCube(samplerCube tex, vec3 dir){
+  if (uWx.w <= 0.) return texture(tex, dir);
+  vec3 n = normalize(dir); float lat = asin(clamp(n.y, -1., 1.)), lon = atan(-n.z, n.x), u = radians(wxWind(degrees(lat)));
+  vec4 v = vec4(0.);
+  for (int i = 0; i < 2; i++) {
+    float ph = fract(uWx.x + 0.5*float(i)), l = lon - u*(ph - 0.5)*uWx.w - (i == 0 ? uWx.y : uWx.z);
+    v = max(v, wxW(ph)*texture(tex, vec3(cos(lat)*cos(l), sin(lat), -cos(lat)*sin(l))));
+  }
+  return v;
+}`;
+export function weatherUniform(body, time) {
+  if (!body.precessRA || (body.climate && (body.climate.snowball || body.climate.dry > 0.5))) return [0, 0, 0, 0];
+  const P = 3, x = (time % (86400 * P * 1e6)) / 86400 / P, k1 = Math.floor(x), k2 = Math.floor(x + 0.5);
+  const h = (k) => { const v = Math.sin(k * 127.1 + 311.7) * 43758.5453; return (v - Math.floor(v)) * 2 * Math.PI; };
+  return [x - k1, h(k1), h(k2 + 7919), P];
+}

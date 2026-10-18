@@ -5,6 +5,8 @@ import { YEAR, SUN_ORBIT, world, KMS_PCYR, sunPos } from './galdyn.js';
 import { galDir } from './universe.js';
 import { EXTRA_STARS } from './realsystems.js';
 import { orbitEvents, R0, V0, PAST } from './lgorbit.js';
+import { evapYr, MILKOMEDA_BH, PROTON_LIFE, supYears } from './farfuture.js';
+export { supYears };
 import { LMC_MERGE } from './localgroup.js';
 import { RGB_TIP, PN_START, WD_START, SUN_AGE_NOW, engulfed, nextGlacial, KPG_YR } from './evolution.js';
 
@@ -105,6 +107,8 @@ export function buildEvents() {
   add({ id: 'lgturn', t: now - PAST.turn * 1e6, est: true, title: 'Andromeda turns around', text: `Born close together, the Milky Way and Andromeda flew apart with the expansion of the universe until their mutual gravity stopped them, ${(PAST.rTurn / 1000).toFixed(2)} Mpc apart. They have been falling towards each other ever since. (The "timing argument": it needs a combined mass of about 5 trillion Suns, most of it dark matter.)`, view: { lg: 'outside', d: 1.4 }, rate: YEAR * 2e7 });
   add({ id: 'sunborn', t: -4.5695e9, title: 'The Sun is born', text: 'A cloud of gas and dust collapses into a protostar, still contracting towards hydrogen fusion. Around it a disk of dust and gas reaches out a hundred AU; the planets are forming in it, clearing gaps, and within ten million years the young Sun\'s wind and light disperse what is left.', view: { ppd: true }, rate: YEAR * 2e4 });
   add({ id: 'moonform', t: -4.51e9, est: true, title: 'The Moon forms', text: 'A Mars-sized planet, Theia, strikes the young Earth. Opens the physics sandbox to watch the impact and the Moon gather from the debris.', view: { sandbox: 'theia' }, rate: 20 });
+  add({ id: 'lhb', t: -3.9e9, est: true, title: 'The Late Heavy Bombardment', text: 'Lunar basins like Imbrium date from about now, which suggested a spike of impacts as the giant planets migrated (the Nice model). Newer analyses suggest a steadily declining flux instead; here both are blended. Either way, impacts are hundreds of times more frequent than today and a 10 km asteroid strikes Earth every few hundred thousand years.', view: { globe: 'Earth', lat: 10, lon: 40 }, rate: YEAR * 2e5 });
+  add({ id: 'orangedot', t: -2.6e9, est: true, title: 'The pale orange dot', text: 'With methane as common as carbon dioxide in an air without oxygen, sunlight turns it into an organic haze like Titan\'s. Seen from space the Archean Earth is orange; sulfur isotopes record haze episodes between 2.72 and 2.47 billion years ago, until oxygen ends them.', view: { globe: 'Earth', lat: 15, lon: 0 }, rate: YEAR * 1e5 });
   add({ id: 'oxygen', t: -2.4e9, est: true, title: 'The Great Oxidation', text: 'Cyanobacteria have been releasing oxygen for hundreds of millions of years; now it finally accumulates in the air, rusting the oceans\' iron and making complex life possible.', view: { globe: 'Earth', lat: 0, lon: 20 }, rate: YEAR * 1e7 });
   add({ id: 'cambrian', t: -5.388e8, title: 'The Cambrian explosion', text: 'Within about 20 million years most of the animal groups alive today appear in the seas: eyes, shells and the first predators.', view: { globe: 'Earth', lat: -35, lon: -165 }, rate: YEAR * 2e6 });
   add({ id: 'greatdying', t: -2.519e8, title: 'The Great Dying', text: 'The continents are joined in one supercontinent, Pangaea, with a vast arid interior. Flood basalts of the Siberian Traps pour out millions of cubic kilometres of lava; the CO2 heats the world by ~10 C and strips the oceans of oxygen. About 90% of marine species and 70% of land vertebrates die out, the worst mass extinction in Earth\'s history.', view: { globe: 'Earth', lat: 0, lon: 25 }, rate: YEAR * 1e6 });
@@ -115,6 +119,8 @@ export function buildEvents() {
   add({ id: 'snowball', t: -6.9e8, est: true, title: 'Snowball Earth', text: 'In the Cryogenian period ice sheets and frozen seas reach the equator, twice, for millions of years at a time; volcanic carbon dioxide eventually melts the planet free. (The continents are drawn in today\'s positions.)', view: { globe: 'Earth', lat: 10, lon: 20 }, rate: YEAR * 1e5 });
   add({ id: 'landplants', t: -4.7e8, est: true, title: 'Plants colonise the land', text: 'Until now the continents were bare rock and soil; mosses and liverworts, then by 385 million years ago the first forests, turn them green.', view: { globe: 'Earth', lat: -40, lon: -170 }, rate: YEAR * 2e6 });
   add({ id: 'halebopp', t: 1997.2 - 2000, title: 'Comet Hale-Bopp', text: 'The great comet of 1997, its nucleus about 60 km across, visible to the naked eye for a record 18 months, with a curved yellow dust tail and a straight blue ion tail pointing away from the Sun. It returns in about 2,500 years.', view: { comet: 'Comet Hale-Bopp' }, rate: 3600 });
+  add({ id: 'hungatonga', t: (Date.UTC(2022, 0, 15, 4, 15) - Date.UTC(2000, 0, 1, 12)) / 1000 / YEAR, title: 'Hunga Tonga erupts', text: 'The largest explosion in the atmosphere since Krakatoa throws a plume 57 km high and blows about 150 million tonnes of water into the stratosphere, raising its water vapour by 10% for years. Unusually it warms rather than cools the surface a little (water vapour traps heat) while chilling the stratosphere.', view: { globe: 'Earth', lat: -20.5, lon: -175.4 }, rate: 3600 });
+  add({ id: 'searise', t: 300, est: true, title: 'The seas rise', text: 'Warming oceans expand and glaciers and ice sheets melt: about half a metre by 2100 on a middle emissions path and nearly two metres by 2300, rising for thousands of years as Greenland and West Antarctica shrink (about 11 m in all here), until the next ice age draws the water back into ice.', view: { globe: 'Earth', lat: 52, lon: 4 }, rate: YEAR * 50 });
   add({ id: 'oumuamua', t: 2017.8 - 2000, title: "'Oumuamua, the first interstellar visitor", text: "Found on 19 October 2017 already outbound, a reddish object a few hundred metres long tumbling every 7 hours, on a hyperbolic orbit at 26 km/s relative to the Sun: it came from another star system and is leaving for good. It showed no coma, yet sped up slightly as if outgassing.", view: { body: "1I/'Oumuamua" }, rate: 3600 });
   add({ id: 'neowise', t: 2020.52 - 2000, title: 'Comet NEOWISE', text: 'The brightest comet seen from the northern hemisphere since Hale-Bopp, at magnitude ~1 in July 2020 with a curved dust tail, after passing 0.29 AU from the Sun. It returns in about 6,800 years.', view: { comet: 'Comet NEOWISE' }, rate: 3600 });
   add({ id: 'sl9', t: (Date.UTC(1994, 6, 16, 20) - Date.UTC(2000, 0, 1, 12)) / 1000 / YEAR, title: 'Comet Shoemaker-Levy 9 hits Jupiter', text: 'Torn into twenty fragments by Jupiter\'s tides two years earlier, the comet crashes into the planet over six days. Each impact leaves a dark scar of debris in the stratosphere, some larger than Earth, visible for months.', view: { body: 'Jupiter' }, rate: 3600 * 4 });
@@ -134,6 +140,8 @@ export function buildEvents() {
   add({ id: 'saturn', maxRate: 300000000.0, t: now + 2.9e8, est: true, title: 'Saturn loses its rings', text: 'Ring rain: icy particles spiral into Saturn along its magnetic field and through drag, enough to empty the rings in about 300 million years. Only faint dusty rings will remain.', view: { body: 'Saturn' }, rate: YEAR * 1e6 });
   add({ id: 'eclipses', maxRate: 300000000.0, t: now + 6.0e8, est: true, title: 'The last total solar eclipse', text: 'The Moon recedes about 3.8 cm a year. Once it looks smaller than the Sun, every central eclipse is annular.', view: { body: 'Moon' }, rate: YEAR * 1e6 });
   add({ id: 'oceans', maxRate: 1000000000.0, t: now + 1.1e9, est: true, title: 'Earth\'s oceans boil away', text: 'The Sun brightens ~1% every 110 million years. A moist greenhouse strips Earth\'s water to space.', view: { body: 'Earth' }, rate: YEAR * 2e6 });
+  add({ id: 'sgr', maxRate: 1000000000.0, t: now - 1.0e9, est: true, title: 'The Sagittarius dwarf plunges through the disk', text: 'A small galaxy on a polar orbit crosses the Milky Way\'s disk every ~900 million years, losing stars to a stream that wraps the sky. Gaia finds bursts of star formation in the disk at about 6.5, 1.9 and 1 billion years ago that line up with its passages.', view: { galaxy: 'side' }, rate: YEAR * 5e6 });
+  add({ id: 'sgrgone', maxRate: 1000000000.0, t: now + 1.0e9, est: true, title: 'The Sagittarius dwarf dissolves', text: 'After a few more passages through the disk the Sagittarius dwarf galaxy has been torn apart completely; its stars now belong to the Milky Way\'s halo.', view: { galaxy: 'side' }, rate: YEAR * 5e6 });
   add({ id: 'lmc', maxRate: 1000000000.0, t: now + LMC_MERGE * 1e6, est: true, title: 'The Large Magellanic Cloud merges with the Milky Way', text: 'Dynamical friction in our dark halo has dragged our largest satellite galaxy, on its first approach only two billion years ago, into the disk.', view: { galaxy: 'top' }, rate: YEAR * 5e6 });
   const lg = orbitEvents(), p1 = lg.pericentres[0], p2 = lg.pericentres[1];
   add({ id: 'm31near', maxRate: 3000000000.0, t: now + 3.0e9, est: true, title: 'Andromeda fills the sky', text: 'Approaching at 250 km/s, the Andromeda Galaxy spans tens of degrees of the night sky, as bright as the Milky Way.', view: { lg: 'sun' }, rate: YEAR * 5e6 });
@@ -153,16 +161,24 @@ export function buildEvents() {
   add({ id: 'wd', t: ageT(WD_START), title: 'The Sun is a white dwarf', text: 'An Earth-sized ember of carbon and oxygen, 0.54 solar masses, cooling for trillions of years.', view: { body: 'Sun' }, rate: YEAR * 1e6 });
   add({ id: 'sunlike', t: now + 3e10, est: true, title: 'Sun-like stars are dying out', text: 'With no gas left to form new stars, every star brighter than the Sun has burned out. The sky holds orange and red dwarfs and fading white dwarfs.', view: { lg: 'sun' }, rate: YEAR * 1e9 });
   add({ id: 'laststars', t: now + 9e13, est: true, title: 'The last stars fade', text: 'The longest-lived red dwarfs exhaust their hydrogen after about 100 trillion years. The stelliferous era ends; only stellar remnants and black holes remain.', view: { lg: 'sun' }, rate: YEAR * 1e12 });
+  // after the last stars: a logarithmic clock (tLate: years)
+  const Lt = (o) => add(Object.assign({ t: 1e14, view: { late: true }, rate: 1000, est: true }, o));   // (rate 1000: ~0.55 powers of ten per second)
+  Lt({ id: 'detach', tLate: 1e15, title: 'Planets torn from their stars', text: 'Over a quadrillion years, close passes between stellar remnants pull the last planets away from their dead suns.' });
+  Lt({ id: 'evaporate', tLate: 1e19, title: 'The galaxy evaporates', text: 'Close encounters fling about nine in ten of the remnants out of the galaxy; the rest sink into the central black hole, which grows to about ten billion solar masses.' });
+  Lt({ id: 'protondecay', tLate: PROTON_LIFE, title: 'Protons decay', text: 'If grand unified theories are right, protons decay, and every black dwarf and neutron star dissolves into radiation over the next thousand trillion trillion years. (The lifetime is unknown: it is longer than 2.4 × 10³⁴ years; 10³⁷ is assumed here.)' });
+  Lt({ id: 'stellarbh', tLate: evapYr(1), title: 'Stellar black holes evaporate', text: 'A black hole the mass of the Sun radiates away its mass by Hawking radiation in about 2 × 10⁶⁷ years, ending in a burst of gamma rays. Heavier ones last longer: the time grows as the mass cubed.' });
+  Lt({ id: 'bigbh', tLate: evapYr(MILKOMEDA_BH), title: 'Our galaxy\'s black hole evaporates', text: 'The ten-billion-solar-mass black hole at the heart of the merged Milky Way and Andromeda, the last remnant of our galaxy, radiates away its final mass.' });
+  Lt({ id: 'darkera', tLate: 1e101, title: 'The dark era', text: 'The largest black holes are gone. The universe holds only a thin, cooling gas of photons, neutrinos, electrons and positrons, in a space still expanding exponentially, at the 2 × 10⁻³⁰ K of its own horizon.' });
   add({ id: 'horizon', t: now + 1.5e11, est: true, title: 'The sky beyond the Local Group goes dark', text: 'Accelerating expansion carries every other galaxy beyond our event horizon; their light redshifts away.', view: { universe: true }, rate: YEAR * 1e9 });
   // order by time since the Big Bang (the earliest events all share one J2000 date)
-  for (const e of ev) e.k = e.tBB !== undefined ? e.tBB : (e.t - BB) * YEAR;
+  for (const e of ev) e.k = e.tBB !== undefined ? e.tBB : e.tLate !== undefined ? e.tLate * YEAR : (e.t - BB) * YEAR;
   return ev.sort((a, b) => a.k - b.k);
 }
 
 export class Timeline {
   constructor(nav, ui) { this.nav = nav; this.ui = ui; this.events = buildEvents(); this.auto = true; this.lastTyr = nav.time / YEAR; this.fired = new Set(); }
   // the current moment in seconds since the Big Bang (the early clock when it is running)
-  nowKey() { const nav = this.nav; return nav.early ? nav.early.t : nav.time + 13.79e9 * YEAR; }
+  nowKey() { const nav = this.nav; return nav.early ? nav.early.t : nav.late ? nav.late.y * YEAR : nav.time + 13.79e9 * YEAR; }
   next() { const k = this.nowKey(); return this.events.find(e => e.k > k * (1 + 1e-9) + 1e-60); }
   prev() { const k = this.nowKey(); return this.events.filter(e => e.k < k * (1 - 1e-9)).pop(); }
   // called every frame: slow down ahead of an event so it plays at a watchable rate, then announce it
@@ -177,7 +193,7 @@ export class Timeline {
     }
     const fwd = nav.rate > 0, k = this.nowKey(), pk = this.lastK === undefined ? k : this.lastK; this.lastK = k;
     for (const e of this.events) {
-      if (e.tBB !== undefined) { if (((pk < e.k && k >= e.k) || (pk > e.k && k <= e.k)) && !this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast(e.title); } continue; }
+      if (e.tBB !== undefined || e.tLate !== undefined) { if (((pk < e.k && k >= e.k) || (pk > e.k && k <= e.k)) && !this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast(e.title); } continue; }
       // announce events we just passed
       if ((prev < e.t && tyr >= e.t) || (prev > e.t && tyr <= e.t)) { if (!this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast((e.est ? 'About now: ' : '') + e.title); } }
       if (!this.auto) continue;
@@ -201,6 +217,13 @@ export class Timeline {
     if (e.tBB !== undefined) {
       // start a third of a decade before it on the early clock
       nav.setEarly(Math.max(e.tBB / 2.2, 5.4e-44)); nav.rate = e.rate; nav.paused = false; nav.atPlanck = false;
+      this.fired.delete(e.id); this.lastTyr = nav.time / YEAR; this.lastK = this.nowKey();
+      if (this.onGo) this.onGo(e);
+      return;
+    }
+    if (e.tLate !== undefined) {
+      // a third of a decade before it on the late clock
+      nav.setLate(e.tLate / 2.2); nav.rate = e.rate; nav.paused = false;
       this.fired.delete(e.id); this.lastTyr = nav.time / YEAR; this.lastK = this.nowKey();
       if (this.onGo) this.onGo(e);
       return;
