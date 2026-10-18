@@ -223,5 +223,25 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('Type Ia: nickel mass (M☉)', ni, '0.3-0.8 M☉ (normal SNe Ia)', (v) => v >= 0.3 && v <= 0.8);
   check('Type Ia: peak bolometric magnitude', 4.74 - 2.5 * Math.log10(Lpk / 3.828e33), '-19.1 ± 0.3 (Phillips relation)', 0.5);
 }
+{
+  // Earth processes, the Sagittarius dwarf and the far future
+  check('Sea level rise by 2100 vs 2000 (m)', evo.seaLevelRise(100, { ice: 1 }), '~0.56 (IPCC AR6 SSP2-4.5 median)', 0.1, ' m');
+  check('Sea level in 1900 vs 2000 (m)', evo.seaLevelRise(-100, { ice: 1 }), '~-0.17 (tide gauges)', 0.05, ' m');
+  check('Impact flux 3.9 Gyr ago vs today', evo.impactFlux(-3.9e9), 'hundreds to thousands (Neukum chronology, plus a possible spike)', (v) => v > 200 && v < 3000);
+  check('Impact flux 3 Gyr ago vs today', evo.impactFlux(-3.0e9), '~1-2 (the flux had settled)', (v) => v > 1 && v < 3);
+  check('Archean haze 2.6 Gyr ago', evo.archeanHaze(-2.6e9), '1 (Zerkle et al. 2012 haze episodes 2.72-2.47 Gyr)', (v) => v > 0.9);
+  check('No haze after the Great Oxidation (2.0 Gyr ago)', evo.archeanHaze(-2.0e9), '0', (v) => v === 0);
+  check('Hunga Tonga stratospheric water excess a year on (%)', evo.stratWater(23.04), '~5-10% (Millan et al. 2022: ~10% at first)', (v) => v > 4 && v < 10);
+  check('Great Red Spot length in 1979 (km)', evo.grsLength(1979), '23300 (Voyager)', 300, ' km');
+  const S = (t) => Math.hypot(...lgo.sgrAt(t));
+  let peri = Infinity, apo = 0; for (let t = -900; t <= 0; t += 2) { peri = Math.min(peri, S(t)); apo = Math.max(apo, S(t)); }
+  check('Sagittarius dwarf: distance from the Galactic centre now (kpc)', S(0), '18 (Vasiliev & Belokurov 2020)', 1.5, ' kpc');
+  check('Sagittarius dwarf: pericentre (kpc)', peri, '~15-16 (recent disk crossing)', 3, ' kpc');
+  check('Sagittarius dwarf: apocentre (kpc)', apo, '~45-65', (v) => v > 40 && v < 70);
+  const ff = await imp('farfuture.js');
+  check('Hawking evaporation of a 1 solar mass black hole (log10 yr)', Math.log10(ff.evapYr(1)), '67.3 (Page 1976)', 0.2);
+  check('de Sitter horizon temperature (K)', ff.DS_T, '~2.2e-30 (hbar H_Lambda / 2 pi k)', (v) => v > 1e-30 && v < 4e-30);
+  check('Microwave background temperature at 100 Gyr (log10 K)', ff.cmbLog10(1e11), '~-1.9 (cooling exponentially, e-fold 17.4 Gyr)', (v) => v < -1 && v > -3);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
