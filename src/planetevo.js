@@ -218,7 +218,8 @@ function secular(b, tyr, sys) {
     e = S.e0 + (S.koz.eMax - S.e0) * (x - x0); inc = S.i0 - (S.koz.mut - 0.685) * x * 0.5;
     b.evoKozai = S.koz;
   }
-  o.e = clamp(e, 0, 0.97); o.inc = inc; o.argp = S.w0 + wt + (S.koz ? Math.PI * Math.sin(Math.PI * tyr / S.koz.tK) * 0.25 : 0); o.node = S.O0 - wt * 0.8;
+  // (periastron kept beyond ~3 stellar radii: closer in, tides would circularize the orbit into a hot Jupiter's)
+  o.e = clamp(e, 0, Math.max(S.e0, Math.min(0.97, 1 - 3 * ((b.parent && b.parent.radius) || 7e8) / b._a0))); o.inc = inc; o.argp = S.w0 + wt + (S.koz ? Math.PI * Math.sin(Math.PI * tyr / S.koz.tK) * 0.25 : 0); o.node = S.O0 - wt * 0.8;
   b.evoSecRate = S.rate;
 }
 
