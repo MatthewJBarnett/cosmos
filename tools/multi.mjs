@@ -1,5 +1,4 @@
 // Several scenes in one page (faster than one browser per shot): node multi.mjs scenes.json (EXTRA=&param adds URL params)
-// several scenes in one page: node _multi.mjs scenes.json
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 const scenes = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
