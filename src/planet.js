@@ -134,7 +134,7 @@ uniform sampler3D uNoise3;
 uniform mat3 uRot;
 uniform vec3 uFaceA;
 uniform float uPixAngle;
-uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK;
+uniform float uTexSize, uSea, uOcean, uExposure, uRadius, uLunar, uSpec, uTime, uChunkM, uHasAtmo, uStarT, uStarRad, uEmisScale, uLavaT, uWaterKind, uHeatT, uHeatK; uniform vec2 uCityGrow;
 uniform vec2 uDetailO; uniform float uChunkA;
 uniform int uKind; uniform vec2 uCaps, uSeaIce; uniform vec4 uImpact; uniform float uImpactK; uniform vec4 uScars[6]; uniform int uNumScars; uniform float uMariaFill;
 ${ICE_GLSL}
@@ -378,7 +378,8 @@ void main(){
   // emission: city lights (night only) or lava
   if (alb.a > 0.003) {
     if (uLavaT > 0.) col += bbColor(uLavaT*(0.75 + 0.35*alb.a)) * vec3(1., 0.75, 0.6) * alb.a * alb.a * uEmisScale;
-    else col += vec3(1.0, 0.72, 0.38) * alb.a * uEmisScale * emisNight * (1. - water);
+    // (cities light up brightest first: in 1900 only the big city cores, small towns by the 1970s; LEDs whiten them after 2010)
+    else col += mix(vec3(1.0, 0.72, 0.38), vec3(0.95, 0.88, 0.75), uCityGrow.y) * alb.a * smoothstep(uCityGrow.x, uCityGrow.x*1.6 + 0.005, alb.a) * uEmisScale * emisNight * (1. - water);
   }
   // thermal glow of a surface heated by a giant Sun (dull red at ~1000 K, orange as rock melts)
   if (uHeatT > 700.) {
@@ -737,6 +738,8 @@ class PlanetState {
 }
 
 // city lights belong to an era: electric lighting spread from the 1880s; today's map is not extrapolated centuries ahead
+// which lights are on: a brightness threshold falling as electricity spreads, and the LED fraction
+export function cityGrow(t) { const y = 2000 + t / 31557600; return [y > 2030 ? 0 : 0.45 * Math.exp(-Math.max(y - 1890, 0) / 28), Math.max(0, Math.min(1, (y - 2010) / 20)) * 0.8]; }
 export function cityEra(t) { const y = 2000 + t / 31557600; return Math.max(0, Math.min(1, (y - 1880) / 70)) * Math.max(0, Math.min(1, 1 - (y - 2200) / 300)); }
 // visible radiance of a blackbody surface at T, in units of the solar constant per steradian (luminance weighted)
 export function heatGlow(T) {
@@ -853,7 +856,7 @@ export function drawPlanet(body, o) {
   p.set(Object.assign({
     uViewProj: o.viewProj, uFcoef: o.fcoef, uRot: rot3, uRadius: R, uSea: body.paleoSea !== undefined ? body.paleoSea : (surf.sea || 0) - (body.climate ? body.climate.dry * 11500 : 0) + (body.seaRise || 0), uOcean: body.paleoSea !== undefined ? 1 : surf.ocean || 0, uGrid: cfg.G, uTexStep: (cfg.T - 1) / cfg.G, uTexSize: cfg.T,
     uOblate: body.oblate || 0, uShape: shp, uExposure: o.exposure, uLunar: surf.lunar === undefined ? 0 : surf.lunar, uSpec: surf.spec || 0, uTime: o.time % 3600, uKind: surf.gen === 'terra' ? 0 : surf.gen === 'gas' ? 1 : 2,
-    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
+    uHasAtmo: atmo ? 1 : 0, uStarT: body.temp || 5000, uStarRad: o.starRad || 0, uCityGrow: surf.city ? cityGrow(o.time) : [0, 0], uEmisScale: (surf.lava ? 0.06 : 9e-5) * (body.climate ? body.climate.life : 1) * (surf.city ? cityEra(o.time) : 1),
     uIceAge: body.iceAge ? [body.iceAge, 125 * Math.min(body.iceAge, 1.1)] : [0, 0], uMariaFill: body.mariaFill === undefined ? 1 : body.mariaFill, uScars: body.scars ? body.scars.flat() : new Float32Array(24), uNumScars: body.scars ? body.scars.length : 0, uImpact: body.impact || [0, 1, 0, -1], uImpactK: body.impact ? heatGlow(2200) : 0, uCaps: body.caps || [99, -99], uSeaIce: body.seaIce && !(body.climate && body.climate.dry > 0.5) ? body.seaIce : [99, -99], uHeatT: body.heatT || 0, uHeatK: body.heatT ? heatGlow(body.heatT) : 0, uLavaT: surf.lava ? clamp(surf.tempEq || 1300, 1100, 1700) : 0, uWaterKind: body.cls === 'Titan' ? 1 : 0,
     uNoise3: o.noise3, uRefrK: o.refrK || 0, uRefrUp: o.refrUp || [0, 1, 0], uShadows: cfg.shadows ? 1 : 0, uPixAngle: 1 / o.pxPerRad, uTsurf: body.meanT || body.heatT || body.temp || 200,
   }, o.light));

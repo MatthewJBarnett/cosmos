@@ -31,6 +31,9 @@ const dynamoYr = (mE) => 0.5e9 * Math.pow(Math.max(mE, 1e-3) / 0.107, 1.6);
 // e-folding time of volcanic activity: small bodies cool fast (the Moon and Mercury ~1 Gyr, Mars ~1.5, Earth ~3)
 const volcYr = (mE) => 3e9 * Math.pow(Math.max(mE, 1e-3), 0.45);
 
+// hot Jupiters' radius anomaly: deposited starlight keeps the interior hot and swollen above Teq ~1000 K
+export const giantInflation = (Teq) => 1 + 0.55 * clamp((Teq - 1000) / 1000, 0, 1);
+
 // build the history table. star(tyr) -> { L (Lsun), M (Msun), R (m) } at tyr years from now; ageNow: the system's age
 export function buildHistory(b, ageNow, star, opt = {}) {
   const giant = b.surface && b.surface.gen === 'gas', mE = b.mass / ME, R = b.radius, Mp = b.mass;
@@ -145,7 +148,9 @@ export function buildHistory(b, ageNow, star, opt = {}) {
   // ---- giant planets contract and cool; rocky ones start molten ----
   for (let i = 0; i < N; i++) {
     const gfun = (t) => 1 + 0.5 * Math.pow(t / 1e7, -0.4);
-    h.Rp[i] = giant ? R * gfun(ages[i]) / gfun(ageNow) : R;
+    // (inflation follows the starlight at the planet's orbit: a brightening star or an inspiral puffs it up further)
+    const TeqA = (j) => 278.6 * Math.pow(h.S[j] * Math.pow(aNow / Math.max(h.a[j], 1), 2), 0.25), infl = giant && mE > 30 ? giantInflation(TeqA(i)) / giantInflation(TeqA(iNow)) : 1;
+    h.Rp[i] = giant ? R * gfun(ages[i]) / gfun(ageNow) * infl : R;
     const TintNow = giant ? 100 * Math.pow(Math.max(mE / 318, 0.03), 0.4) : 0;
     h.Tint[i] = giant ? TintNow * Math.pow(ages[i] / ageNow, -0.32) : ages[i] < 6e7 * Math.sqrt(Math.max(mE, 0.01)) ? 1500 * clamp(1 - ages[i] / (6e7 * Math.sqrt(Math.max(mE, 0.01))), 0, 1) + 300 : 0;
   }
@@ -175,6 +180,46 @@ export function moonA(moon, planet, tyr) {
   const a = Math.pow(v, 1 / 6.5);
   const roche = 2.44 * Rp * Math.cbrt((Mp / (4.19 * Rp ** 3)) / Math.max(m / (4.19 * moon.radius ** 3), 300));
   return { a, gone: a < roche ? 'torn apart into a ring' : a > 3 * a0 * 50 ? 'escaped' : null, s };
+}
+
+// Laplace-Lagrange in its simplest form: precession rate from each other planet, n (3/4)(m'/M)(a/a')^3 for an outer
+// one (a/a' < 1) and n (3/4)(m'/M)(a'/a)^2 for an inner one; eccentricity and inclination swing with the beat of
+// the two slowest modes, anchored so the present orbit is exactly the generated one
+function secular(b, tyr, sys) {
+  const o = b.orbit;
+  if (!b._sec) {
+    const host = b.parent, M = host.mass || 2e30, n = 2 * Math.PI / (b._p0 / 31557600);
+    let rate = 0, eF = 0, iF = 0;
+    for (const c of host.children || []) {
+      if (c === b || !c.orbit || !c.mass || c.kind === 'star' || c.kind === 'comet') continue;
+      const r = c.orbit.a / b._a0, al = r > 1 ? 1 / r : r, k = 0.75 * (c.mass / M) * (r > 1 ? al ** 3 : 1 / (r * r));
+      rate += n * k; eF = Math.max(eF, (c.orbit.e || 0) * 1.25 * al * Math.min(1, k * 3e4)); iF = Math.max(iF, Math.abs((c.orbit.inc || 0) - (o.inc || 0)) * Math.min(1, k * 3e4));
+    }
+    const hh = ((b.uid * 2654435761) >>> 0) / 4294967296;
+    b._sec = { e0: o.e || 0, i0: o.inc || 0, w0: o.argp, O0: o.node, rate, eA: Math.min(0.15, eF + 0.01 * (rate > 0 ? 1 : 0)), iA: Math.min(0.1, iF * 0.5), ph: hh * 6.283, ph2: hh * 37.7 % 6.283 };
+    // Kozai: a planet around one star of a binary, inclined more than 39 degrees to the pair's orbit
+    const stars = (sys.stars || []).filter(s => s !== host && s.mass);
+    if (host.kind === 'star' && stars.length) {
+      const st = stars[0], ab = Math.max((st.orbit ? st.orbit.a : 0) + (host.orbit ? host.orbit.a : 0), 1);
+      const mut = (20 + 70 * ((hh * 7.31) % 1)) * Math.PI / 180;                       // (the pair's tilt is unknown: drawn per planet)
+      if (ab > 3 * b._a0 && mut > 0.69) {
+        const tK = (b._p0 / 31557600) * (M / st.mass) * (ab / b._a0) ** 3;               // years
+        b._sec.koz = { tK, eMax: Math.min(0.95, Math.sqrt(1 - 5 / 3 * Math.cos(mut) ** 2)), mut };
+      }
+    }
+  }
+  const S = b._sec, wt = S.rate * tyr;
+  // (an apparent circular orbit picks up eccentricity from the beat; amplitudes are anchored at the present)
+  const sw = (ph) => Math.sin(wt * 0.63 + ph) - Math.sin(ph);
+  let e = S.e0 + S.eA * sw(S.ph), inc = S.i0 + S.iA * sw(S.ph2);
+  if (S.koz) {
+    // (a smooth stand-in for the cycle: e rises to eMax and the inclination drops to ~39 degrees and back, each period)
+    const x = 0.5 - 0.5 * Math.cos(2 * Math.PI * tyr / S.koz.tK), x0 = 0;
+    e = S.e0 + (S.koz.eMax - S.e0) * (x - x0); inc = S.i0 - (S.koz.mut - 0.685) * x * 0.5;
+    b.evoKozai = S.koz;
+  }
+  o.e = clamp(e, 0, 0.97); o.inc = inc; o.argp = S.w0 + wt + (S.koz ? Math.PI * Math.sin(Math.PI * tyr / S.koz.tK) * 0.25 : 0); o.node = S.O0 - wt * 0.8;
+  b.evoSecRate = S.rate;
 }
 
 // ---- apply to a system's bodies at time tyr (years from now) ----
@@ -214,6 +259,9 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       const m = moonA(Object.assign({}, b, { orbit: { a: b._a0, period: b._p0 } }), b.parent, tyr);
       if (!m) b.evoGone = 'torn apart into a ring'; else { b.orbit.a = m.a; b.orbit.period = b._p0 * Math.pow(m.a / b._a0, 1.5); b.evoGone = m.gone; b.evoMig = m.s; }
     }
+    // secular evolution: neighbours slowly turn each orbit (perihelion and node) and make its shape and tilt breathe;
+    // a distant companion star can drive Kozai-Lidov cycles (eccentricity traded for inclination)
+    if (!noOrbit && !isMoon && b.orbit && b._a0) secular(b, tyr, sys);
     // giants contract and glow while young; rocky planets begin molten
     if (giant) { b.radius = s.Rp; }
     const glow = s.Tint > 650 ? s.Tint : 0;
@@ -240,8 +288,9 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       const sd = Math.sin((b.tilt || 0) * Math.PI / 180) * Math.sin(ph), sw = 22 * sd;
       b.seaIce = b.iceAge >= 3 ? null : [Math.min(89, base + sw), -Math.min(89, base - sw)];
     }
-    // mountains: plate tectonics keeps building them; on a stagnant lid they wear down (with weather) or stay (airless)
-    if (!giant && b.surface && b.surface.gen === 'terra' && !b.maps && b.hist.P0 > 1e3) b.mtnK = b.hist.plates ? 1 : Math.round(clamp(Math.exp(-(age - ageNow) / 4e9), 0.3, 2.5) * 8) / 8;
+    // mountains: plate tectonics keeps building them (higher while continents collide, lower while they rift apart, a ~0.4-0.7
+    // Gyr cycle); on a stagnant lid they wear down (with weather) or stay (airless)
+    if (!giant && b.surface && b.surface.gen === 'terra' && !b.maps && b.hist.P0 > 1e3) b.mtnK = b.hist.plates ? Math.round(clamp(1 + 0.3 * Math.sin(2 * Math.PI * (age - ageNow) / (4e8 + 3e8 * ((b.uid * 0.618) % 1))), 0.6, 1.4) * 8) / 8 : Math.round(clamp(Math.exp(-(age - ageNow) / 4e9), 0.3, 2.5) * 8) / 8;
     // clouds follow the climate: none once the oceans are gone or frozen solid
     if (b.atmo && b.atmo.clouds && b.atmo.clouds.kind === 'earth' && !b.precessRA) b.noClouds = !!((b.climate && b.climate.dry > 0.9) || b.iceAge >= 3 || (b.atmoK !== undefined && b.atmoK < 0.05));
     // plate tectonics moves the continents (procedural worlds; Earth has its real plates): Myr of drift, in 4 Myr steps
@@ -256,6 +305,9 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
       b.climate = Object.assign({}, c0, { life: Math.min(c0.life === undefined ? 1 : c0.life, b.life ? lifeK : 1) });
       const sRel = s.S / b.hist.S[b.hist.iNow], cell = Math.floor(age / 2e7), hsh = ((cell * 2654435761) >>> 0) / 4294967296 % 1;
       b.iceAge = sRel < 0.93 && hsh < 0.3 * clamp((0.93 - sRel) / 0.1, 0, 1) + 0.04 ? 3 : 0;
+      // sea level: plate tectonics slowly carries water down into the mantle (~100 m per Gyr, so younger oceans stood
+      // higher); a snowball locks ~400 m of it up in ice (drying out as the star brightens is handled by climate.dry)
+      if (b.hist.plates && !b.maps) b.seaRise = Math.round(clamp(-(age - ageNow) / 1e7, -400, 300) + (b.iceAge >= 3 ? -400 : 0));
     }
     // a moon torn apart becomes a ring around its planet
     if (b.evoGone === 'torn apart into a ring' && b.parent && !b.parent.rings && !b.parent._ringFrom) {

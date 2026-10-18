@@ -12,7 +12,7 @@ import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthCl
 const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3).toLocaleString('en') + ',000 years' : (y / 1e6).toFixed(y < 1e7 ? 1 : 0) + ' million years';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START, paleoMap } from './paleo.js';
-import { evolveBodies, historyAt, moonA } from './planetevo.js';
+import { evolveBodies, historyAt, moonA, giantInflation } from './planetevo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
@@ -321,7 +321,13 @@ export class StarSystem {
     for (const b of root.children) {
       if (!b.orbit || b.kind === 'star') continue;
       const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
-      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young || !!b.evoGone; if (!!b.gone !== g) changed = true; b.gone = g;
+      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young || !!b.evoGone;
+      // (seen happening: a planet swallowed or spiralling in while the clock runs forward gets a flash and a note)
+      if (g && !b.gone && !sysUn && !young && this._evTyr !== undefined && tyr > this._evTyr && tyr - this._evTyr < 5e8) {
+        this.swallowed = { name: b.name, star: root.name, how: b.evoGone ? 'spiralled into' : 'was swallowed by', wall: performance.now() };
+        b.swallowedAt = tyr;
+      }
+      if (!!b.gone !== g) changed = true; b.gone = g;
       for (const c of b.children) { const gc = g || !!c.evoGone; if (!!c.gone !== gc) changed = true; c.gone = gc; }
       const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
       b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
@@ -331,14 +337,19 @@ export class StarSystem {
         b.climate = S > 1 ? { S, dry: clamp((S - 1.09) / 0.12, 0, 1), life: 1 - clamp((S - 1.05) / 0.06, 0, 1), ice: 1 - clamp((S - 1.02) / 0.05, 0, 1) } : null;
       }
     }
+    this._evTyr = tyr;
     // every planet and moon evolves: atmosphere, temperature, spin, close orbits, moons' orbits, cooling (planetevo.js)
-    if (root.evo && root.evo.x0 !== null && !sysUn) {
-      const age0 = root.evo.x0 * root.evo.life;
-      evolveBodies(this, tyr, age0, (ty) => { const st = stellarState(root, ty) || {}; return { L: st.unborn ? 0 : st.L || 0, M: st.m || root.evo.m, R: st.R || root.radius }; });
+    // (in a binary the root is the barycentre: the primary's track sets the age; circumbinary planets get both stars' light)
+    const hs = root.evo ? root : p0;
+    if (hs && hs.evo && hs.evo.x0 !== null && !sysUn) {
+      const age0 = hs.evo.x0 * hs.evo.life;
+      if (this._lumK === undefined) this._lumK = hs !== root && this.binarySep < 3 ? (this._allStars || this.stars).reduce((q, x) => q + (x.lum || 0), 0) / Math.max(hs.lum, 1e-12) : 1;
+      const lk = this._lumK;
+      evolveBodies(this, tyr, age0, (ty) => { const st = stellarState(hs, ty) || {}; return { L: st.unborn ? 0 : (st.L || 0) * lk, M: st.m || hs.evo.m, R: st.R || hs.radius }; });
       // giant planets change their clouds with temperature (Sudarsky classes): a red giant star cooks ammonia-cloud
       // Jupiters into cloudless or alkali-hazed ones; a dead star lets them freeze
-      for (const b of root.children) if (b._gk0 && b.surface && !b.gone) {
-        const T = 278.6 * Math.pow(Math.max(root.lum, 1e-9) * 0.55 / Math.pow(b.orbit.a / C.AU, 2), 0.25);
+      for (const b of hs === root ? root.children : [...root.children, ...hs.children]) if (b._gk0 && b.surface && !b.gone && b.orbit) {
+        const T = 278.6 * Math.pow(Math.max(hs.lum * lk, 1e-9) * 0.55 / Math.pow(b.orbit.a / C.AU, 2), 0.25);
         const k = T > 900 ? 'hot' : T > 350 ? (b._gk0 === 'hot' ? 'sulfur' : 'cloudy') : T < 90 && b._gk0 !== 'uranus' ? 'uranus' : b._gk0;
         if (k !== (b._gkNow || b._gk0)) { b._gkNow = k; if (!b._gSurf) b._gSurf = { [b._gk0]: b.surface }; b.surface = b._gSurf[k] || (b._gSurf[k] = gasPreset(k, new RNG(b._gSeed), b)); b.mapsVersion = (b.mapsVersion || 0) + 1; }
       }
@@ -403,7 +414,10 @@ export class StarSystem {
       }
       oScale = orbitScale(tyr); mScale = moonScale(tyr); this.oScale = oScale;
       let changed = !!this._sunChanged; this._sunChanged = false;
-      for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr) || (b.breakT !== undefined && t > b.breakT && t < b.breakT + 3e9); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
+      for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr) || (b.breakT !== undefined && t > b.breakT && t < b.breakT + 3e9);
+        if (g && !b.gone && engulfed(b.name, tyr) && this._solTyr !== undefined && tyr > this._solTyr && tyr - this._solTyr < 5e8) { this.swallowed = { name: b.name, star: 'the Sun', how: 'was swallowed by', wall: performance.now() }; b.swallowedAt = tyr; }
+        if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
+      this._solTyr = tyr;
       // tidal decay: Phobos breaks up into a ring around Mars in ~40 Myr (Black & Mittal 2015); Triton, on a retrograde
       // orbit, is torn apart inside Neptune's Roche limit in ~3.6 Gyr. The debris rings last ~100 Myr / ~1 Gyr here.
       const all = this._all || this.bodies;
@@ -535,7 +549,10 @@ export class StarSystem {
       if (ran) { this._evoT = tyr; oScale = this.evolveStars(tyr); this._evoScale = oScale; }
       else oScale = this._evoScale || 1;
       this.oScale = oScale;
-      for (const s of this.stars) { if (s._lumBase === undefined || ran) s._lumBase = s.lum; const f = this.flareBoost(s, t, (t - (this._lastT || t))); s.lum = s._lumBase * f; s.flaring = f > 1.05 ? f : 0; }
+      for (const s of this.stars) { if (s._lumBase === undefined || ran) s._lumBase = s.lum; let f = this.flareBoost(s, t, (t - (this._lastT || t)));
+        // (a swallowed planet: a flash over a couple of seconds of wall time, whatever the clock rate)
+        if (this.swallowed && s === this.stars[0]) { const w = (performance.now() - this.swallowed.wall) / 1000; if (w < 4) f *= 1 + 4 * Math.min(w / 0.3, 1) * Math.exp(-w / 0.9); }
+        s.lum = s._lumBase * f; s.flaring = f > 1.05 ? f : 0; }
       this._lastT = t;
     }
     const rec = (b) => {
@@ -1006,6 +1023,8 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
   const Teq = 278.5 * Math.pow(Math.max(lum, 1e-8), 0.25) / Math.sqrt(aAU);
   const icy = type === 'rock' && Teq < 150;
   if (icy) rE *= 1.25;
+  // hot Jupiters are puffed up by the starlight they absorb (radius anomaly grows above Teq ~1000 K; Thorngren & Fortney 2018)
+  if (type === 'gas') rE *= giantInflation(Teq);
   b.radius = rE * C.Rearth;
   const g = C.G * b.mass / (b.radius * b.radius), vesc = Math.sqrt(2 * g * b.radius);
   b.temp = Teq;
@@ -1113,12 +1132,19 @@ function evoRows(b, rows) {
     const dd = (Math.abs(r1) - Math.abs(r0)) / 100;    // seconds per Myr
     rows.push(['Spin over time', lockedNow ? 'tidally locked: one face always towards its star' : h.P0 > 2e6 && r0 < 0 && Math.abs(Math.abs(r0) - P / 1.08) < P * 0.05 ? 'held slow and backwards by tides in its thick air (like Venus)' : Math.abs(dd) < 1e-4 ? 'steady (the star\'s tides are too weak this far out)' : 'the star\'s tides lengthen its day by ' + (dd < 1 ? (dd * 1000).toPrecision(2) + ' ms' : dd < 3600 ? dd.toPrecision(2) + ' s' : (dd / 3600).toPrecision(2) + ' h') + ' per million years' + (iL > 0 && h.ages[iL] > b.evoAge ? '; it locks in ' + fmtYr(h.ages[iL] - b.evoAge) : '')]);
   }
+  if (b.evoKozai) rows.push(['Orbit over time', 'Kozai-Lidov cycles from its companion star: every ' + fmtYr(b.evoKozai.tK) + ' the orbit stretches to e = ' + b.evoKozai.eMax.toFixed(2) + ' while its tilt drops, then back']);
+  else if (b.evoSecRate > 0) rows.push(['Orbit over time', 'the other planets turn it (perihelion every ~' + fmtYr(2 * Math.PI / b.evoSecRate) + ') and make its eccentricity and tilt swing; now e = ' + (b.orbit.e || 0).toFixed(3)]);
   if (b._axis0 && !h.giant) rows.push(['Axial tilt over time', b.evoBigMoon ? 'steadied by its big moon (swings ~1 degree)' : 'swings chaotically by up to ~' + Math.round(5 + 9 * (((b.uid * 2654435761) >>> 0) / 4294967296)) + ' degrees (no big moon to steady it)']);
   if (!h.giant) {
     rows.push(['Magnetic field', s.field ? 'active (shields the air from the stellar wind)' : 'none (the stellar wind strips the upper air)']);
     const vol = s.out / Math.max(h.mE, 1e-3) / (h.plates ? 0.05 : 0.01);
+    if (b.mtnK !== undefined) rows.push(['Mountains', h.plates ? (b.mtnK > 1.05 ? 'high: continents are colliding' : b.mtnK < 0.95 ? 'low: continents rifting apart while old ranges erode' : 'built by colliding plates, worn by erosion') : b.mtnK < 1 ? 'wearing down: no plates to raise new ones' : 'young and sharp: erosion has not caught up yet'] );
     rows.push(['Interior', (h.plates ? 'plate tectonics' : 'stagnant lid') + ' · volcanism ' + (b.evoAge < 1e8 ? 'a magma ocean' : vol > 2e4 ? 'intense' : vol > 5e3 ? 'active' : vol > 1500 ? 'waning' : vol > 300 ? 'mostly extinct (rare eruptions)' : 'extinct')]);
-  } else rows.push(['Interior', 'contracting and cooling: internal heat ' + Math.round(s.Tint) + ' K' + (s.Tint > 650 ? ' (it glows)' : '')]);
+  } else {
+    rows.push(['Interior', 'contracting and cooling: internal heat ' + Math.round(s.Tint) + ' K' + (s.Tint > 650 ? ' (it glows)' : '')]);
+    const Teq = 278.6 * Math.pow(s.S * Math.pow((b._a0 || 1) / Math.max(s.a || b._a0 || 1, 1), 2), 0.25), inf = h.mE > 30 ? giantInflation(Teq) : 1;
+    if (inf > 1.03) rows.push(['Inflated', 'starlight heating its interior puffs it up to ' + inf.toFixed(2) + 'x its cold size' + (s.S > h.S[h.iNow] * 1.2 ? ' (more as its star brightens)' : '')]);
+  }
   if (h.subNep) rows.push(['Envelope', s.env > 1e-4 ? (s.env * 100).toFixed(2) + '% of its mass is hydrogen and helium' + (s.xuv > 1 ? ', boiling off under the young star\'s X-rays' : '') : 'stripped by its star: a bare rocky core (the "radius valley")']);
   if (b.iceAge >= 3 && h.wet) rows.push(['Climate', 'a snowball: frozen to the equator while its star was fainter']);
   if (b.life && h.wet) { const early = b.evoAge < h.ageNow, L = b.climate ? b.climate.life : 1; rows.push(['Life', early && L < 0.95 ? (L < 0.05 ? 'microbes only: the land is still bare' : 'spreading over the land') : L < 0.05 ? 'none (sterilized)' : L < 0.5 ? 'dying out as the star brightens' : 'organic, multicellular']); }
@@ -1209,7 +1235,11 @@ export function describeBody(b) {
       if (lu) rows.push(['Land use', lu]); }
     if (b.dipPole) rows.push(['North magnetic pole', b.dipPole[0].toFixed(1) + '° N, ' + Math.abs(b.dipPole[1]).toFixed(1) + '° ' + (b.dipPole[1] < 0 ? 'W' : 'E') + ' (it has wandered from Canada towards Siberia since 1900)']);
     if (b.stratWater > 0.5) rows.push(['Stratosphere', '+' + Math.round(b.stratWater) + '% water vapour from Hunga Tonga (2022)']);
-    if (b.seaRise !== undefined && Math.abs(b.seaRise) > 0.01 && !b.paleoMyr) rows.push(['Sea level', (b.seaRise > 0 ? '+' : '') + (Math.abs(b.seaRise) < 3 ? b.seaRise.toFixed(2) : Math.round(b.seaRise)) + ' m vs 2000' + (b.iceAge > 0.05 ? ' (ice sheets: ' + Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m)' : '')]);
+    if (b.seaRise !== undefined && Math.abs(b.seaRise) > 0.01 && !b.paleoMyr) {
+      const sg = b.seaRise > 0 ? '+' : '';
+      if (b.name !== 'Earth' && b.hist) rows.push(['Sea level', sg + Math.round(b.seaRise) + ' m vs today' + (b.iceAge >= 2.5 ? ' (frozen into a global ice shell)' : b.hist.plates ? ' (oceans slowly sink into the mantle)' : '')]);
+      else rows.push(['Sea level', sg + (Math.abs(b.seaRise) < 3 ? b.seaRise.toFixed(2) : Math.round(b.seaRise)) + ' m vs 2000' + (b.iceAge > 0.05 ? ' (ice sheets: ' + Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m)' : '')]);
+    }
     else if (b.iceAge > 0.05 && b.iceAge < 2.5) rows.push(['Sea level', Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m (water locked in ice sheets)']);
     if (b.impactFlux > 3 || (b.name === 'Moon' && b.system && impactFlux(b.system.tyr || 0) > 3)) { const f = b.impactFlux || impactFlux(b.system.tyr || 0), T = -(b.system && b.system.tyr || 0) / 1e9;
       rows.push(['Impacts', Math.round(f).toLocaleString('en') + 'x today' + (T > 3.8 && T < 4.0 ? ' (the Late Heavy Bombardment, if it happened)' : '') + (b.impactFlux ? '; a 10 km asteroid every ~' + fmtYr(1e8 / f) : '')]); }
