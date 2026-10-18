@@ -55,7 +55,7 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Early universe](docs/early_universe.jpg) The first moments: inflation (10⁻³⁴ s), helium forming at 4.3 minutes (computed abundances in the HUD), recombination at 390,000 years, the first stars at 200 Myr | ![Bands](docs/bands1.jpg) The Milky Way in visible light, ultraviolet (young arms), near-infrared (old stars, dust transparent) and far-infrared (warm dust) |
 | ![More bands](docs/bands2.jpg) Microwave (the cosmic background), radio (21 cm hydrogen reaching past the stars), X-ray, and remnants glowing in the far infrared 10²⁰ years from now | ![Archean and Rodinia](docs/archean_rodinia.jpg) The "pale orange dot" 2.6 billion years ago (Archean organic haze), and an illustrative Rodinia 900 million years ago |
 | ![Great Red Spot](docs/grs.jpg) Jupiter's Great Red Spot in 1880 and 2024: the map is stretched by its measured length for the date | ![Aurora from orbit](docs/aurora_orbit.jpg) Aurora from 400 km during the storm of 10-11 October 2024 |
-| ![Precessing binary](docs/precessing.jpg) Black holes with tilted spins: the orbital plane precesses (sandbox) | |
+| ![Precessing binary](docs/precessing.jpg) Black holes with tilted spins: the orbital plane precesses (sandbox) | ![Gas bridge](docs/gas_bridge.jpg) Andromeda's second passage, ~5.2 Gyr from now: a bridge of shocked, star-forming gas glows pink between the galaxies |
 
 ## Run
 

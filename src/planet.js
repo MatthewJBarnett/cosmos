@@ -842,7 +842,7 @@ export function drawPlanet(body, o) {
   if (atmo) p.set(Object.assign({ uTransLUT: o.atmoLUT.trans, uMultiLUT: o.atmoLUT.multi, uIrrLUT: o.atmoLUT.irr }, o.atmoLUT.uniforms));
   const cl = atmo && o.clouds && o.atmoLUT.cloud && body.atmo.clouds.kind !== 'venus' && surf.gen === 'terra';
   // (the measured global height map, only while the surface is today's: no drifted or ancient continents)
-  const gmp = st.maps && st.maps.height && st.maps.height.tex && !(body.drift && Math.abs(body.drift) > 0.05) && !(body.paleoMap > 0) && !body.iceAge ? st.maps.height : null;
+  const gmp = cfg.longShadows !== false && st.maps && st.maps.height && st.maps.height.tex && !(body.drift && Math.abs(body.drift) > 0.05) && !(body.paleoMap > 0) && !body.iceAge ? st.maps.height : null;
   p.set({ uHasGlobH: gmp ? 1 : 0, uGlobH: gmp ? gmp.tex : dummyTex(), uGlobHRange: (body.maps && body.maps.hRange) || [0, 1] });
   p.set({ uHasClouds: cl ? 1 : 0, uCloudMap: cl ? o.atmoLUT.cloud : o.dummyCube, uCloudRotInv: cl ? o.cloudRotInv(body, o.rotQ, o.time) : new Float32Array(9), uCloudAlt: cl ? (body.atmo.clouds.base + body.atmo.clouds.top) * 0.4 : 1, uCloudTime: o.time % 86400, uWx: cl ? weatherUniform(body, o.time) : [0, 0, 0, 0] });
   for (const d of draws) {
