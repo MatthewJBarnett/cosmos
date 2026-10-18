@@ -543,6 +543,7 @@ export class UI {
       else if (p[1] && Math.abs(tMyrN - p[1].t) < 150) now.push('Andromeda\'s second passage');
       else if (lgEv.merged > 0 && tMyrN > lgEv.merged - 200 && tMyrN < lgEv.merged + 300) now.push('the Milky Way and Andromeda merging');
       if (tMyrN > LMC_MERGE - 250 && tMyrN < LMC_MERGE + 50) now.push('the Large Magellanic Cloud falling into the Milky Way');
+      if (tMyrN > -6000 && tMyrN < 1500 && V.len(sgrAt(tMyrN)) < 16.5 && sgrLum(tMyrN) > 0.05) now.push('the Sagittarius dwarf galaxy plunging through the Milky Way\'s disk');
       if (now.length) deep += `<div><b>Now</b> ${now.slice(0, 3).join(' · ')}</div>`;
     }
     // the next event in the direction time is running
