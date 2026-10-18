@@ -256,6 +256,17 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   supernova leaving a neutron star or black hole. Eight real massive stars explode on estimated dates (Betelgeuse,
   Antares, Alnilam, Naos, Rigel, Deneb, Mimosa, Spica). Catalogue stars blend from their measured velocities into
   orbits around the Galaxy after a few million years.
+- **The first moments:** the clock reaches back to the Planck time (10⁻⁴³ s; it stops there) on its own logarithmic
+  scale (powers of ten per second). Inflation (10⁻³⁶ to 10⁻³² s, 60 e-folds) is an endless zoom through freezing
+  fluctuations; reheating starts the hot Big Bang; the electroweak and quark-hadron transitions, neutrino decoupling and
+  electron-positron annihilation follow, with the temperature from g*(T) and entropy conservation (T_ν/T ends at
+  (4/11)^1/3). Nucleosynthesis is computed: weak n-p rates (freeze-out at n/(n+p) = 0.168) and a 12-reaction network give
+  helium-4 0.243 by mass, D/H 2.8e-5, ³He/H 1.1e-5 and ⁷Li/H 4.3e-10, built up live in the HUD. Recombination follows
+  Peebles' three-level atom (half ionized at z = 1272, last scattering at z = 1079, residual electrons 2.6e-4); the
+  afterglow carries the frozen ripples (drawn ~5,000x stronger than their real 1 part in 100,000). In the dark ages
+  σ₈ grows with the linear growth factor; Population III stars (30-300 M☉, ~100,000 K, 2-6 Myr) light up in small
+  halos from ~100 Myr, dying as pair-instability supernovae or collapsing to black holes; reionization follows the
+  Planck tanh history (midpoint z = 7.7), and in visible light galaxies beyond z ~ 5 drop out behind the Lyman break.
 - **The early universe:** rewinding toward the Big Bang the galaxies get smaller, bluer and brighter (young,
   star-forming) as seen at their light's emission time, then vanish before ~300 Myr; the Milky Way fades out
   before ~13 Gyr ago. The cosmic background (radiation era included) is hot enough to see for the first few million
