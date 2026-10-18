@@ -51,7 +51,11 @@ Unedited frames from the app, rendered headless on a machine without a GPU (soft
 | ![Pangaea](docs/pangaea.jpg) 252 million years ago: Pangaea, from the PALEOMAP reconstruction, with arid interior and green coasts | ![Mars dust storm](docs/mars_dust_storm.jpg) Mars in July 2018 (global dust storm, only the Tharsis volcanoes show) and a year later |
 | ![Sun's birth cloud](docs/sun_birth_cloud.jpg) 4.575 billion years ago: the molecular cloud where the Sun is about to form | ![Young stars](docs/young_stars.jpg) Sirius's birth cloud 178 Myr ago; Vega at 3 Myr old inside its protoplanetary disk |
 | ![Milky Way through time](docs/mw_epochs.jpg) The Milky Way 10 billion years ago (star forming, blue) and Milkomeda 8 billion years from now | ![Nebula life](docs/nebula_life.jpg) A procedural H II region at 2.8 and 4.8 Myr old (dispersing), and a young planetary nebula |
-| ![Hale-Bopp](docs/halebopp.jpg) Comet Hale-Bopp, March 1997, on its real orbit: dust tail and blue ion tail | |
+| ![Hale-Bopp](docs/halebopp.jpg) Comet Hale-Bopp, March 1997, on its real orbit: dust tail and blue ion tail | ![Great September Comet](docs/great1882.jpg) The Great September Comet of 1882, a Kreutz sungrazer, at perihelion beside the Sun (JPL orbit) |
+| ![Early universe](docs/early_universe.jpg) The first moments: inflation (10⁻³⁴ s), helium forming at 4.3 minutes (computed abundances in the HUD), recombination at 390,000 years, the first stars at 200 Myr | ![Bands](docs/bands1.jpg) The Milky Way in visible light, ultraviolet (young arms), near-infrared (old stars, dust transparent) and far-infrared (warm dust) |
+| ![More bands](docs/bands2.jpg) Microwave (the cosmic background), radio (21 cm hydrogen reaching past the stars), X-ray, and remnants glowing in the far infrared 10²⁰ years from now | ![Archean and Rodinia](docs/archean_rodinia.jpg) The "pale orange dot" 2.6 billion years ago (Archean organic haze), and an illustrative Rodinia 900 million years ago |
+| ![Great Red Spot](docs/grs.jpg) Jupiter's Great Red Spot in 1880 and 2024: the map is stretched by its measured length for the date | ![Aurora from orbit](docs/aurora_orbit.jpg) Aurora from 400 km during the storm of 10-11 October 2024 |
+| ![Precessing binary](docs/precessing.jpg) Black holes with tilted spins: the orbital plane precesses (sandbox) | |
 
 ## Run
 

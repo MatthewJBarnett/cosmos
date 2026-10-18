@@ -503,7 +503,7 @@ export class UI {
         // what exists, and the light elements as they are made
         const er = earlyEra(nav.early.t), fx = sci;
         const en = er.E > 1e3 ? fx(er.E / 1e3) + ' GeV' : er.E > 0.1 ? er.E.toFixed(er.E < 10 ? 2 : 0) + ' MeV' : (er.E * 1e3).toFixed(0) + ' keV';
-        const sz = er.size < 1e-3 ? fx(er.size) + ' m' : er.size < 1e3 ? er.size.toPrecision(2) + ' m' : er.size < 9.46e15 ? fx(er.size / 1e3) + ' km' : (er.size / 9.46e15).toPrecision(2) + ' light years';
+        const sz = er.size < 1e-3 ? fx(er.size) + ' m' : er.size < 1e3 ? er.size.toPrecision(2) + ' m' : er.size < 9.46e15 ? fx(er.size / 1e3) + ' km' : (er.size / 9.46e15 < 100 ? (er.size / 9.46e15).toPrecision(2) : Math.round(er.size / 9.46e15).toLocaleString('en')) + ' light years';
         deep += `<div><b>${er.name}</b> <span class="dim">${er.text}</span></div>`;
         deep += `<div class="dim">${er.phase === 'inflation' ? 'Temperature ~0 (supercooled by expansion)' : 'Temperature ' + fx(er.T) + ' K (' + en + ')'} · today's observable universe was ${sz} across</div>`;
         if (er.species.length) deep += `<div class="dim">Present: ${er.species.join(', ')}</div>`;
