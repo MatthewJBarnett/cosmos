@@ -43,7 +43,7 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
 // ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
 uniform sampler2D uCMap, uHMap, uMMap, uLMap;
 uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
-uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; uniform vec3 uClimate; uniform float uGreenSahara;
+uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; uniform vec3 uClimate; uniform float uGreenSahara, uWild;
 const float MPI = 3.14159265358979;
 // (z is nudged away from exactly 0: some GPUs return garbage for atan(-0, x), which put a seam on the prime meridian)
 vec2 mapUV(vec3 P){ vec3 n = normalize(P); float z = abs(n.z) < 1e-9 ? -1e-9 : n.z; return vec2(atan(-z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
@@ -398,6 +398,14 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     float lum = dot(m, vec3(0.3, 0.55, 0.15)), desert = smoothstep(0.12, 0.22, lum)*smoothstep(1.1, 1.35, m.r/max(m.b, 1e-3));
     float wet = uGreenSahara*reg*desert*(0.55 + 0.45*smoothstep(30., 16., latD))*(0.8 + 0.4*fbm(2, min(uOMax, 8), 41u, d, 0.6));
     m = mix(m, mix(vec3(0.11, 0.12, 0.045), vec3(0.05, 0.08, 0.025), smoothstep(26., 14., latD)), clamp(wet*1.3, 0., 0.92));
+  }
+  if (uWild > 0.01 && uPaleo < 0.5 && gLand > 0.5) {
+    // before farming (and its spread since 1700): today's cropland and pasture in the temperate belts and the tropics
+    // was forest; darken mid-green and tan vegetated land towards woodland
+    vec3 n = normalize(P); float la = abs(degrees(asin(clamp(n.y, -1., 1.))));
+    float zone = max(smoothstep(24., 32., la)*smoothstep(64., 56., la), smoothstep(22., 14., la));
+    float lum = dot(m, vec3(0.3, 0.55, 0.15)), veg = smoothstep(0.85, 1.05, m.g/max(m.r, 1e-3))*smoothstep(0.3, 0.06, lum);
+    m = mix(m, vec3(0.035, 0.06, 0.025), uWild*zone*veg*0.7*(0.75 + 0.5*fbm(2, min(uOMax, 8), 43u, d, 0.6)));
   }
   emis = 0.;
   int o0 = int(uMapOct);

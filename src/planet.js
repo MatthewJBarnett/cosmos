@@ -643,7 +643,7 @@ class PlanetState {
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
       uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uSeason: this.body.seasonal && mp ? (this.season = this.body.season || 0) : -2, uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
-      uClimate: (this.climate = this.body.climate || null) ? [this.climate.dry, this.climate.life, this.climate.ice] : [0, 1, 1], uGreenSahara: this.greenSahara || 0,
+      uClimate: (this.climate = this.body.climate || null) ? [this.climate.dry, this.climate.life, this.climate.ice] : [0, 1, 1], uGreenSahara: this.greenSahara || 0, uWild: this.wildK || 0,
       uCraterO0: mp && mp.height ? mapOct : 2 });
     // drifting continents (Earth): the plate map loads the first time it is needed
     const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
@@ -778,7 +778,8 @@ export function planetState(body) {
   if (s && body.drift !== undefined && s.maps && Math.abs((body.paleoMap > 0 ? 0 : body.drift) - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
   const palNow = body.paleoMap > 0 && maps ? (paleoState(body.paleoMap) || { myr: 0 }).myr : 0;
   if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
-  if (s && Math.abs((body.greenSahara || 0) - (s.greenSahara || 0)) > 0.12 && age > 2000) stale = true;     // (the Green Sahara)
+  if (s && Math.abs((body.greenSahara || 0) - (s.greenSahara || 0)) > 0.12 && age > 2000) stale = true;
+  if (s && Math.abs((body.wildK || 0) - (s.wildK || 0)) > 0.12 && age > 2000) stale = true;          // (forests before farming)     // (the Green Sahara)
   if (s && Math.abs((body.pDrift || 0) - (s.pDrift || 0)) >= 4 && age > 1500) stale = true;     // (procedural plates drift)
   if (s && Math.abs((body.whiteSpot ? body.whiteSpot[1] : 0) - (s.whiteSpot ? s.whiteSpot[1] : 0)) > 0.15 && age > 1500) stale = true;     // (Saturn's storms)
   if (s && body.mtnK !== undefined && Math.abs(body.mtnK - (s.mtnK === undefined ? 1 : s.mtnK)) > 0.12 && age > 1500) stale = true;     // (erosion)
@@ -786,7 +787,7 @@ export function planetState(body) {
   if (s && body.grsK !== undefined && Math.abs(body.grsK - (s.grsK || 1)) > 0.03 && age > 1500) stale = true;     // (Jupiter's Great Red Spot)
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.pDrift = body.pDrift || 0; s.craterK = body.craterK; s.whiteSpot = body.whiteSpot; s.mtnK = body.mtnK; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.wildK = body.wildK || 0; s.pDrift = body.pDrift || 0; s.craterK = body.craterK; s.whiteSpot = body.whiteSpot; s.mtnK = body.mtnK; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }

@@ -608,6 +608,8 @@ export class StarSystem {
         // the Green Sahara: strong northern summers (precession) push the African monsoon north; glacials suppress it.
         // 14,800-5,500 years ago it was savanna with lakes (the African Humid Period), and every ~20,000 years before
         b.greenSahara = tyr > -3e6 && tyr < 5e5 ? Math.round(clamp((insolation65(tyr) - 485) / 30, 0, 1) * (1 - clamp(b.iceAge, 0, 1)) * 8) / 8 : 0;
+        // forests before farming: cleared slowly from ~8000 BC, then fast after 1700 (the land use row tells the story)
+        { const y = 2000 + tyr, w = y < -8000 ? 1 : y < 1700 ? 1 - 0.4 * (y + 8000) / 9700 : y < 1950 ? 0.6 * (1950 - y) / 250 : 0; b.wildK = tyr > -3e6 ? Math.round(w * (1 - clamp(b.iceAge || 0, 0, 1) * 0.6) * 8) / 8 : 0; }
         // (an icier Earth reflects more: brighter earthshine on the Moon; Snowball Earth ~0.6)
         b.albedo = 0.3 + (b.climate.snowball ? 0.3 : 0.025 * Math.min(b.iceAge || 0, 1.1));
         { const va = volcanicAerosol(tyr); b.aerosol = Math.min(1, va.tau * 2); b.volcano = va.tau > 0.03 ? va.name : ''; }
