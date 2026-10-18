@@ -182,7 +182,7 @@ void galSample(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
   if (uBand == 5 && g.type < 0.5 && g.lum > 0.6) { float rr = length(p.xz), z = abs(p.y);
     emis += vec3(0.4, 1.0, 0.6)*(exp(-pow(rr/(0.015 + 0.04*z), 2.))*exp(-z/0.9)*0.8 + exp(-(pow(rr/0.35, 2.) + pow((z - 1.25)/0.35, 2.)))*0.5); }
   // hot gas: a diffuse X-ray halo (bright in ellipticals, which hold their gas) and the nucleus
-  if (uBand == 6) emis += vec3(0.5, 0.75, 1.0)*(exp(-r*4.)*(g.type < 0.5 ? 1.2 : 0.25) + exp(-r*r*900.)*0.6);
+  if (uBand == 6) emis += vec3(0.5, 0.75, 1.0)*(exp(-r*4.)*(g.type < 0.5 ? 1.2 : 0.25)*smoothstep(1., 0.55, r) + exp(-r*r*900.)*0.6);
   ext *= uBand == 1 ? 2.5 : uBand == 2 ? 0.12 : uBand == 6 ? 0.5 : 0.;
 }
 void galSample0(Gal g, vec3 p, float detail, out vec3 emis, out float ext){
