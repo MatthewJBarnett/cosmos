@@ -221,6 +221,26 @@ void main(){
   if (distance(aCen.xyz, uSkip) < 1e-7 || px < 0.05 || (expand > 1. && est < 0.0012)) gl_Position = vec4(2., 2., 2., 1.);
 }`;
 // The impostor fragment shader is assembled below with the radius passed explicitly (clearer than recovering it).
+// Dark matter halos (shown on demand, X): each galaxy sits in a halo ~10x its visible radius holding ~85% of the mass. The
+// projected density of an NFW halo (Navarro, Frenk & White 1997), drawn as a soft violet glow; it is placed exactly like
+// the galaxy impostor (light travel delay, growth of structure, aberration).
+const DM_VS = GAL_VS.split('vSN = vec3(0.);')[0] + `
+  float rad = aCen.w*9.*pow(clamp(aLum, 0.05, 8.), 0.33);
+  vec3 f = c/d; vec3 r = normalize(cross(f, abs(f.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0))); vec3 u = cross(r, f);
+  vWorld = c + (r*aCorner.x + u*aCorner.y)*rad; vCen = c; vLum = vec2(aLum*cv.y*smoothstep(0.18, 1.0, vTauE), rad); vPx = rad/d*uPxPerRad;
+  gl_Position = uViewProj*vec4(vWorld, 1.); gl_Position.z = 0.;
+  if (distance(aCen.xyz, uSkip) < 1e-7 || vPx < 0.5) gl_Position = vec4(2., 2., 2., 1.);
+}`;
+const DM_FS = `
+in vec3 vWorld; flat in vec3 vCen; flat in vec2 vLum; flat in float vPx; uniform float uScale; out vec4 o;
+void main(){
+  // impact parameter from the halo centre, in units of the scale radius (r_s ~ r_vir / 10)
+  vec3 dir = normalize(vWorld); float b = length(vCen - dir*dot(vCen, dir))/vLum.y, x = max(b*10., 0.05);
+  // projected NFW surface density (Bartelmann 1996), normalised; tapered at the virial radius
+  float fx = x < 1. ? 1. - 2./sqrt(1. - x*x)*atanh(sqrt((1. - x)/(1. + x))) : x > 1. ? 1. - 2./sqrt(x*x - 1.)*atan(sqrt((x - 1.)/(1. + x))) : 0.;
+  float sig = (x != 1. ? fx/(x*x - 1.) : 1./3.)*smoothstep(1., 0.7, b);
+  o = vec4(vec3(0.55, 0.3, 1.0)*sig*vLum.x*uScale*0.18, 0.);
+}`;
 const GAL_FS2 = `
 in vec3 vWorld; flat in vec3 vCen; flat in vec4 vQuat, vP0, vP1, vP2; flat in vec2 vLum; flat in float vPx; flat in float vRad; flat in vec2 vCos; flat in float vTauE; flat in vec3 vSN; flat in float vQSO;
 // cosmological redshift: dimming is applied as (1+z)^-4; the spectrum slides to the red (blue light leaves first).
@@ -351,7 +371,8 @@ uniform samplerCube uCube; uniform mat3 uRot; uniform vec2 uTanFov; uniform floa
 ${REL_GLSL}
 void main(){ vec3 rd = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.)); float Dop; rd = deaberrate(rd, Dop); vec4 c = texture(uCube, rd); c.rgb *= Dop == 1. ? 1. : vbandRatio(4500.*Dop, 4500.)*Dop; if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); o = vec4(c.rgb*uScale, mix(1., clamp(c.a, 0., 1.), uFade)); }`;
 
-let pStar, pPt, pGal, pCube, pCubeDraw, quadBuf, ptVAO, ptBuf;
+let pStar, pPt, pGal, pCube, pCubeDraw, pDM, quadBuf, ptVAO, ptBuf;
+export const darkMatter = { on: false };
 export function initSkyPrograms() { init(); if (!pCon) pCon = new Program('constellations', CON_VS, CON_FS); initSkyMapProgram(); initZodiProgram(); }
 function init() {
   if (pStar) return;
@@ -359,6 +380,7 @@ function init() {
   pPt = new Program('points', PT_VS, STAR_FS);
   pGal = new Program('galaxies', GAL_VS.replace('flat out float vPx;', 'flat out float vPx; flat out float vRad;').replace('vPx = px;', 'vPx = px; vRad = aCen.w*mix(1., 0.45, 1. - smoothstep(1., 6., vTauE));'), GAL_FS2);
   pCube = new Program('galcube', FS_VS, CUBE_FS);
+  pDM = new Program('darkmatter', DM_VS, DM_FS);
   pCubeDraw = new Program('galcubedraw', FS_VS, CUBEDRAW_FS);
   quadBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -449,6 +471,10 @@ export function drawGalaxies(camU, viewProj, o) {
     visibleGalaxyCells.push(cell);
     p.set({ uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
     gl.bindVertexArray(b.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, b.n);
+    if (darkMatter.on) {
+      pDM.use().set({ uViewProj: viewProj, uPxPerRad: o.pxPerRad, uBeta: o.betaWorld || [0, 0, 0], uCosmo: cosmoTexture(), uUnow: U_NOW, uUobs: cosmo.u, uAobs: cosmo.a, uTauObs: cosmo.tau, uScale: GAL_I0 * skyCfg.extBoost * o.exposure, uOffset: [cell.origin[0] - camU[0], cell.origin[1] - camU[1], cell.origin[2] - camU[2]], uOrigin: cell.origin, uCamU: camU, uSkip: skip ? [skip.posU[0] - cell.origin[0], skip.posU[1] - cell.origin[1], skip.posU[2] - cell.origin[2]] : [1e9, 1e9, 1e9] });
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, b.n); p.use();
+    }
   };
   let budget = 3;
   for (let lv = 0; lv < GLEVELS.length; lv++) {
