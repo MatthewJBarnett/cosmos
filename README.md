@@ -457,7 +457,9 @@ between visits.
 
 The harness runs frames until tile baking and exposure have settled, then saves a PNG.
 
-    node tools/physicstest.mjs        # 74 checks of the physics against published values (no browser needed)
+    node tools/physicstest.mjs        # 101 checks of the physics against published values (no browser needed)
+    ONLY=nucleo,mcnaught node tools/eventtest.mjs   # just those events / sandbox scenarios
+    node tools/multi.mjs scenes.json  # several scripted scenes in one page (see the file for the format)
     tools/runall.sh                   # everything above in sequence (about two hours under SwiftShader)
     node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
     node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
@@ -477,7 +479,9 @@ and deglaciation, the Moon-forming impact (9.9 km/s, a 0.64 lunar mass Moon) and
 S2's pericentre and precession, the Milky Way-Andromeda turnaround (5.2 Gyr ago at 1.03 Mpc) and the LMC merger
 (2.3 Gyr), the polarity timescale and Laschamp excursion, solar cycles 19 and 24 and the Maunder minimum, Halley's
 1066 and 1910 perihelia, 'Oumuamua's 26.4 km/s, Scholz's Star (80 kyr ago, 51,000 AU), the cosmic star formation
-peak and the age of the universe at z = 1 (5.86 Gyr).
+peak and the age of the universe at z = 1 (5.86 Gyr); and from this round: Big Bang nucleosynthesis (helium-4 0.243 by
+mass, D/H 2.8e-5), recombination, precessing spins conserving the total angular momentum, sea level, the impact flux,
+the Archean haze, the Sagittarius dwarf's orbit and Hawking evaporation times.
 
 ## Decisions and limits
 
@@ -495,19 +499,20 @@ peak and the age of the universe at z = 1 (5.86 Gyr).
   statistical model: the density stays right, individual stars are not followed for billions of years).
 - Supernova dates for Betelgeuse (100,000 yr) and Antares (600,000 yr) are estimates; their real dates are unknown.
   Procedural massive stars use lifetimes from 4 to 35 Myr by luminosity class.
-- Sandbox: post-Newtonian terms act between compact objects only; black hole spins are kept aligned with the orbit (1.5PN spin-orbit
-  coupling, no precession);
+- Sandbox: post-Newtonian terms act between compact objects only; spins precess at leading order (1.5PN spin-orbit,
+  no spin-spin terms);
   the merger is handed to numerical relativity fits at 5.5 GM/c²; the merger-ringdown waveform is a smooth
   phenomenological join to the quasi-normal mode. Tidal debris is Newtonian test particles; returning debris is
-  counted as accreted at pericentre (stream collisions and disk formation are not simulated). The giant impact's
-  debris disk is set up from published simulation outcomes rather than computed with hydrodynamics.
+  counted as accreted at pericentre (stream collisions and disk formation are not simulated). The quick giant impact's
+  debris disk is set up from published outcomes; the SPH version computes it (coarsely).
 - Andromeda: the tangential velocity is uncertain (Gaia-era estimates even allow a ~50% chance of no merger within
   10 Gyr, Sawala et al. 2025); 30 km/s was chosen to follow van der Marel et al. 2012. The N-body is restricted
-  (particles feel both galaxies' analytic potentials, not each other), with no gas.
+  (particles feel both galaxies' analytic potentials, not each other); gas is "sticky" particles, not hydrodynamics.
 - Evolution: Earth's climate thresholds (oceans gone at ~10% more sunlight) are simplified. Within ±3 Myr of today
   (and into the future) continents move rigidly with today's plate velocities (no subduction, mountain building or
-  plate reorganisation; held after +100 Myr); further back the PALEOMAP reconstructions take over. Ice sheets are
-  colour on the surface (their 3 km thickness is not added to the terrain).
+  plate reorganisation); after +100 Myr and before 540 Myr the continents are illustrative stand-ins (see
+  Supercontinents); between 3 and 540 Myr ago the PALEOMAP reconstructions are used. Ice-age ice sheets have an
+  idealised dome profile.
 - Deep-time models are deliberately simple and cited in the code: global temperature (Scotese et al. 2021), oxygen
   and CO2 histories, the polarity timescale, the sunspot record, star formation history (Madau & Dickinson 2014),
   the timing argument for Andromeda, the LMC orbit with dynamical friction. Uncertain dates are marked "estimate".
@@ -519,11 +524,11 @@ peak and the age of the universe at z = 1 (5.86 Gyr).
 ## Known gaps
 
 - Real elevation is ~10 km per pixel, so features like the Grand Canyon are not resolved; detail below that is procedural.
-- Terrain shadows reach two tile levels out, so the very longest shadows at sunrise can still end abruptly.
+- Terrain shadows continue over the global height map near the ground (Earth today, the Moon, Mars), but not on
+  drifted or ancient continents; the effect was hard to isolate in headless tests.
 - Trees are camera-facing billboards (conifers and broadleaf); there are no rocks, buildings or grass meshes.
-- Earth's cloud cover is a single observed snapshot: individual cloud cells drift and change with the wind, but the
-  weather systems themselves stay where the map put them.
-- Aurora seen from orbit is streaky; from the ground it looks right.
+- Weather is built from one observed cloud snapshot drifting and re-forming (plus modelled storms), not a forecast or
+  a fluid simulation.
 - Eclipse timing and paths are good to tens of kilometres and about a minute (no nutation, truncated lunar series).
 - Galaxies other than the ~15 named ones and nebulae other than the dozen named ones are procedural.
 - A pair of black holes is ray traced through the sum of their Schwarzschild bendings (each hole static during a
@@ -532,14 +537,18 @@ peak and the age of the universe at z = 1 (5.86 Gyr).
 - The galaxy collision has no dust lanes or new star clusters (star formation is a brightness boost of young stars).
 - Earth's clouds are today's pattern (shifted in longitude in the deep past so they don't trace modern coastlines).
 - Paleogeography is 1 degree (~110 km) with procedural relief below that; before 540 Myr there are no maps, so the
-  oldest one is shown, drowned to model the smaller early continents. The future beyond +100 Myr keeps the drifted
-  continents of +100 Myr (no future supercontinent).
+  maps' own Pangaea cycle stands in for Rodinia and Columbia, and for a future supercontinent beyond +100 Myr
+  (their real shapes are unknown); a jump in geography happens at +100 Myr.
 - Nebula and galaxy histories are statistical (rates through cosmic time), not tracked individual objects; the
   famous ones (Crab, Cas A, Tycho, Kepler, SN 1006) are real.
 - Stellar ages of procedural stars are random draws consistent with their type; about 25 famous stars use measured
   ages. Radial migration of the Sun is a steady drift, not a simulated churning.
-- Sandbox planets share one rocky surface look; the Moon-forming debris disk is a fit to published simulations, not
-  hydrodynamics, and the new Moon does not recede tidally in the sandbox.
+- Sandbox planets share one rocky surface look; the SPH Moon-forming impact is coarse (~1,600 particles, no iron
+  cores, no latent heat), lets too much escape and stops before the Moon gathers; the new Moon does not recede tidally.
 - Right after a large time jump near the Sun, the first few frames can show the photographed and model skies
   re-blending (a faint seam in the Milky Way band, or a few galaxies that then fade); it settles within a second.
-- Exposure is metered on the brightest part of the frame, so a bright Moon or supernova in view darkens the stars.
+- Exposure is metered on the brightest part of the frame; a small bright object off-centre may overexpose instead,
+  but a large bright one (the full Moon nearby, the Sun) still darkens the stars.
+- Open clusters don't disperse (the star catalogue fades out a few million years from now, long before they would),
+  and the Sagittarius stream isn't drawn (at its real surface brightness it would be invisible).
+- Observing bands are qualitative false colour from simple per-object models, not radiative transfer.
