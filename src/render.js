@@ -12,6 +12,7 @@ import { world, sunHook, SUN_ORBIT, sunPos, galQuat0, mwFormation } from './gald
 import { LG, LG_START, lgWeights, updateLocalGroupPositions, M31 } from './localgroup.js';
 import { centresAt } from './lgorbit.js';
 import { stellarState } from './stellarevo.js';
+import { popIIIPoints, popIIIRate } from './earlyuniverse.js';
 import { updateSupernovae } from './supernova.js';
 import { drawSandbox, sandboxPoints, drawLines, drawDebris, drawTrailsOverlay } from './sandbox.js';
 import { planetaryNebula } from './evolution.js';
@@ -367,6 +368,8 @@ export class Renderer {
     // galaxies
     const realSkyNear = gal === MILKY_WAY && rcfg.realSky && camLocal && this.realSkyWeight(camLocal) > 0.3;
     // galaxies are far too faint to register unless the eye/camera is dark adapted: skip the whole pass otherwise
+    // the first stars, in the dark ages: single massive stars in small halos all around (Population III)
+    if (popIIIRate(cosmo.tau) > 0 && !cosmo.early) { const pp = popIIIPoints(nav.camU(), cosmo.tau, cosmo.a, world.dtyr); this.popIII = pp; if (pp.length) drawPoints(pp, viewProj, common); } else this.popIII = null;
     if (exposure > 2e4) drawGalaxies(nav.camU(), viewProj, Object.assign({ skip: insideGal && this.galSky.valid ? gal : null, realSkyNear, hideReal: hideReal.size ? hideReal : null }, common));
     // the colliding galaxies as particles
     if (lgCam && exposure > 2e3) {

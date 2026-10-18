@@ -1,7 +1,7 @@
 // HUD, input handling, object info, search, time controls and labels.
 import { V, Q, C, clamp } from './math.js';
 import { targetName, findByName, searchList, solSystem, systemFor, earlyDecades, EARLY_MAX } from './nav.js';
-import { earlyEra, bbnAt } from './earlyuniverse.js';
+import { earlyEra, bbnAt, popIIIPoints } from './earlyuniverse.js';
 import { describeBody } from './system.js';
 import { starName } from './system.js';
 import { galaxyName, REAL_GALAXIES } from './universe.js';
@@ -14,7 +14,7 @@ import { SUN_POS, MILKY_WAY } from './universe.js';
 import { Tour } from './tour.js';
 import { nextEclipse } from './eclipses.js';
 import { world, YEAR, updateWorld } from './galdyn.js';
-import { cosmo, galaxyView, apparentPosU, galaxyInfo } from './cosmology.js';
+import { cosmo, galaxyView, apparentPosU, galaxyInfo, aOfTau } from './cosmology.js';
 import { LG, LG_START, updateLocalGroupPositions, M31, lgWeights, LMC_MERGE } from './localgroup.js';
 import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, orbitEvents } from './lgorbit.js';
@@ -512,6 +512,8 @@ export class UI {
       if (sun && !sun.gone) for (const b of all) if (b.kind === 'comet' && !b.gone && b.wpos && V.dist(b.wpos, sun.wpos) < 1.5 * C.AU && b.name !== 'Comet') now.push(b.name + ' near the Sun');
       const sn = r.supernovae && r.supernovae.points ? r.supernovae.points.filter(p => p.m < 3 && p.name).slice(0, 2) : [];
       for (const p of sn) now.push(p.name + ' at magnitude ' + p.m.toFixed(1));
+      // the first stars around you
+      if (r.popIII && r.popIII.length) { const b = r.popIII.reduce((x, y) => y.m < x.m ? y : x); if (b.m < 6) now.push(b.name + ' at magnitude ' + b.m.toFixed(1)); else now.push(r.popIII.length + ' first stars within a megaparsec, all too faint to see'); }
       // galactic encounters (from the orbit models)
       const tMyrN = (tyrN - 26.8) / 1e6, lgEv = this._lgEv || (this._lgEv = orbitEvents()), p = lgEv.pericentres;
       if (p[0] && Math.abs(tMyrN - p[0].t) < 150) now.push('Andromeda\'s first passage through the Milky Way');
@@ -845,6 +847,14 @@ export class UI {
       nav.system = sol; nav.level = 'system'; nav.useGalaxy(sol.galaxy); nav.anchor = null; sol.update(nav.time);
       nav.S = [C.AU * 260, C.AU * 120, C.AU * 40]; nav.q = Q.look(V.mul(nav.S, -1), [0, 1, 0]); nav.fov = 60 * Math.PI / 180;
       nav.selected = { type: 'star', desc: sol.desc };
+    }
+    if (v.firststar) {
+      // a few parsecs from one of the first stars, in the dark
+      const tau = nav.time / YEAR / 1e9 + 13.79, a = aOfTau(tau) / aOfTau(13.79), cam0 = [0.5, 0.5, 0.5];
+      const pts = popIIIPoints(cam0, tau, a, 0).filter(p => /Population III/.test(p.name)).sort((x, y) => y.M - x.M);
+      nav.level = 'universe'; nav.useGalaxy(null); nav.system = null; nav.anchor = null; nav.selected = null; nav.fov = 70 * Math.PI / 180;
+      if (pts.length) { const p = pts[0], d = V.len(p.dir), u = V.mul(p.dir, 1 / d); nav.U = V.add(cam0, V.mul(u, d - 4e-5)); nav.q = Q.look(u, [0, 1, 0]); }
+      return;
     }
     if (v.cosmos || v.early) {
       // out among the galaxies (in the early universe there is nothing else to look at)

@@ -229,3 +229,46 @@ export function earlyEra(t) {
   const a = s.phase === 'radiation' ? aOf(T) : s.phase === 'inflation' ? aEnd * Math.exp(s.efolds - N_EFOLDS) : aEnd * Math.exp(-N_EFOLDS);
   return { name, text, T, E, phase: s.phase, efolds: s.efolds, species: sp.filter(Boolean), a, size: 8.8e26 * a };   // size in metres
 }
+
+// ---------- the first stars (Population III) ----------
+// In small dark-matter halos (~10^6 solar masses) at z ~ 30 to 10 (100-600 Myr), primordial gas cools by molecular
+// hydrogen and forms single very massive stars: 30-300 solar masses, no metals, ~100,000 K, living 2-6 Myr. Those of
+// 140-260 solar masses die as pair-instability supernovae (the whole star is blown apart, ~100x a normal supernova);
+// heavier ones collapse straight to black holes; lighter ones end as core-collapse supernovae. Their metals end the
+// era: by ~1 Gyr new stars form from enriched gas. Here: slots in comoving 1 Mpc cells (~30 stars alive per Mpc^3 at
+// the peak, a few hundred Myr after the Big Bang).
+const h1 = (n) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+export const popIIIRate = (tauGyr) => tauGyr < 0.07 || tauGyr > 1.2 ? 0 : Math.exp(-(((tauGyr - 0.32) / 0.17) ** 2));
+// point sources around comoving position cam (Mpc) at cosmic age tau (Gyr), scale factor a (1 today); dtYr: frame step
+export function popIIIPoints(cam, tauGyr, a, dtYr, out = []) {
+  const rate = popIIIRate(tauGyr); if (rate <= 0) return out;
+  const ageYr = tauGyr * 1e9, cx = Math.floor(cam[0]), cy = Math.floor(cam[1]), cz = Math.floor(cam[2]);
+  for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) for (let z = cz - 1; z <= cz + 1; z++) {
+    const cs = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+    for (let k = 0; k < 40; k++) {
+      const s = cs * 0.001 + k * 17.31, M = 30 * Math.pow(10, h1(s) * 1.0), life = 3e6 * Math.pow(100 / M, 0.35);
+      let cyc = ageYr / life + h1(s + 1), gen = Math.floor(cyc), age = (cyc - gen) * life;
+      if (Math.abs(dtYr) > 0.05 * life) { gen = Math.floor(cyc / (Math.abs(dtYr) / life * 40)); age = 0.5 * life; }
+      if (h1(s + gen * 3.7 + 2) > rate * 0.8) continue;
+      // a different halo each generation, inside the cell
+      const p = [x + h1(s + gen + 3), y + h1(s + gen + 4), z + h1(s + gen + 5)];
+      const rel = [p[0] - cam[0], p[1] - cam[1], p[2] - cam[2]], dc = Math.hypot(...rel), d = Math.max(dc * a * 1e6, 1e-6);   // proper pc
+      // visual luminosity: hot (~1e5 K) stars put most light in the ultraviolet: M_V ~ -6.5 for 100 solar masses
+      let MV = -6.5 - 2.5 * Math.log10(Math.pow(M / 100, 1.3));
+      let col = [0.62, 0.72, 1.0], name = 'Population III star (' + Math.round(M) + ' M☉)';
+      // its death: a pair-instability supernova (140-260 M_sun, M_V ~ -21 for ~a year), a core-collapse supernova
+      // (M_V ~ -17 for months) or silent collapse to a black hole
+      const since = age - life * 0.999;
+      if (since > 0 && Math.abs(dtYr) < 0.5) {
+        const pisn = M > 140 && M < 260, bh = M >= 260, tExp = since * 365.25;
+        if (bh) continue;
+        MV = (pisn ? -21 : -17) + (tExp < 60 ? 2.5 * Math.max(0, 1 - tExp / 60) : 0.012 * (tExp - 60));
+        col = [1, 0.9, 0.8]; name = pisn ? 'Pair-instability supernova' : 'First supernova';
+      }
+      const m = MV + 5 * Math.log10(d / 10);
+      if (m > 14) continue;
+      out.push({ dir: rel, color: col, flux: Math.exp(-0.9210340372 * (m + 26.74)), m, name, M });
+    }
+  }
+  return out;
+}
