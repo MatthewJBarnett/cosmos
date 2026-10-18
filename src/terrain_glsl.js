@@ -397,7 +397,7 @@ vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
     float reg = smoothstep(9., 14., latD)*smoothstep(33., 27., latD)*smoothstep(-19., -14., lonD)*smoothstep(60., 52., lonD);
     float lum = dot(m, vec3(0.3, 0.55, 0.15)), desert = smoothstep(0.12, 0.22, lum)*smoothstep(1.1, 1.35, m.r/max(m.b, 1e-3));
     float wet = uGreenSahara*reg*desert*(0.55 + 0.45*smoothstep(30., 16., latD))*(0.8 + 0.4*fbm(2, min(uOMax, 8), 41u, d, 0.6));
-    m = mix(m, mix(vec3(0.17, 0.15, 0.07), vec3(0.08, 0.1, 0.04), smoothstep(26., 14., latD)), clamp(wet, 0., 0.9));
+    m = mix(m, mix(vec3(0.11, 0.12, 0.045), vec3(0.05, 0.08, 0.025), smoothstep(26., 14., latD)), clamp(wet*1.3, 0., 0.92));
   }
   emis = 0.;
   int o0 = int(uMapOct);

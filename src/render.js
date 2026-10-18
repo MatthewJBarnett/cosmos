@@ -692,6 +692,8 @@ export class Renderer {
       const pc = this.prevCam;
       const prev = pc && pc.sys === sys && pc.level === nav.level ? { rotInv: Q.mat3(Q.conj(pc.q)), tanFov: pc.tanFov, delta: V.sub(nav.S, pc.S) } : null;
       for (const b of atmoPasses) {
+        // (in the far infrared and microwaves the sky does not scatter sunlight: the planets' own heat shows through)
+        if (GLOBAL_U.uBand === 3 || GLOBAL_U.uBand === 4) continue;
         const ar = (b.radius + b.atmo.top) / Math.max(b.dist, 1), pr = project(b.rel);
         // scissor to the projected bounding circle
         let sx = 0, sy = 0, sw = w, sh = h;

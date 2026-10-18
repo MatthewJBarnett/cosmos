@@ -272,8 +272,11 @@ void main(){
       float ion = 1. + 7./(1. + dot(p - vec3(0.1, 0.05, -0.05), p - vec3(0.1, 0.05, -0.05))*30.);
       d = (d*2.4 + wisp*env*0.55)*ion*0.5;
     } else if (uType == 1) {
-      // planetary nebula: nested shells, slightly bipolar
-      float rr = length(p*vec3(1., 0.78, 1.));
+      // planetary nebula: nested shells; about a third are round, a third elliptical and a third bipolar (an hourglass
+      // pinched by a dense equatorial torus, like the Butterfly and the Ant)
+      float morph = fract(uSeed*0.618 + 0.13), rr = length(p*vec3(1., 0.78, 1.));
+      if (morph > 0.35) rr = length(p*vec3(1., 0.55, 1.));
+      if (morph > 0.68) { vec3 q2 = vec3(p.x, abs(p.y) - 0.42, p.z); rr = min(length(q2*vec3(1.7, 1.05, 1.7)) + 0.22, length(p*vec3(0.75, 2.6, 0.75))); }
       float sh1 = exp(-pow((rr - 0.42)/0.07, 2.)), sh2 = exp(-pow((rr - 0.72)/0.13, 2.));
       float fil = 0.4 + 1.6*smoothstep(0.35, 0.7, n);
       d = (sh1*2.4 + sh2*0.5*fil) + smoothstep(0.42, 0., rr)*0.25;
