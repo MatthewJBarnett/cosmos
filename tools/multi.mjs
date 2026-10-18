@@ -1,3 +1,4 @@
+// Several scenes in one page (faster than one browser per shot): node multi.mjs scenes.json (EXTRA=&param adds URL params)
 // several scenes in one page: node _multi.mjs scenes.json
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
@@ -7,7 +8,7 @@ const page = await browser.newPage(); await page.setViewport({ width: 960, heigh
 let errors = 0;
 page.on('console', m => { if (m.type() === 'error') { errors++; console.log('[error]', m.text().slice(0, 300)); } });
 page.on('pageerror', e => { errors++; console.log('[pageerror]', e.message); });
-await page.goto('http://localhost:8642/?test=1&tex=97&cube=256&cloudres=384&scale=1&galr=0.4', { waitUntil: 'load' });
+await page.goto('http://localhost:8642/?test=1' + (process.env.EXTRA || '') + '&tex=97&cube=256&cloudres=384&scale=1&galr=0.4', { waitUntil: 'load' });
 await page.waitForFunction('window.cosmos !== undefined', { timeout: 120000 });
 for (const sc of scenes) {
   const t0 = Date.now();
