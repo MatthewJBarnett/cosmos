@@ -328,7 +328,7 @@ void main(){
       float occ = 0.; float s = 1.2;
       // march towards the sun through this tile, then its parent and grandparent (2x and 4x larger, coarser)
       // (and beyond, over the global height map: low sun throws mountain shadows tens to hundreds of km long)
-      int nk = uHasGlobH > 0.5 ? 34 : 22;
+      int nk = uHasGlobH > 0.5 && uChunkM < 6e4 ? 34 : 22;     // (only near the ground: from orbit the tiles already reach far)
       for (int k = 0; k < 34; k++) {
         if (k >= nk) break;
         float dm = s*texel;
@@ -341,7 +341,7 @@ void main(){
           else {
             vec2 up2 = uGParentUV.xy + uv2*uGParentUV.z;
             if (any(lessThan(up2, vec2(0.))) || any(greaterThan(up2, vec2(1.)))) {
-              if (uHasGlobH < 0.5 || dm > 4e5) break;
+              if (uHasGlobH < 0.5 || uChunkM >= 6e4 || dm > 4e5) break;
               hk = globH(normalize(dir + (t1*sl.x + t2*sl.y)*dm/(uRadius*max(length(sl), 1e-3))));
             } else hk = texelFetch(uGParentH, ivec2(up2*(uTexSize - 1.) + 0.5), 0).r;
           }

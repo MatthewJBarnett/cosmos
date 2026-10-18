@@ -17,7 +17,7 @@ export class SPH {
     this.x = new Float64Array(n * 3); this.v = new Float64Array(n * 3); this.a = new Float64Array(n * 3);
     this.u = new Float64Array(n); this.du = new Float64Array(n); this.rho = new Float64Array(n); this.P = new Float64Array(n); this.cs = new Float64Array(n);
     this.h = new Float64Array(n); this.m = new Float64Array(n); this.mat = new Uint8Array(n); this.rho0 = new Float64Array(n);
-    this.c0 = 7000; this.gamma = 1.4; this.alpha = 1; this.beta = 2; this.selfOnly = false;
+    this.c0 = 7000; this.gamma = 1.4; this.alpha = 1; this.beta = 2; this.selfOnly = false; this.soft = 0.5;   // (softening: soft x (h_i + h_j))
   }
   // particles on a cubic lattice inside a sphere (jittered a little), with total mass M
   static sphere(M, R, n, mat, seed = 1) {
@@ -102,12 +102,12 @@ export class SPH {
       this.du[j] += Mm[i] * (this.P[j] / (this.rho[j] ** 2) + 0.5 * pi) * w;
     }
     // self-gravity: direct sum, softened over the smoothing length
-    const selfOnly = this.selfOnly, mat = this.mat;
+    const selfOnly = this.selfOnly, mat = this.mat, soft = this.soft;
     for (let i = 0; i < n; i++) {
       const xi = X[i * 3], yi = X[i * 3 + 1], zi = X[i * 3 + 2], hi = H[i], mi = Mm[i], mati = mat[i]; let ax = 0, ay = 0, az = 0;
       for (let j = i + 1; j < n; j++) {
         if (selfOnly && mati !== mat[j]) continue;
-        const dx = X[j * 3] - xi, dy = X[j * 3 + 1] - yi, dz = X[j * 3 + 2] - zi, e = 0.5 * (hi + H[j]);
+        const dx = X[j * 3] - xi, dy = X[j * 3 + 1] - yi, dz = X[j * 3 + 2] - zi, e = soft * (hi + H[j]);
         const r2 = dx * dx + dy * dy + dz * dz + e * e, ir3 = 1 / (r2 * Math.sqrt(r2));
         const kj = G * Mm[j] * ir3, ki = G * mi * ir3;
         ax += kj * dx; ay += kj * dy; az += kj * dz;

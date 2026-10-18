@@ -482,9 +482,12 @@ void main(){
   gl_PointSize = I/(6.2832*sig*sig) < 1e-4 ? 0. : ceil(sig*5.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
 }`;
-const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz;
+const DEB_FS = `in vec3 vCol; in float vSig; out vec4 o; uniform float uFlat; void main(){ float sz = ceil(vSig*5.); vec2 d = (gl_PointCoord - 0.5)*sz;
   // (a soft round window, so a sprite clipped at its maximum size never shows a square edge)
-  float w = smoothstep(1., 0.6, length(gl_PointCoord - 0.5)*2.); o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig))*w, 1.); }`;
+  float w = smoothstep(1., 0.6, length(gl_PointCoord - 0.5)*2.);
+  // (flat discs for the surfaces of hydrodynamic planets, drawn with MAX blending so overlaps don't pile up)
+  if (uFlat > 0.5) { float rr = length(gl_PointCoord - 0.5)*2.; o = vec4(vCol*0.32*smoothstep(1., 0.35, rr)*(1. - 0.25*rr*rr), 1.); return; }
+  o = vec4(vCol*exp(-dot(d, d)/(2.*vSig*vSig))*w, 1.); }`;
 let pDeb, debVAO, debBuf;
 // fraction of a blackbody's output that falls between 400 and 700 nm
 const visCache = new Map();
@@ -522,7 +525,7 @@ export function drawDebris(sb, nav, o) {
     blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, L / ((d / AU) ** 2), R]);
   }
   // a hydrodynamic giant impact: rock particles, lit by the Sun on the outside, glowing where shocks have heated them
-  const S = sb.sph, F = S && S.mat ? S.frame(sb.sim.t) : null, sphPts = [];
+  const S = sb.sph, F = S && S.mat ? S.frame(sb.sim.t) : null, sphPts = [], sphDeb = [];
   if (F) {
     const n = F.n, X = F.x, mat = S.mat, L = V.norm(sb.cfg && sb.cfg.light ? sb.cfg.light.dir : [0, 1, 0]);
     // each body's centre and radius (the bulk of its particles)
@@ -533,8 +536,8 @@ export function drawDebris(sb, nav, o) {
     for (let i = 0; i < n; i++) {
       const c = cen[mat[i]], px = X[i * 3], py = X[i * 3 + 1], pz = X[i * 3 + 2];
       const dx = px - c[0], dy = py - c[1], dz = pz - c[2], r = Math.hypot(dx, dy, dz), R = Rb[mat[i]];
-      let lit = 0.6;
-      if (r < 1.15 * R) {
+      let lit = 0.6; const surf = r < 1.15 * R;
+      if (surf) {
         if (r < 0.72 * R) continue;                                   // (inside: hidden by the surface)
         const nx = dx / r, ny = dy / r, nz = dz / r, tc = [camL[0] - px, camL[1] - py, camL[2] - pz], tl = Math.hypot(...tc);
         if ((nx * tc[0] + ny * tc[1] + nz * tc[2]) / tl < -0.15) continue;   // (far side)
@@ -544,19 +547,20 @@ export function drawDebris(sb, nav, o) {
       const glow = C.sigma * T ** 4 * area / C.Lsun * visFrac(T) / visFrac(5772), refl = 0.15 * area * 1361 * lit / C.Lsun;
       const tot = glow + refl, col = [0, 1, 2].map(k => (cc[k] / mx * glow + rock[k] * refl) / Math.max(tot, 1e-30));
       const w = Q.rot(sb.worldQ, [px, py, pz]), rel = [w[0] - nav.S[0], w[1] - nav.S[1], w[2] - nav.S[2]], dAU = Math.hypot(...rel) / AU;
-      sphPts.push([rel[0], rel[1], rel[2], col[0], col[1], col[2], tot / (dAU * dAU), size]);
+      (surf ? sphPts : sphDeb).push([rel[0], rel[1], rel[2], col[0], col[1], col[2], tot / (dAU * dAU) * (surf ? 3.24 : 1), surf ? size * 1.8 : size]);
     }
   }
-  if ((!P || !P.n) && !blobs.length && !sphPts.length) return;
+  if ((!P || !P.n) && !blobs.length && !sphPts.length && !sphDeb.length) return;
   if (!pDeb) pDeb = new Program('debris', DEB_VS, DEB_FS);
   if (!debVAO) {
     debVAO = gl.createVertexArray(); gl.bindVertexArray(debVAO); debBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 32, 28); gl.bindVertexArray(null);
   }
-  const data = new Float32Array(((P ? P.n : 0) + blobs.length + sphPts.length) * 8); let n = 0;
+  const data = new Float32Array(((P ? P.n : 0) + blobs.length + sphPts.length + sphDeb.length) * 8); let n = 0; const nB = blobs.length, nS = sphPts.length;
   for (const bl of blobs) data.set(bl, (n++) * 8);
   for (const sp of sphPts) data.set(sp, (n++) * 8);
+  for (const sp of sphDeb) data.set(sp, (n++) * 8);
   if (P && P.n && P.kind === 'impact') {
     // giant impact debris: silicate vapour and magma droplets glowing at a few thousand K, cooling over weeks
     const age = sb.sim.t - P.tImp, cool = Math.max(0.5, Math.exp(-age / (25 * DAY))), host = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh;
@@ -591,8 +595,10 @@ export function drawDebris(sb, nav, o) {
   }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   gl.bindVertexArray(debVAO); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf); gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, n * 8), gl.DYNAMIC_DRAW);
-  pDeb.use().set({ uViewProj: o.viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPxPerRad: o.pxPerRad });
-  gl.drawArrays(gl.POINTS, 0, n);
+  pDeb.use().set({ uViewProj: o.viewProj, uExposure: o.exposure, uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uFlat: 0 });
+  if (nB) gl.drawArrays(gl.POINTS, 0, nB);
+  if (n > nB + nS) gl.drawArrays(gl.POINTS, nB + nS, n - nB - nS);
+  if (nS) { gl.blendEquation(gl.MAX); pDeb.set({ uFlat: 1 }); gl.drawArrays(gl.POINTS, nB, nS); gl.blendEquation(gl.FUNC_ADD); }
 }
 
 // kilonova glow as a point
