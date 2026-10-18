@@ -13,7 +13,7 @@ const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y
 import { driftMyr } from './tectonics.js';
 import { PALEO_START, paleoMap } from './paleo.js';
 import { evolveBodies, historyAt, moonA, giantInflation } from './planetevo.js';
-import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
+import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod, nsTemp } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
 const D2R = Math.PI / 180;
@@ -383,7 +383,7 @@ export class StarSystem {
           } else if (st._orig) { Object.assign(st, st._orig, { neutron: false, pulsar: false, blackHole: false, _remnant: false }); if (st.surface && st.surface._orig) Object.assign(st.surface, st.surface._orig); }
         }
         // (the new neutron star spins down and cools)
-        if (st && st._remnant && st.neutron) { const age = tyr - sn.tEm; st.rotPeriod = pulsarPeriod(age); st.pulsar = age < 1e7; st.temp = Math.max(3e4, 1e6 * Math.pow(1 + age / 1e5, -0.3)); st.lum = 4 * Math.PI * 12e3 ** 2 * C.sigma * st.temp ** 4 / C.Lsun; }
+        if (st && st._remnant && st.neutron) { const age = tyr - sn.tEm; st.rotPeriod = pulsarPeriod(age); st.pulsar = age < 1e7; st.temp = nsTemp(age); st.snrAge = age; st.lum = 4 * Math.PI * 12e3 ** 2 * C.sigma * st.temp ** 4 / C.Lsun; }
       }
     }
     // the Sun's evolution, mass loss widening the orbits, Earth's precession and the Moon's recession
@@ -1203,6 +1203,27 @@ export function describeBody(b) {
       const n = solarCycle(b.system.tyr || 0); rows.push(['Sunspot number', '~' + Math.round(b.system.activity * 180) + (n ? ' (solar cycle ' + n + ')' : '')]);
     }
     if (b.ageYr > 0 && !b.unborn) rows.push(['Age', b.ageYr >= 1e9 ? (b.ageYr / 1e9).toFixed(2) + ' billion years' : b.ageYr >= 1e6 ? (b.ageYr / 1e6).toFixed(1) + ' million years' : Math.round(b.ageYr).toLocaleString('en') + ' years']);
+    // close binaries: a star that swells past its Roche lobe (Eggleton 1983) pours gas onto its companion (Algol); if
+    // both overflow they share one envelope and spiral together towards a merger
+    if (b.parent && b.parent.kind === 'barycenter' && b.system && b.system.binarySep && !b.blackHole) {
+      const o = (b.parent.children || []).find(x => x !== b && x.kind === 'star'), A = b.system.binarySep * C.AU;
+      if (o && o.mass) {
+        const lobe = (q) => A * 0.49 * Math.pow(q, 2 / 3) / (0.6 * Math.pow(q, 2 / 3) + Math.log(1 + Math.cbrt(q))), RL = lobe(b.mass / o.mass), RLo = lobe(o.mass / b.mass);
+        const fill = b.radius / RL, fillO = o.radius / RLo;
+        if (fill > 1 && fillO > 1) rows.push(['Binary', 'both stars overflow: a common envelope; the pair spirals together and will merge or blow the envelope off']);
+        else if (fill > 1) rows.push(['Binary', 'overflowing its Roche lobe: pouring gas onto ' + o.name + (o.neutron || o.blackHole ? ' (an X-ray binary: the gas heats to millions of K in a disk)' : o.radius < 2e7 ? ' (a cataclysmic variable: novae now and then)' : ' (like Algol: the giver becomes the lighter star)')]);
+        else if (fillO > 1) rows.push(['Binary', 'gaining mass from ' + o.name + ', which overflows its Roche lobe']);
+        else if (fill > 0.5) rows.push(['Binary', 'fills ' + Math.round(fill * 100) + '% of its Roche lobe: tidally stretched']);
+      }
+    }
+    if (b.neutron) {
+      // cooling, glitches (sudden spin-ups as the superfluid interior catches up with the crust, ~every 3 years in Vela-age
+      // pulsars) and, for the strongly magnetized minority, magnetar outbursts
+      const age = b.snrAge, T = b.temp || 0, h = ((b.uid * 2654435761) >>> 0) / 4294967296;
+      if (age !== undefined) rows.push(['Cooling', Math.round(T).toLocaleString('en') + ' K surface, ' + (age < 1e5 ? 'cooling slowly by neutrinos from its core' : age < 1e7 ? 'cooling fast now: photons from its surface carry the heat away' : 'almost cold: kept warm only by friction inside') + (T > 3e5 ? ' (glows in soft X-rays)' : T > 6e4 ? ' (glows in ultraviolet)' : '')]);
+      if (b.pulsar && age !== undefined && age < 3e5) rows.push(['Glitches', 'its spin jumps suddenly about every ' + (age < 3e4 ? '2-3 years (like Vela)' : '10-30 years') + ': the superfluid interior catching up with the crust']);
+      if (age !== undefined && age < 2e4 && h < 0.15) rows.push(['Magnetar', 'a field of ~10^11 T: starquakes in the crust set off X-ray bursts, and now and then a giant flare (SGR 1806-20, 2004)']);
+    }
     if (b.blackHole) {
       // Hawking radiation: T = hbar c^3 / (8 pi G M k), evaporation in ~2.1e67 yr (M/Msun)^3 (photons and gravitons)
       const m = b.mass / C.Msun;

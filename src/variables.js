@@ -21,7 +21,19 @@ const VARS = [
   // brightest star in the sky (-0.8 in March 1843); dust from the ejected Homunculus nebula then hid it (~8 by 1900);
   // it has been brightening again since the 1940s (~4.3 now). Recorded magnitudes, interpolated; quiet at ~3 before.
   { name: 'Eta Carinae', find: [287.597, -0.630], P: 1e9, E: 0, f: (ph, jd) => etaCar(2000 + (jd - 2451545) / 365.25) },
+  // classical Cepheids (GCVS periods and epochs of maximum): a fast rise and a slow decline; the period-luminosity law
+  // they follow is how distances to galaxies were first measured (Leavitt 1912, Hubble 1924)
+  { name: 'Delta Cephei', find: [105.194, 0.531, 150, 600, 4.0], P: 5.366249, E: 2436075.445, f: cepheid(0.86) },
+  { name: 'Eta Aquilae', find: [40.934, -13.073, 120, 600, 3.9], P: 7.176641, E: 2436084.656, f: cepheid(0.83) },
+  { name: 'Beta Doradus', find: [271.734, -32.774, 150, 700, 3.8], P: 9.8426, E: 2440905.3, f: cepheid(0.62) },
+  { name: 'l Carinae', find: [283.199, -7.004, 250, 1000, 3.7], P: 35.557, E: 2440736.24, f: cepheid(0.9) },
+  // Polaris: a Cepheid whose pulsation almost died out in the 1990s (0.03 mag) and is growing again
+  { name: 'Polaris', P: 3.9696, E: 2428260.727, f: (ph, jd) => Math.min(0.05, 0.012 + 0.0025 * Math.abs((jd - 2449000) / 3652.5)) * Math.cos(2 * Math.PI * ph) },
+  // RR Lyrae: the prototype of the old, metal-poor pulsators that trace the galactic halo (0.567 days, ~1 mag)
+  { name: 'RR Lyrae', find: [74.952, 12.304, 150, 600, 7.6], P: 0.5668378, E: 2442923.4193, f: cepheid(1.06, 0.15) },
 ];
+// light curve of a radial pulsator: rise over the first fraction of the cycle, slower decline (amplitude in mag, peak at 0)
+function cepheid(amp, rise = 0.3) { return (ph) => { const s = ph < rise ? 1 - ph / rise : (ph - rise) / (1 - rise); return amp * (s - 0.5); }; }
 const ETA_CAR = [[1600, 3.2], [1827, 1.5], [1834, 2.0], [1837.9, 0.2], [1838.5, 1.0], [1843.2, -0.8], [1845, 0.5], [1850, 0.0], [1856, 0.6],
   [1858, 1.5], [1862, 3.5], [1868, 6.0], [1880, 7.6], [1900, 7.9], [1940, 7.0], [1953, 6.2], [1975, 6.1], [1998, 5.0], [2010, 4.7], [2026, 4.2]];
 function etaCar(y) {
@@ -38,17 +50,18 @@ function resolve() {
       // the brightest catalogue star within half a degree of the given galactic direction, beyond 1 kpc
       const l = v.find[0] * Math.PI / 180, b = v.find[1] * Math.PI / 180, u = [Math.cos(b) * Math.cos(l), Math.sin(b), -Math.cos(b) * Math.sin(l)], d = catalog.data;
       let best = -1, bm = 99;
-      for (let i = 0; i < catalog.count; i++) { const x = d[i * 5], y = d[i * 5 + 1], z = d[i * 5 + 2], r = Math.hypot(x, y, z); if (r < 1000) continue;
+      const [rmin, rmax, mExp] = v.find.length > 2 ? v.find.slice(2) : [1000, 1e9, 99];
+      for (let i = 0; i < catalog.count; i++) { const x = d[i * 5], y = d[i * 5 + 1], z = d[i * 5 + 2], r = Math.hypot(x, y, z); if (r < rmin || r > rmax) continue;
         if ((x * u[0] + y * u[1] + z * u[2]) / r < 0.99996) continue; const m = d[i * 5 + 3] + 5 * Math.log10(r / 10); if (m < bm) { bm = m; best = i; } }
-      v.i = best; if (best >= 0 && v.name === 'Eta Carinae') etaCarCat = bm;
+      v.i = best >= 0 && (mExp > 50 || Math.abs(bm - mExp) < 1.2) ? best : -1; if (best >= 0 && v.name === 'Eta Carinae') etaCarCat = bm;
       continue;
     }
     const n = catalog.named.find(x => x.name === v.name); v.i = n ? n.i : -1;
   }
   resolved = true;
 }
-// returns { idx: Int32Array(8), dm: Float32Array(8) } for time t (s since J2000) and frame window win (days)
-const out = { idx: new Int32Array(8).fill(-1), dm: new Float32Array(8) };
+// returns { idx: Int32Array(16), dm: Float32Array(16) } for time t (s since J2000) and frame window win (days)
+const out = { idx: new Int32Array(16).fill(-1), dm: new Float32Array(16) };
 export function variableStars(t, winDays) {
   resolve();
   const jd = JD2000 + t / 86400;

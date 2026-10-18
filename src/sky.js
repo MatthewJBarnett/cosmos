@@ -44,7 +44,7 @@ uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uP
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 // motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
 uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight, uLmax; uniform mat3 uRotC;
-uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[8]; uniform float uVarDm[8]; uniform float uDays, uDtDays;
+uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[16]; uniform float uVarDm[16]; uniform float uDays, uDtDays;
 ${REFRACT_VS}
 ${REL_GLSL}
 out vec3 vCol; out float vSig;
@@ -69,7 +69,7 @@ void main(){
   } else if (uMode == 1) {
     lp = uRotC*(aPos + aVel.xyz*uCatK);
     for (int i = 0; i < 8; i++) if (gl_VertexID == uCatDead[i]) w = 0.;
-    for (int i = 0; i < 8; i++) if (gl_VertexID == uVarIdx[i]) w *= exp(-0.9210340372*uVarDm[i]);
+    for (int i = 0; i < 16; i++) if (gl_VertexID == uVarIdx[i]) w *= exp(-0.9210340372*uVarDm[i]);
   }
   vec3 p = lp + uOffset; float d = length(p);
   // in the far future only long-lived (faint) stars remain

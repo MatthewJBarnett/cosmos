@@ -81,7 +81,7 @@ export function stellarState(b, tyr) {
     }
     const tr = (g - 1) * 0.1 * e.life;    // years since the core collapsed
     if (m >= 20) return { L: 0, R: 2 * C.G * 0.4 * m * C.Msun / C.c ** 2, T: 0, m: 0.4 * m, phase: 'black hole (its core collapsed ' + fmtY(tr) + ' ago)', kind: KIND.BH, snrAge: tr };
-    const T = Math.max(3e4, 1e6 * Math.pow(1 + tr / 1e5, -0.3));
+    const T = nsTemp(tr);
     return { L: 4 * Math.PI * 12e3 ** 2 * C.sigma * T ** 4 / C.Lsun, R: 12e3, T, m: 1.4, phase: (tr < 1e7 ? 'pulsar' : 'neutron star, spun down below the pulsar death line') + ' (supernova ' + fmtY(tr) + ' ago)', kind: KIND.NS, snrAge: tr };
   }
   if (g < 1) {
@@ -98,6 +98,14 @@ export function stellarState(b, tyr) {
 // a white dwarf's carbon-oxygen core freezes as it cools (seen by Gaia as a pile-up near 6,000 K)
 const wdPhase = (T) => T < 3000 ? 'black dwarf (a cold, crystallized white dwarf)' : T < 6500 ? 'white dwarf, its core crystallizing' : 'white dwarf, cooling';
 // a pulsar spins down by magnetic braking: P = P0 sqrt(1 + t / tau) (the Crab: 33 ms now, tau ~ 1,300 years)
+// neutron star surface temperature with age: neutrinos carry the heat away slowly for ~100,000 years (~1 MK), then
+// photons from the surface take over and it drops steeply (standard cooling curves, e.g. Yakovlev & Pethick 2004)
+const NS_COOL = [[0, 6.6], [2, 6.3], [3, 6.2], [4, 6.08], [5, 5.9], [5.5, 5.75], [6, 5.4], [6.5, 4.9], [7, 4.45], [8, 4.0], [10, 3.7]];
+export function nsTemp(ageYr) {
+  const x = Math.log10(Math.max(ageYr, 1));
+  for (let k = 1; k < NS_COOL.length; k++) if (x < NS_COOL[k][0]) { const [x0, y0] = NS_COOL[k - 1], [x1, y1] = NS_COOL[k]; return Math.pow(10, y0 + (y1 - y0) * (x - x0) / (x1 - x0)); }
+  return Math.pow(10, NS_COOL[NS_COOL.length - 1][1]);
+}
 export const pulsarPeriod = (ageYr) => 0.02 * Math.sqrt(1 + Math.max(ageYr, 0) / 1300);
 export const wdMass = (m) => clamp(0.08 * m + 0.47, 0.5, 1.35);
 export const wdProgenitor = (mwd) => clamp((mwd - 0.47) / 0.08, 0.9, 8);
