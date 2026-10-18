@@ -301,7 +301,7 @@ export class StarSystem {
       const un = !!st.unborn || sysUn; if (!!s.gone !== un) { s.gone = un; changed = true; }
       s.unborn = un; s.nursery = st.nursery; s.ageYr = e.x0 !== null ? e.x0 * e.life + tyr : undefined;
       if (un) continue;
-      s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase; s.pnAge = st.pnAge; s.snrAge = st.snrAge;
+      s.lum = st.L; s.radius = st.R; s.temp = st.T; s.mass = st.m * C.Msun; s.evoPhase = st.phase; s.pnAge = st.pnAge; s.snrAge = st.snrAge; s.wrAge = st.wrAge;
       if (s.surface) s.surface.T = st.T;
       const bh = st.kind === KIND.BH, ns = st.kind === KIND.NS;
       if (!!s.blackHole !== bh) { s.blackHole = bh; if (bh) { s.accretion = 0; s.spin = s.spin || 0.7; s.rotPeriod = 0; } else s.rotPeriod = e.rot0 || s.rotPeriod; }

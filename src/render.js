@@ -531,6 +531,8 @@ export class Renderer {
       if (sys && sys.posLocal && sys.root && !sys.desc.sol && !sys.sandbox) {
         const st = sys.root;
         if (st.pnAge !== undefined && st.pnAge < 3e4) { const r = Math.max(20e3 * st.pnAge * C.YEAR / C.PC, 1e-4); sne.remnants.push(this._pnX = Object.assign(this._pnX || {}, { pos: sys.posLocal.slice(), radius: r, type: 1, seed: 4.4, colA: [0.25, 0.85, 0.75], colB: [1.0, 0.32, 0.25], lum: 900 * Math.min(1, Math.pow(0.15 / Math.max(r, 1e-3), 1.5)) * Math.min(1, (3e4 - st.pnAge) / 1e4), name: st.name + ' planetary nebula' })); }
+        // a Wolf-Rayet wind bubble: swept-up red supergiant wind, ~40 km/s, glowing in hydrogen-alpha and oxygen
+        if (st.wrAge !== undefined) { const r = Math.max(40e3 * Math.min(st.wrAge, 1e5) * C.YEAR / C.PC, 1e-3); sne.remnants.push(this._wrX = Object.assign(this._wrX || {}, { pos: sys.posLocal.slice(), radius: r, type: 1, seed: 8.8, colA: [1.0, 0.35, 0.3], colB: [0.3, 0.75, 0.9], lum: 500 * Math.min(1, Math.pow(1 / Math.max(r, 1e-3), 1.2)), name: st.name + ' Wolf-Rayet bubble' })); }
         if (st.snrAge !== undefined && st.snrAge < 1e5) { const a = Math.max(st.snrAge, 1), rf = 5.1e-3 * a, rs = 12.5 * Math.pow(a / 1e4, 0.4), R = 1 / Math.sqrt(1 / (rf * rf) + 1 / (rs * rs)); sne.remnants.push(this._snrX = Object.assign(this._snrX || {}, { pos: sys.posLocal.slice(), radius: Math.max(R, 0.002), type: 2, seed: 2.9, colA: [1.0, 0.35, 0.3], colB: [0.3, 0.75, 1.0], lum: 70 * Math.pow(Math.max(a, 100) / 1000, -0.3) * Math.exp(-a / 6e4), name: st.name + ' supernova remnant' })); }
       }
       if (pn && pn.lit > 0.01) {

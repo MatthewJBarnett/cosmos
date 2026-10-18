@@ -74,6 +74,12 @@ export function stellarState(b, tyr) {
   else { Lend = e.L0 / Math.pow(10, kexp * smooth(g0)); Rend = e.R0 / Math.pow(e.L0 / Lend, 0.7); }
   const g = (x - 1) / 0.1;
   if (m >= 8) {
+    // the most massive stars blow off their envelopes in the last ~25% of their supergiant lives: a bare, hot Wolf-Rayet
+    // star (~100,000 K, a few solar radii) with a 1,000-2,000 km/s wind that sweeps up a glowing bubble (NGC 6888)
+    if (m >= 20 && g >= 0.75 && g < 1) {
+      const L = Lend * (1 + 0.6 * g), R = 1.5 * Math.sqrt(m / 20) * C.Rsun;
+      return { L, R, T: 5772 * Math.pow(L / Math.pow(R / C.Rsun, 2), 0.25), m: m * 0.45, phase: 'Wolf-Rayet star (its hydrogen envelope blown away: a bare helium core in a fierce wind)', kind: KIND.SUPERGIANT, wrAge: (g - 0.75) * 0.1 * e.life };
+    }
     if (g < 1) {
       // red supergiant: about as luminous, swelling to ~1000 solar radii
       const R = Rend * Math.pow(10, 2.0 * smooth(g * 1.5)), L = Lend * (1 + 0.6 * g);
