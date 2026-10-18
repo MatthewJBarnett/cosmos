@@ -15,7 +15,7 @@
 // until they are torn apart inside the Roche limit or escape. Hot Jupiters spiral into their stars (Q* = 1e6).
 // Giant planets contract and cool (radius ~1.5x at 10 Myr, glowing red while younger than ~10-30 Myr). Rocky planets
 // start as magma oceans. Magnetic dynamos stop when small cores freeze (Mars ~0.5 Gyr; Earth-sized ones last).
-import { clamp } from './math.js';
+import { clamp, V, Q } from './math.js';
 
 const G = 6.674e-11, YR = 31557600, ME = 5.972e24, RE = 6.371e6, AU = 1.496e11, MSUN = 1.989e30, KB = 1.380649e-23, AMU = 1.6605e-27;
 const F_XUV_EARTH = 4.6e-3;            // W/m^2 at 1 AU from today's Sun
@@ -121,11 +121,25 @@ export function buildHistory(b, ageNow, star, opt = {}) {
     const Rs = s0.R, Q = 1e6, Mst = mStar0 * MSUN;
     const K = 117 / 4 * Math.sqrt(G / Mst) * Math.pow(Rs, 5) * Mp / Q;              // d(a^13/2)/dt
     const a13 = Math.pow(aNow, 6.5);
+    h.aK = K; h.a13 = a13; h.aGone = 1.6 * Rs;
     for (let i = 0; i < N; i++) {
       const v = a13 - K * (ages[i] - ageNow) * YR;
       h.a[i] = v > 0 ? Math.pow(v, 1 / 6.5) : 0;
       if (h.a[i] < 1.6 * Rs) h.gone[i] = 1;
     }
+  }
+  // ---- sub-Neptunes: the young star's X-rays boil off a thin hydrogen envelope (Owen & Wu 2017), leaving a bare core ----
+  h.env = new Float64Array(N);
+  if (giant && mE < 20 && mE > 1.5) {
+    const fenv0 = 0.03, Mcore = Mp * (1 - fenv0);
+    let menv = Mp * fenv0, lost = false;
+    for (let i = 0; i < N; i++) {
+      const dt = i ? (ages[i] - ages[i - 1]) * YR : 0;
+      const Rr = R * (1 + 0.5 * Math.pow(Math.max(menv / Mp, 0) / 0.03, 0.5));
+      menv = Math.max(0, menv - 0.1 * Math.PI * Rr ** 3 * h.xuv[i] / (G * Mcore) * dt);
+      h.env[i] = menv / Mp;
+    }
+    h.subNep = true;
   }
   // ---- giant planets contract and cool; rocky ones start molten ----
   for (let i = 0; i < N; i++) {
@@ -142,7 +156,10 @@ export function historyAt(h, age) {
   const A = h.ages; let i = 0;
   if (age <= A[0]) i = 0; else if (age >= A[N - 1]) i = N - 2; else { let lo = 0, hi = N - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (A[m] <= age) lo = m; else hi = m; } i = lo; }
   const u = clamp((age - A[i]) / (A[i + 1] - A[i]), 0, 1), L = (k) => h[k][i] + (h[k][i + 1] - h[k][i]) * u;
-  return { i, u, Matm: L('Matm'), S: L('S'), xuv: L('xuv'), esc: L('esc'), out: L('out'), Ts: L('Ts'), co2: L('co2'), rot: L('rot'), a: L('a'), gone: h.gone[i + (u > 0.5 ? 1 : 0)], Rp: L('Rp'), Tint: L('Tint'), field: h.field[i + (u > 0.5 ? 1 : 0)], Texo: L('Texo') };
+  // (the orbit exactly, not interpolated: a fast inspiral can fit inside one grid step)
+  let aa = L('a'), gn = h.gone[i + (u > 0.5 ? 1 : 0)];
+  if (h.aK) { const v = h.a13 - h.aK * (age - h.ageNow) * YR; aa = v > 0 ? Math.pow(v, 1 / 6.5) : 0; gn = aa < h.aGone ? 1 : 0; }
+  return { i, u, Matm: L('Matm'), S: L('S'), xuv: L('xuv'), esc: L('esc'), out: L('out'), Ts: L('Ts'), co2: L('co2'), rot: L('rot'), a: aa, gone: gn, Rp: L('Rp'), Tint: L('Tint'), env: h.env ? L('env') : 0, field: h.field[i + (u > 0.5 ? 1 : 0)], Texo: L('Texo') };
 }
 
 // moons migrating under their planet's tides: semi-major axis at t years from now, or null once gone
@@ -197,6 +214,32 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
     if (giant) { b.radius = s.Rp; }
     const glow = s.Tint > 650 ? s.Tint : 0;
     if (glow) { b.heatT = Math.max(b.heatT || 0, glow); b._evoGlow = glow; } else if (b._evoGlow) { if (b.heatT === b._evoGlow) b.heatT = 0; b._evoGlow = 0; }
+    // the axis precesses and its tilt swings: steadily with a big moon (Earth: +-1.3 degrees), chaotically without one
+    // (Mars: tens of degrees; Laskar & Robutel 1993)
+    if (!isMoon && !noOrbit && b.axisQ && b.pole && b.orbit) {
+      if (!b._axis0) b._axis0 = { q: b.axisQ, pole: b.pole, tilt: b.tilt || 0, big: (b.children || []).some(c => c.mass > b.mass * 0.005) };
+      const a0 = b._axis0, hh = ((b.uid * 2654435761) >>> 0) / 4294967296, A = a0.big ? 1.3 : 5 + 9 * hh;
+      const eps = clamp(a0.tilt + A * Math.sin(2 * Math.PI * tyr / (4e4 + 9e4 * hh)) * (a0.big ? 1 : 0.6 + 0.4 * Math.sin(2 * Math.PI * tyr / (1.5e6 + 2e6 * hh))), 0, 180);
+      const n = [0, 1, 0], ax = V.norm(V.cross(n, a0.pole)), qr = Q.mul(Q.axis(n, -2 * Math.PI * tyr / (2.6e4 + 1.5e5 * hh)), Q.axis(V.len(ax) > 0 ? ax : [1, 0, 0], (eps - a0.tilt) * Math.PI / 180));
+      b.axisQ = Q.mul(qr, a0.q); b.pole = Q.rot(qr, a0.pole); b.tilt = eps; b.evoBigMoon = a0.big;
+    }
+    // clouds follow the climate: none once the oceans are gone or frozen solid
+    if (b.atmo && b.atmo.clouds && b.atmo.clouds.kind === 'earth' && !b.precessRA) b.noClouds = !!((b.climate && b.climate.dry > 0.9) || b.iceAge >= 3 || (b.atmoK !== undefined && b.atmoK < 0.05));
+    // plate tectonics moves the continents (procedural worlds; Earth has its real plates): Myr of drift, in 4 Myr steps
+    b.pDrift = b.hist.plates && !b.precessRA && !b.maps ? clamp(Math.round((age - ageNow) / 4e6) * 4, -3000, 3000) : 0;
+    // habitable worlds: life takes ~1 Gyr to start and ~3.5 Gyr to cover the land (Earth's pace); a fainter young star
+    // and a weak thermostat can freeze a wet world solid for millions of years (snowball episodes)
+    if (b.hist.wet && b.surface && b.surface.gen === 'terra' && !b.precessRA) {
+      const lifeK = b.life ? clamp((age - 3.5e9 * (b._lifeLag || (b._lifeLag = 0.7 + 0.6 * ((b.uid * 0.618) % 1)))) / 4e8, 0, 1) : 0;
+      const c0 = b.climate || { dry: 0, life: 1, ice: 1 };
+      b.climate = Object.assign({}, c0, { life: Math.min(c0.life === undefined ? 1 : c0.life, b.life ? lifeK : 1) });
+      const sRel = s.S / b.hist.S[b.hist.iNow], cell = Math.floor(age / 2e7), hsh = ((cell * 2654435761) >>> 0) / 4294967296 % 1;
+      b.iceAge = sRel < 0.93 && hsh < 0.3 * clamp((0.93 - sRel) / 0.1, 0, 1) + 0.04 ? 3 : 0;
+    }
+    // a moon torn apart becomes a ring around its planet
+    if (b.evoGone === 'torn apart into a ring' && b.parent && !b.parent.rings && !b.parent._ringFrom) {
+      b.parent._ringFrom = b.name; b.parent.rings = { inner: b.parent.radius * 1.3, outer: b.parent.radius * 2.2, opacity: 0.7, color: [0.75, 0.7, 0.65], fromMoon: b.name };
+    } else if (b.parent && b.parent._ringFrom === b.name && !b.evoGone) { b.parent.rings = null; b.parent._ringFrom = null; }
     for (const c of b.children || []) visit(c, host);
   };
   for (const c of sys.root.children) visit(c, sys.root);

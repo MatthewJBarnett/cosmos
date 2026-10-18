@@ -318,7 +318,17 @@ export function solarCycle(tyr) { const y = 2000 + tyr; for (let k = CYCLES.leng
 // vivid sunsets and a global cooling of up to ~1 C. [year of eruption, peak extra optical depth, name]
 const ERUPTIONS = [[1600.13, 0.25, 'Huaynaputina'], [1783.45, 0.2, 'Laki'], [1815.27, 0.5, 'Tambora'], [1883.65, 0.15, 'Krakatoa'],
   [1902.35, 0.08, 'Santa Maria'], [1912.43, 0.1, 'Novarupta'], [1963.2, 0.1, 'Agung'], [1982.27, 0.12, 'El Chichon'], [1991.45, 0.15, 'Pinatubo'],
-  [2022.04, 0.02, 'Hunga Tonga'], [-72000, 2.5, 'Toba']];
+  [2022.04, 0.02, 'Hunga Tonga'], [-72000, 2.5, 'Toba'],
+  // Yellowstone's three super-eruptions (Huckleberry Ridge 2.08 Myr ago, Mesa Falls 1.3, Lava Creek 0.631)
+  [2000 - 2.08e6, 2.0, 'Yellowstone (Huckleberry Ridge)'], [2000 - 1.3e6, 0.6, 'Yellowstone (Mesa Falls)'], [2000 - 0.631e6, 1.6, 'Yellowstone (Lava Creek)']];
+// the great geomagnetic storms: coronal mass ejections that pushed the aurora towards the equator
+// [decimal year of the main phase, strength (1: Carrington, aurora seen near 20 degrees magnetic latitude), days]
+export const GEOSTORMS = [[1859.669, 1.0, 1.5, 'the Carrington Event'], [1921.369, 0.85, 1.2, 'the New York Railroad storm'], [1989.197, 0.7, 1.2, 'the March 1989 storm (Quebec blackout)'],
+  [2003.828, 0.65, 2, 'the Halloween storms'], [2024.358, 0.65, 1.5, 'the Gannon storm'], [2024.776, 0.55, 1, 'the October 2024 storm']];
+// large igneous provinces: continental flood basalts erupting for hundreds of thousands of years, tied to mass extinctions
+const LIPS = [[66.4, 65.6, 'the Deccan Traps'], [201.6, 201.0, 'the Central Atlantic Magmatic Province'], [252.3, 251.3, 'the Siberian Traps'], [372.5, 371.5, 'the Viluy Traps'], [16.7, 15.9, 'the Columbia River basalts']];
+export function lipActive(tyr) { const m = -tyr / 1e6; for (const [a, b, n] of LIPS) if (m <= a && m >= b) return n; return ''; }
+export function geoStorm(tyr) { const y = 2000 + tyr; let best = null; for (const [ys, k, d, n] of GEOSTORMS) { const dd = (y - ys) * 365.25; if (dd > -0.3 && dd < 3 * d) { const v = k * (dd < 0 ? 1 + dd / 0.3 : Math.exp(-dd / d)); if (!best || v > best.v) best = { v, name: n }; } } return best; }
 export function volcanicAerosol(tyr) {
   const y = 2000 + tyr; let tau = 0, name = '';
   for (const [y0, peak, n] of ERUPTIONS) { const d = y - y0; if (d < 0 || d > 8) continue; const v = peak * Math.min(1, d / 0.3) * Math.exp(-d / 1.2); if (v > tau) { tau = v; name = n; } }

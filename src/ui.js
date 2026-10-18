@@ -22,7 +22,7 @@ import { SandboxUI } from './sandboxui.js';
 import { R0 as LG_R0, V0 as LG_V0, ORBIT as LG_ORBIT, relAt as lgRelAt, KMS as LG_KMS, lmcAt, sgrAt, orbitEvents } from './lgorbit.js';
 import { RATES, fmtRate, fmtSimDate, fmtSpan, Timeline, MAX_T, fmtEarly, sci, supYears } from './timeline.js';
 import { lateEra } from './farfuture.js';
-import { sunState, earthDay, moonScale, engulfed, geologicPeriod } from './evolution.js';
+import { sunState, earthDay, moonScale, engulfed, geologicPeriod, lipActive } from './evolution.js';
 
 export function fmtDist(m) {
   const a = Math.abs(m);
@@ -439,6 +439,27 @@ export class UI {
     a.lookX = a.lookY = a.orbitX = a.orbitY = a.wheel = a.zoom = 0;
     return o;
   }
+  // a planet's life at a glance (planetevo.js): pressure, temperature and day length against log age
+  drawEvoPlot(b) {
+    const cv = document.getElementById('evoPlot'); if (!cv) return;
+    const h = b.hist, key = b.uid + ':' + Math.round(Math.log10(Math.max(b.evoAge, 1)) * 200);
+    if (this._evoKey === key) return; this._evoKey = key;
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, L = 22, R = 6, T = 6, B = 18;
+    g.clearRect(0, 0, W, H); g.font = '9px sans-serif'; g.fillStyle = 'rgba(200,210,230,0.7)';
+    const a0 = Math.log10(1e7), a1 = Math.log10(h.ages[h.ages.length - 1]), X = (age) => L + (Math.log10(Math.max(age, 1e7)) - a0) / (a1 - a0) * (W - L - R);
+    for (const [age, lab] of [[1e7, '10 Myr'], [1e8, '100 Myr'], [1e9, '1 Gyr'], [1e10, '10 Gyr']]) { const x = X(age); g.fillRect(x, H - B, 1, 3); g.fillText(lab, x - 12, H - 5); }
+    const gs = 6.674e-11 * b.mass / ((b._r0 || b.radius) ** 2), area = 4 * Math.PI * (b._r0 || b.radius) ** 2, off = b._temp0 ? b._temp0 - h.Ts[h.iNow] : 0;
+    const line = (f, col, lo, hi, log) => {
+      g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); let on = false;
+      for (let i = 0; i < h.ages.length; i++) { if (h.ages[i] < 1e7) continue; let v = f(i); if (!(v > 0) && log) { on = false; continue; }
+        const y = T + (H - T - B) * (1 - clamp(((log ? Math.log10(v) : v) - lo) / (hi - lo), 0, 1)); if (!on) g.moveTo(X(h.ages[i]), y); else g.lineTo(X(h.ages[i]), y); on = true; }
+      g.stroke(); };
+    if (!h.giant && h.P0 > 0) line((i) => h.Matm[i] * gs / area / 1e5, '#6aa8ff', -4, 2.5, true);
+    line((i) => h.Ts[i] + off, '#ffa040', 0, 1000, false);
+    line((i) => Math.abs(h.rot[i]) / 3600, '#9aa0a8', -0.5, 4.5, true);
+    g.fillStyle = 'rgba(200,210,230,0.75)'; g.fillText(!h.giant && h.P0 > 0 ? 'air 1e-4..300 bar' : '', L, T + 8); g.fillStyle = '#ffa040'; g.fillText('T 0..1000 K', W - 70, T + 8); g.fillStyle = '#9aa0a8'; g.fillText('day', W - 70, T + 18);
+    const xn = X(b.evoAge); g.fillStyle = '#fff'; g.fillRect(xn, T, 1, H - T - B);
+  }
   fatal(e) { this.root.appendChild(el('div', 'fatal', 'Error: ' + e.message)); }
 
   update(dt) {
@@ -531,6 +552,8 @@ export class UI {
       const mars = all.find(b => b.name === 'Mars'), earth = all.find(b => b.name === 'Earth'), sun = sol.root;
       if (mars && !mars.gone && mars.dust > 0.15) now.push('global dust storm on Mars');
       if (earth && !earth.gone && earth.volcano) now.push('volcanic haze from ' + earth.volcano);
+      if (earth && !earth.gone && earth.storm) now.push('a great geomagnetic storm (' + earth.storm.name + '): aurora far from the poles');
+      { const lip = lipActive(tyrN); if (lip) now.push(lip + ' erupting (flood basalts)'); }
       if (earth && !earth.gone && earth.geomag && earth.geomag.reversing && tyrN > -4.2e9) now.push('Earth\'s magnetic field reversing');
       if (sun && !sun.gone) for (const b of all) if (b.kind === 'comet' && !b.gone && b.wpos && V.dist(b.wpos, sun.wpos) < 1.5 * C.AU && b.name !== 'Comet') now.push(b.name + ' near the Sun');
       const sn = r.supernovae && r.supernovae.points ? r.supernovae.points.filter(p => p.m < 3 && p.name).slice(0, 2) : [];
@@ -606,7 +629,10 @@ export class UI {
         }
       }
       const html = `<h2>${targetName(t)}</h2><div class="sub">${sub}</div><table>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}<tr><td>Distance</td><td id="iDist"></td></tr>${t.type === 'star' ? '<tr><td>App. magnitude</td><td id="iMag"></td></tr>' : ''}${t.type === 'body' && !t.body.gone && t.body.kind !== 'star' && t.body.kind !== 'barycenter' ? '<tr><td>Illuminated</td><td id="iIll"></td></tr>' : ''}</table>`;
-      if (html !== this._infoHtml) { this.info.innerHTML = html; this._infoHtml = html; }
+      const evoB = t.type === 'body' && t.body.hist && !t.body.gone ? t.body : null;
+      const html2 = html + (evoB ? '<canvas id="evoPlot" width="300" height="130" title="This world over its lifetime: air pressure (blue), surface temperature (orange), length of day (grey); the line is now"></canvas>' : '');
+      if (html2 !== this._infoHtml) { this.info.innerHTML = html2; this._infoHtml = html2; this._evoKey = null; }
+      if (evoB) this.drawEvoPlot(evoB);
     }
     const d = document.getElementById('iDist'); if (d) d.textContent = fmtDist(dist);
     const m = document.getElementById('iMag'); if (m) m.textContent = (t.desc.star.MV + 5 * Math.log10(dist / C.PC) - 5).toFixed(2);

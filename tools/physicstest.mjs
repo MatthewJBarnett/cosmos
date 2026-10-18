@@ -243,5 +243,27 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('de Sitter horizon temperature (K)', ff.DS_T, '~2.2e-30 (hbar H_Lambda / 2 pi k)', (v) => v > 1e-30 && v < 4e-30);
   check('Microwave background temperature at 100 Gyr (log10 K)', ff.cmbLog10(1e11), '~-1.9 (cooling exponentially, e-fold 17.4 Gyr)', (v) => v < -1 && v > -3);
 }
+{
+  // every planet evolves (planetevo.js)
+  const pe = await imp('planetevo.js');
+  const sun = (ty) => { const s = evo.sunState(ty); return { L: s.L, M: s.M, R: s.R * 6.957e8 }; };
+  const mk = (mass, R, P, comp, aAU, rot, orbD, alb) => ({ mass, radius: R, atmo: { P, comp }, orbit: { a: aAU * 1.496e11, period: orbD * 86400 }, rotPeriod: rot, albedo: alb, surface: { gen: 'terra' } });
+  const mars = pe.buildHistory(mk(6.42e23, 3.39e6, 636, { CO2: 0.95 }, 1.524, 88642, 687, 0.25), 4.57e9, sun, {});
+  check('Mars: atmospheric escape today (kg/s)', pe.historyAt(mars, 4.57e9).esc, '~1-3 (MAVEN: ions, photochemical O, sputtering)', (v) => v > 0.8 && v < 4);
+  const gM = 6.674e-11 * 6.42e23 / 3.39e6 ** 2, Pm = (age) => pe.historyAt(mars, age).Matm * gM / (4 * Math.PI * 3.39e6 ** 2) / 1e5;
+  check('Mars: air pressure 3.6 Gyr ago (bar)', Pm(1e9), '~0.1-1 (lost since; Jakosky et al. 2018)', (v) => v > 0.1 && v < 1.5);
+  const ven = pe.buildHistory(mk(4.87e24, 6.05e6, 9.2e6, { CO2: 0.965 }, 0.723, -243.02 * 86400, 224.7, 0.75), 4.57e9, sun, { field: 'never' });
+  check('Venus: day held by atmospheric tides (days, retrograde)', pe.historyAt(ven, 6e9).rot / 86400, '~ -243 (thermal-tide equilibrium)', (v) => v < -200 && v > -280);
+  const ear = pe.buildHistory(mk(5.97e24, 6.371e6, 101325, { N2: 0.78 }, 1, 86164, 365.25, 0.3), 4.57e9, sun, {});
+  check('Earth: the Sun alone does not lock its spin within 10 Gyr (day, h)', pe.historyAt(ear, 1.4e10).rot / 3600, '< 48 h', (v) => v > 0 && v < 48);
+  const jup = pe.buildHistory({ mass: 1.898e27, radius: 6.99e7, orbit: { a: 5.2 * 1.496e11, period: 4333 * 86400 }, rotPeriod: 35730, surface: { gen: 'gas' } }, 4.57e9, sun, {});
+  check('Jupiter: radius at 10 Myr vs today', pe.historyAt(jup, 1e7).Rp / 6.99e7, '~1.3-1.6 (Fortney et al. 2007 cooling tracks)', (v) => v > 1.25 && v < 1.7);
+  // WASP-12b: 1.47 Mjup at 0.0234 AU around a 1.43 Msun, 1.66 Rsun star; measured P/(dP/dt) = 3.25 Myr (Yee et al. 2020, Q* ~ 1.8e5)
+  const w12 = (ty) => ({ L: 3.6, M: 1.43, R: 1.66 * 6.957e8 });
+  const hw = pe.buildHistory({ mass: 1.47 * 1.898e27, radius: 1.9 * 6.99e7, orbit: { a: 0.0234 * 1.496e11, period: 1.0914 * 86400 }, rotPeriod: 1.0914 * 86400, surface: { gen: 'gas' } }, 2e9, w12, {});
+  const a1 = pe.historyAt(hw, 2e9 + 1e3).a, a0 = pe.historyAt(hw, 2e9).a, Pdot = 1.5 * (a1 - a0) / a0 / 1e3;
+  check('WASP-12b orbital decay timescale P/|dP/dt| (Myr, Q* = 1e6)', 1 / Math.abs(Pdot) / 1e6, '~18 for Q* = 1e6 (measured 3.25 Myr implies Q* ~ 1.8e5)', (v) => v > 8 && v < 40);
+  check('Young Sun XUV at 100 Myr vs today', pe.xuvFraction(1e8, 1) / pe.xuvFraction(4.57e9, 1), '~100 (Ribas et al. 2005)', (v) => v > 50 && v < 200);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

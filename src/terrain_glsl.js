@@ -43,7 +43,7 @@ float fbm(int o0, int o1, uint seed, vec3 d, float gain){
 // ---- real data maps (equirectangular, lon -180..180 left to right, north up) ----
 uniform sampler2D uCMap, uHMap, uMMap, uLMap;
 uniform float uHasC, uHasH, uHasM, uHasL, uMapOct, uMapDetail;
-uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; uniform vec3 uClimate;
+uniform vec2 uHRange; uniform vec3 uMapTint; uniform float uMapCurve, uSeason; uniform vec3 uClimate; uniform float uGreenSahara;
 const float MPI = 3.14159265358979;
 // (z is nudged away from exactly 0: some GPUs return garbage for atan(-0, x), which put a seam on the prime meridian)
 vec2 mapUV(vec3 P){ vec3 n = normalize(P); float z = abs(n.z) < 1e-9 ? -1e-9 : n.z; return vec2(atan(-z, n.x)/(2.*MPI) + 0.5, 0.5 - asin(clamp(n.y, -1., 1.))/MPI); }
@@ -243,12 +243,39 @@ float boulders(vec3 d){
   }
   return h*uRadius*field;
 }
+// procedural plate tectonics: each point's continental shape is looked up where its plate carried it from. Plates are
+// Voronoi cells (with ragged edges) turning about their own poles; only the continent-scale octaves move
+uniform float uPDrift; uniform vec3 uPOffF[4]; uniform ivec3 uPOffI[4]; uniform vec4 uPCen[6]; uniform vec4 uPAx[6];
+vec4 gnG(int o, uint seed, vec3 p){
+  float f = exp2(float(o)) * uFreq;
+  vec3 x = uPOffF[o] + (p*uAniso)*f;
+  vec3 i = floor(x), w = x - i; ivec3 ic = ivec3(i) + uPOffI[o];
+  vec3 u = w*w*w*(w*(w*6.-15.)+10.);
+  vec3 ga = hgrad(ic, seed), gb = hgrad(ic+ivec3(1,0,0), seed), gc = hgrad(ic+ivec3(0,1,0), seed), gd = hgrad(ic+ivec3(1,1,0), seed);
+  vec3 ge = hgrad(ic+ivec3(0,0,1), seed), gf = hgrad(ic+ivec3(1,0,1), seed), gg = hgrad(ic+ivec3(0,1,1), seed), gh = hgrad(ic+ivec3(1,1,1), seed);
+  float va = dot(ga, w), vb = dot(gb, w-vec3(1,0,0)), vc = dot(gc, w-vec3(0,1,0)), vd = dot(gd, w-vec3(1,1,0));
+  float ve = dot(ge, w-vec3(0,0,1)), vf = dot(gf, w-vec3(1,0,1)), vg = dot(gg, w-vec3(0,1,1)), vh = dot(gh, w-vec3(1,1,1));
+  float k0 = va, k1 = vb-va, k2 = vc-va, k3 = ve-va, k4 = va-vb-vc+vd, k5 = va-vc-ve+vg, k6 = va-vb-ve+vf, k7 = -va+vb+vc-vd+ve-vf-vg+vh;
+  return vec4(k0 + u.x*k1 + u.y*k2 + u.z*k3 + u.x*u.y*k4 + u.y*u.z*k5 + u.z*u.x*k6 + u.x*u.y*u.z*k7, 0., 0., 0.);
+}
+vec3 plateSource(vec3 P){
+  vec3 n = normalize(P); float best = -2.; int k = 0;
+  vec3 jit = vec3(gnG(0, 211u, n*1.7).x, gnG(0, 212u, n*1.7).x, gnG(0, 213u, n*1.7).x)*0.35;
+  for (int i = 0; i < 6; i++) { float s = dot(normalize(n + jit), uPCen[i].xyz); if (s > best) { best = s; k = i; } }
+  float a = -uPCen[k].w*uPDrift; vec3 ax = uPAx[k].xyz;
+  return (n*cos(a) + cross(ax, n)*sin(a) + ax*dot(ax, n)*(1. - cos(a)))*length(P);
+}
 float terrain(vec3 d, vec3 P){
   if (uHasH > 0.5) return terrainMapped(d, P) + boulders(d);
   vec3 w = vec3(gn(1,101u,d).x, gn(1,102u,d).x, gn(1,103u,d).x)*0.5;
   if (uOMax >= 3) w += vec3(gn(3,104u,d).x, gn(3,105u,d).x, gn(3,106u,d).x)*0.12;
   vec3 dw = d + w*uWarp;
   float cont = 0., a = 1.;
+  if (uPDrift != 0.) {
+    // (the continent-scale octaves from where the plate was; the finer ones stay put)
+    vec3 S = plateSource(P), wg = vec3(gnG(1, 101u, S).x, gnG(1, 102u, S).x, gnG(1, 103u, S).x)*0.5, Sw = S + wg*uWarp;
+    for (int o = 0; o <= min(8, uOMax); o++) { cont += a*(o <= 3 ? gnG(o, 1u, Sw).x : gn(o, 1u, dw).x); a *= 0.5; }
+  } else
   for (int o = 0; o <= min(8, uOMax); o++) { cont += a*gn(o, 1u, dw).x; a *= 0.5; }
   cont *= 0.62;
   gCont = cont;
@@ -364,6 +391,14 @@ vec3 paleoAlbedo(vec3 P, float h, vec3 d){
 vec3 surfaceColorMapped(vec3 d, vec3 P, float h, float slope, out float emis){
   vec2 uv = mapUV(uPaleo > 0.5 ? P : plateSrc(P));
   vec3 m = uPaleo > 0.5 ? (gLand > 0.5 ? paleoAlbedo(P, h, d) : albedoFromMap(vec3(0.04, 0.07, 0.19))) : albedoFromMap(gFreshCrust > 0.5 ? vec3(0.04, 0.07, 0.19) : texture(uCMap, uv).rgb)*uMapTint;
+  if (uGreenSahara > 0.01 && uPaleo < 0.5 && gLand > 0.5) {
+    // a wetter monsoon: savanna, grassland and lakes across the Sahara and Arabia (the "Green Sahara")
+    vec3 n = normalize(P); float latD = degrees(asin(clamp(n.y, -1., 1.))), lonD = degrees(atan(-n.z, n.x));
+    float reg = smoothstep(9., 14., latD)*smoothstep(33., 27., latD)*smoothstep(-19., -14., lonD)*smoothstep(60., 52., lonD);
+    float lum = dot(m, vec3(0.3, 0.55, 0.15)), desert = smoothstep(0.12, 0.22, lum)*smoothstep(1.1, 1.35, m.r/max(m.b, 1e-3));
+    float wet = uGreenSahara*reg*desert*(0.55 + 0.45*smoothstep(30., 16., latD))*(0.8 + 0.4*fbm(2, min(uOMax, 8), 41u, d, 0.6));
+    m = mix(m, mix(vec3(0.17, 0.15, 0.07), vec3(0.08, 0.1, 0.04), smoothstep(26., 14., latD)), clamp(wet, 0., 0.9));
+  }
   emis = 0.;
   int o0 = int(uMapOct);
   // how far below the map's resolution this tile is (0 = map scale, 1 = much finer)

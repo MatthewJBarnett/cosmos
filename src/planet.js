@@ -631,7 +631,7 @@ class PlanetState {
     prog.set({ uHasC: mp && mp.color ? 1 : 0, uHasH: mp && mp.height ? 1 : 0, uHasM: mp && mp.mask ? 1 : 0, uHasL: mp && mp.lights ? 1 : 0,
       uCMap: mp && mp.color ? mp.color.tex : dummyTex(), uHMap: mp && mp.height ? mp.height.tex : dummyTex(), uMMap: mp && mp.mask ? mp.mask.tex : dummyTex(), uLMap: mp && mp.lights ? mp.lights.tex : dummyTex(),
       uHRange: (this.body.maps && this.body.maps.hRange) || [0, 1], uMapOct: mapOct, uMapDetail: this.body.radius / Math.pow(2, mapOct) / s.freq * 0.02, uMapTint: mapTint(this.body, mp), uSeason: this.body.seasonal && mp ? (this.season = this.body.season || 0) : -2, uMapCurve: this.body.maps && this.body.maps.curve === 'bmng' ? 1 : 0,
-      uClimate: (this.climate = this.body.climate || null) ? [this.climate.dry, this.climate.life, this.climate.ice] : [0, 1, 1],
+      uClimate: (this.climate = this.body.climate || null) ? [this.climate.dry, this.climate.life, this.climate.ice] : [0, 1, 1], uGreenSahara: this.greenSahara || 0,
       uCraterO0: mp && mp.height ? mapOct : 2 });
     // drifting continents (Earth): the plate map loads the first time it is needed
     const drift = this.body.drift || 0, pm = mp && this.body.maps.plates ? loadTexture(this.body.maps.plates, 'data') : null, dOn = !!(drift && pm && pm.ready);
@@ -644,6 +644,13 @@ class PlanetState {
     prog.set({ uDrift: this.drift, uPlates: dOn && !pal ? pm.tex : dummyTex(), uPlateInv: plateInverse(this.drift),
       uPaleo: pal ? 1 : 0, uPaleoK: pal ? pal.k : 0, uPalA: pal ? pal.a : dummyTex(), uPalB: pal ? pal.b : dummyTex(), uPalRot: new Float32Array([pc, 0, ps, 0, 1, 0, -ps, 0, pc]), uPaleoClim: [pal && this.body.meanT ? this.body.meanT - 287.6 : 0, pal ? paleoSeaRise(this.body.paleoMyr) : 0] });
     prog.set({ uOF: this.OF, uOC: this.OC, uOMax: oMax, uFreq: s.freq, uAniso: this.aniso, uFaceA: F.A, uFaceB: F.B, uQc: ch.qc, uQcLen: ch.qlen, uSize: ch.size, uTexel: texel, uRadius: this.body.radius, uTexSize: texSize });
+    if (s.gen === 'terra' && !this.maps) {
+      // procedural plate tectonics (planetevo.js decides whether this world has plates): Myr of drift since now
+      const pd = this.pDrift || 0;
+      if (pd && !this._plates) { const r = new RNG(hashCombine(this.body.uid, 0x91a7)); this._plates = { cen: [], ax: [] }; for (let i = 0; i < 6; i++) { const c = r.dir(), a = r.dir(); this._plates.cen.push(c[0], c[1], c[2], r.range(0.3, 1.0) * (r.chance(0.5) ? 1 : -1) / 100); this._plates.ax.push(a[0], a[1], a[2], 0); } }
+      const offF = [], offI = []; for (let o = 0; o < 4; o++) for (let k = 0; k < 3; k++) { offF.push(this.off[o][k] - Math.floor(this.off[o][k])); offI.push(Math.floor(this.off[o][k])); }
+      prog.set({ uPDrift: pd, uPOffF: new Float32Array(offF), uPOffI: new Int32Array(offI), uPCen: new Float32Array(pd ? this._plates.cen : new Array(24).fill(0)), uPAx: new Float32Array(pd ? this._plates.ax : new Array(24).fill(0)) });
+    }
     if (s.gen === 'terra') prog.set({ uContAmp: s.contAmp, uMtnAmp: s.mtnAmp, uHillAmp: s.hillAmp, uWarp: s.warp, uSea: s.sea, uOcean: s.ocean, uCrater: s.crater, uCraterAmp: s.craterAmp, uMaria: s.maria, uCracks: s.cracks, uDunes: s.dunes, uVolcano: s.volcano, uLava: s.lava, uVeg: s.veg, uIceLat: s.iceLat, uSnowLine: s.snowLine, uTempEq: s.tempEq, uCity: s.city,
       uColA: s.colA, uColB: s.colB, uColRock: s.colRock, uColLow: s.colLow, uColIce: s.colIce, uColVeg1: s.colVeg1, uColVeg2: s.colVeg2, uColSand: s.colSand, uColCrack: s.colCrack });
     else if (s.gen === 'gas') prog.set({ uPal: new Float32Array(s.pal.flat()), uBands: s.bands, uBandStr: s.bandStr, uTurb: s.turb, uStorms: s.storms, uGasSeed: s.seed[0], uSpotWarp: this.grsK && mp && mp.color ? [0.3687, 0.6177, this.grsK] : [0, 0, 0] });
@@ -748,10 +755,12 @@ export function planetState(body) {
   if (s && body.drift !== undefined && s.maps && Math.abs((body.paleoMap > 0 ? 0 : body.drift) - (s.drift || 0)) > 0.2 && age > 1500) stale = true;
   const palNow = body.paleoMap > 0 && maps ? (paleoState(body.paleoMap) || { myr: 0 }).myr : 0;
   if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
+  if (s && Math.abs((body.greenSahara || 0) - (s.greenSahara || 0)) > 0.12 && age > 2000) stale = true;     // (the Green Sahara)
+  if (s && Math.abs((body.pDrift || 0) - (s.pDrift || 0)) >= 4 && age > 1500) stale = true;     // (procedural plates drift)
   if (s && body.grsK !== undefined && Math.abs(body.grsK - (s.grsK || 1)) > 0.03 && age > 1500) stale = true;     // (Jupiter's Great Red Spot)
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.pDrift = body.pDrift || 0; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }

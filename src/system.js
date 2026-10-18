@@ -8,7 +8,7 @@ import { REAL_SYSTEMS } from './realsystems.js';
 import { starFromCatalog } from './stars.js';
 import { descPosP, galQuat0, toInertial, YEAR } from './galdyn.js';
 import { SCHEDULED, fireball } from './supernova.js';
-import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol, seaLevelRise, archeanHaze, impactFlux, lastBigImpact, stratWater, grsLength } from './evolution.js';
+import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthClimate, planetTeq, iceAge, insolation65, earthMeanT, earthAir, earthLife, KPG_YR, solarActivity, geomagnetic, solarCycle, volcanicAerosol, geoStorm, seaLevelRise, archeanHaze, impactFlux, lastBigImpact, stratWater, grsLength } from './evolution.js';
 const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3).toLocaleString('en') + ',000 years' : (y / 1e6).toFixed(y < 1e7 ? 1 : 0) + ' million years';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START, paleoMap } from './paleo.js';
@@ -385,10 +385,12 @@ export class StarSystem {
         if (!earthB.magPole0) earthB.magPole0 = earthB.magPole;
         if (earthB.magPole0) earthB.magPole = gm.normal ? earthB.magPole0 : earthB.magPole0.map(x => -x);
         earthB.aurora = (0.35 + 0.9 * act) * (gm.B < 0.5 ? 1.4 : 1); earthB.auroraB = gm.B;
+        // a great geomagnetic storm: much brighter aurora, the ovals pushed far towards the equator
+        { const gs = geoStorm(tyr); earthB.storm = gs && gs.v > 0.05 ? gs : null; if (earthB.storm) { earthB.aurora *= 1 + 4 * gs.v; earthB.auroraB = Math.min(earthB.auroraB, Math.pow(10, -2.6 * gs.v)); } }
       }
       oScale = orbitScale(tyr); mScale = moonScale(tyr); this.oScale = oScale;
       let changed = !!this._sunChanged; this._sunChanged = false;
-      for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
+      for (const b of this.root.children) if (b.kind !== "barycenter") { const g = engulfed(b.name, tyr) || (b.breakT !== undefined && t > b.breakT && t < b.breakT + 3e9); if (!!b.gone !== g) changed = true; b.gone = g; for (const c of b.children) { const gc = g || engulfed(c.name, tyr); if (!!c.gone !== gc) changed = true; c.gone = gc; } }
       // tidal decay: Phobos breaks up into a ring around Mars in ~40 Myr (Black & Mittal 2015); Triton, on a retrograde
       // orbit, is torn apart inside Neptune's Roche limit in ~3.6 Gyr. The debris rings last ~100 Myr / ~1 Gyr here.
       const all = this._all || this.bodies;
@@ -488,14 +490,14 @@ export class StarSystem {
           const k = era === 'runaway' ? clamp((1.0 - ago) / 0.25, 0, 1) : 0;
           v.atmoK = era === 'runaway' ? Math.exp(Math.log(0.013) * (1 - k)) * (1 + 1.5 * Math.sin(Math.PI * k)) : 1;
           v.meanT = era === 'ocean' ? 300 + 15 * clamp((1.5 - ago) / 0.5, 0, 1) : era === 'runaway' ? 750 + 900 * Math.sin(Math.PI * k) : era === 'magma' ? 1800 : planetTeq('Venus', tyr, 0.76, 0.723) * 3.2;
-          v.heatT = era === 'magma' ? 1600 : era === 'resurfacing' ? 0 : v.heatT;
+          v.heatT = era === 'magma' ? 1600 : era === 'resurfacing' ? 0 : v.heatT; v._eraT = v.meanT; v._eraK = v.atmoK; v.evoOwnAir = true;
           v.evoNote = { magma: 'a magma ocean under a steam atmosphere', ocean: 'possibly a temperate ocean world under ~1 bar of nitrogen and CO2 (a hypothesis: Way et al. 2016; Turbet et al. 2021 argue its oceans never condensed)', runaway: 'runaway greenhouse: the oceans are boiling into the air and the carbonate rocks giving up their CO2; the hydrogen escapes to space', resurfacing: 'global volcanic resurfacing: lava floods are repaving most of the planet', now: tyr > -5e8 && tyr < 0.5e9 ? 'a 92 bar CO2 hothouse, still volcanically active; its slow backward spin is held by tides in its thick air' : 'a CO2 hothouse' }[era];
         } }
       // the other planets and moons evolve too (Earth, the Moon, Pluto, Phobos and Triton have their own models)
       evolveBodies(this, tyr, 4.57e9, (ty) => { const s = sunState(ty); return { L: s.L, M: s.M, R: s.R * C.Rsun }; },
         (b) => ['Earth', 'Moon', 'Pluto', 'Charon', 'Phobos', 'Deimos', 'Triton'].includes(b.name) || b.kind === 'asteroid' || /Comet|ʻOumuamua|'Oumuamua|Borisov|ATLAS/.test(b.name),
         (b) => ({ Venus: { field: 'never', atmo: b._now && b._now.atmo }, Mercury: { field: 'always' }, Ganymede: { field: 'always' }, Titan: { field: 'never' } })[b.name] || {}, true);
-      { const v = this.root.children.find(b => b.name === 'Venus'); if (v && v.venusEra) { v.temp = v.meanT; if (v.venusEra !== 'runaway') v.atmoK = 1; } }
+      { const v = this.root.children.find(b => b.name === 'Venus'); if (v && v.venusEra) { v.temp = v.meanT = v._eraT; v.atmoK = v._eraK; } }
     } else if (!this.sandbox && !this._snFixed) {
       // every other star ages too: main sequence, giant, then white dwarf, neutron star or black hole
       if (!this._evoInit) {
@@ -568,6 +570,9 @@ export class StarSystem {
           if (bi) { b.impact = [Math.cos(bi.lat) * Math.cos(bi.lon), Math.sin(bi.lat), -Math.cos(bi.lat) * Math.sin(bi.lon), bi.ago * 8766]; if (bi.ago * 8766 < 30) b.noClouds = true; } }
         b.impactFlux = impactFlux(tyr); b.haze = archeanHaze(tyr); b.stratWater = stratWater(tyr);
         b.iceAge = b.climate.snowball ? 3 : iceAge(tyr) * b.climate.ice; b.orbitE = earthOrbitAt(tyr).e;
+        // the Green Sahara: strong northern summers (precession) push the African monsoon north; glacials suppress it.
+        // 14,800-5,500 years ago it was savanna with lakes (the African Humid Period), and every ~20,000 years before
+        b.greenSahara = tyr > -3e6 && tyr < 5e5 ? Math.round(clamp((insolation65(tyr) - 485) / 30, 0, 1) * (1 - clamp(b.iceAge, 0, 1)) * 8) / 8 : 0;
         // (an icier Earth reflects more: brighter earthshine on the Moon; Snowball Earth ~0.6)
         b.albedo = 0.3 + (b.climate.snowball ? 0.3 : 0.025 * Math.min(b.iceAge || 0, 1.1));
         { const va = volcanicAerosol(tyr); b.aerosol = Math.min(1, va.tau * 2); b.volcano = va.tau > 0.03 ? va.name : ''; }
@@ -575,6 +580,19 @@ export class StarSystem {
         // (the young Earth glows: a magma ocean before its crust formed)
         if (b.climate.magma > 0) { b.heatT = 1300 + 600 * b.climate.magma; b._magmaHeat = true; } else if (b._magmaHeat) { b.heatT = 0; b._magmaHeat = false; }
         b.seaRise = seaLevelRise(tyr, b.climate);
+        // ozone forms only once there is oxygen (none before the Great Oxidation, thin for 2 Gyr after)
+        b.ozoneK = clamp(Math.sqrt(b.air.o2 / 0.21), 0, 1);
+        // surface pressure: ~0.5 bar in the late Archean (fossil raindrop imprints, Som et al. 2016), rising as oxygen
+        // built up; a dense steam atmosphere over the magma ocean
+        { const myr = -tyr / 1e6; b.surfP = b.climate.magma > 0 ? 100 : myr > 3800 ? 1.5 : myr > 2400 ? 0.5 + 0.2 * clamp((myr - 2700) / 800, 0, 1) : myr > 540 ? 0.75 + 0.25 * clamp((2400 - myr) / 1800, 0, 1) : 1;
+          b.atmoK = b.climate.dry > 0.5 ? 1 : Math.exp(Math.round(Math.log(b.surfP) * 4) / 4); }
+        // the magnetic poles wander: the dipole axis (IGRF, used for the aurora) and the dip pole
+        { const y = clamp(2000 + tyr, 1900, 2030), D = [[1900, 78.7, -68.8], [1950, 78.5, -68.9], [1980, 78.8, -70.8], [2000, 79.6, -71.6], [2020, 80.7, -72.7], [2030, 81.0, -72.8]];
+          let i = 1; while (i < D.length - 1 && D[i][0] < y) i++; const u = (y - D[i - 1][0]) / (D[i][0] - D[i - 1][0]), la = (D[i - 1][1] + (D[i][1] - D[i - 1][1]) * u) * D2R, lo = (D[i - 1][2] + (D[i][2] - D[i - 1][2]) * u) * D2R;
+          b.magPole = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)];
+          const P = [[1900, 70.5, -96.2], [1950, 74.6, -101.5], [1980, 77.3, -101.9], [2000, 81.0, -109.6], [2010, 85.0, -132.8], [2020, 86.5, 162.9], [2025, 85.8, 139.3]];
+          let j = 1; while (j < P.length - 1 && P[j][0] < y) j++; const w = clamp((y - P[j - 1][0]) / (P[j][0] - P[j - 1][0]), 0, 1); let dl = P[j][2] - P[j - 1][2]; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
+          b.dipPole = Math.abs(tyr) < 200 ? [P[j - 1][1] + (P[j][1] - P[j - 1][1]) * w, ((P[j - 1][2] + dl * w + 540) % 360) - 180] : null; }
         b.drift = driftMyr(tyr); b.paleoMyr = tyr < -PALEO_START * 1e6 ? -tyr / 1e6 : 0;
         { const pm = paleoMap(tyr); b.paleoMap = pm ? pm.map : 0; b.paleoRot = pm ? pm.rot : 0; b.paleoStand = pm ? pm.stand : ''; }
       }
@@ -584,7 +602,10 @@ export class StarSystem {
         const sd = V.norm(V.sub(this.stars[0].pos, b.pos)), Ev = V.norm(V.cross(b.pole, [0, 1, 0])), Fv = V.cross([0, 1, 0], Ev);
         const lam = Math.atan2(V.dot(sd, Fv), V.dot(sd, Ev)), ar = 0.5 + 0.5 * Math.cos(lam - 350 * D2R), an = 0.5 + 0.5 * Math.cos(lam - 177 * D2R);
         b.solarLon = ((lam / D2R) + 360) % 360;
-        b.seaIce = [80 - 16 * ar, -(71 - 13 * an)];
+        // Arctic sea ice has been shrinking since satellite records began (September extent down ~40% since 1979);
+        // on a middle emissions path late-summer ice is gone by mid-century
+        const yr = 2000 + tyr, warmA = tyr > -21 && tyr < 2e3 ? clamp((yr - 1979) / 45, 0, 1) * 3 + (yr > 2050 ? 10 * clamp((yr - 2050) / 20, 0, 1) * (1 - ar) : 0) : 0;
+        b.seaIce = [80 - 16 * ar + warmA, -(71 - 13 * an)];
       }
       if (b.seasonal && this.stars[0]) {
         // -1 at the December solstice, +1 at the June solstice (sine of the sun's declination / sine of obliquity)
@@ -668,6 +689,9 @@ function buildSol(sys) {
   minor('Hygiea', 'Asteroid', 3.1422, 0.1125, 3.83, 283.2, 235.5, 300, 8.3e19, 217, 13.8, 0.07, 'selena');
   minor('Juno', 'Asteroid', 2.669, 0.2562, 12.99, 169.8, 57.7, 210, 2.7e19, 123, 7.21, 0.24, 'asteroid');
   minor('Eros', 'Near-Earth asteroid', 1.458, 0.2229, 10.83, 304.3, 123.2, 70, 6.69e15, 8.4, 5.27, 0.25, 'asteroid', { shape: [2.05, 0.67, 0.67] });
+  // Apophis (JPL elements, epoch 2026): passes ~32,000 km above Earth on 13 April 2029 (a two-body orbit here, so
+  // the flyby distance is approximate)
+  { const ap = minor('Apophis', 'Near-Earth asteroid', 0.92235922, 0.19114923, 3.340997, 203.893651, 330.573222, 202.826303, 6.1e10, 0.17, 30.6, 0.35, 'asteroid'); ap.cls = 'Near-Earth asteroid (passes 32,000 km above Earth in April 2029)'; }
   minor('Bennu', 'Near-Earth asteroid', 1.1264, 0.2037, 6.03, 2.06, 68.3, 160, 7.3e10, 0.245, 4.297, 0.044, 'asteroid');
   minor('Makemake', 'Dwarf planet', 45.43, 0.161, 28.98, 79.6, 376.8, 160, 3.1e21, 715, 22.8, 0.81, 'ice');
   minor('Haumea', 'Dwarf planet', 43.12, 0.195, 28.21, 121.9, 362.7, 200, 4.0e21, 780, 3.9, 0.8, 'ice', { shape: [1.35, 0.69, 1.08] });
@@ -771,11 +795,14 @@ function buildSol(sys) {
     ['Great September Comet of 1882', 0.00775, 0.999899, 142.0112, 347.6563, 69.5843, 1882.7138, 15000], ['Great January Comet of 1910', 0.128958, 0.99978, 138.7780, 90.0294, 320.8918, 1910.0454, 5000],
     ['Comet Ikeya-Seki', 0.007786, 0.999915, 141.8642, 346.9947, 69.0486, 1965.8034, 4000], ['Comet West', 0.196595, 0.99995, 43.0740, 118.9175, 358.4317, 1976.1498, 3000],
     ['Comet McNaught', 0.170736, 0.99995, 77.8370, 267.4148, 155.9750, 2007.0316, 10000], ['Comet Lovejoy (2011)', 0.005554, 0.999929, 134.3558, 326.3691, 53.5092, 2011.9549, 500],
-    ['Comet Tsuchinshan-ATLAS', 0.391430, 0.99995, 139.1121, 21.5595, 308.4918, 2024.7399, 3000]]) {
+    ['Comet Tsuchinshan-ATLAS', 0.391430, 0.99995, 139.1121, 21.5595, 308.4918, 2024.7399, 3000],
+    // a sungrazer that disintegrated at perihelion (28 November 2013): only a fading dust cloud came out
+    ['Comet ISON', 0.0124667, 0.99995, 62.1629, 295.6865, 345.5412, 2013.90901, 500]]) {
     const cm = body({ name, kind: 'comet', cls: 'Long-period comet', mass: 1e3 * 4.19 * R ** 3 * 0.5, radius: R, albedo: 0.04, temp: 150, rotPeriod: 11 * 3600, real: true });
     const a = q / (1 - e) * C.AU, period = 2 * Math.PI * Math.sqrt(a ** 3 / (C.G * C.Msun));
     cm.orbit = { a, e, inc: inc * D2R, node: node * D2R, argp: argp * D2R, period, M0: -2 * Math.PI * (((tp - 2000) * C.YEAR / period) % 1) };
     cm.surface = surfacePreset('asteroid', rng, cm); addChild(sun, cm);
+    if (name === 'Comet ISON') cm.breakT = (tp - 2000) * C.YEAR + 0.4 * 86400;
   }
   // long-period comets from the Oort cloud: a bright one passes the Sun every few years. Four slots, each holding a
   // different comet in every six-year window (near-parabolic orbit, random orientation, perihelion 0.3-1.5 AU)
@@ -1036,11 +1063,24 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
 }
 
 // ---------- Info helpers ----------
+// what is changing on Solar System bodies that have no model of their own (y: calendar year)
+const SOL_NOTES = {
+  Mercury: () => 'its spin was captured into a 3:2 resonance with its orbit early on; as its big iron core cooled it shrank ~7 km in radius, wrinkling the crust into cliffs (lobate scarps)',
+  Io: () => 'the most volcanic world known: ~400 active volcanoes, heated by tides as the Laplace resonance with Europa and Ganymede keeps its orbit eccentric',
+  Europa: () => 'an ocean ~100 km deep under its ice; Hubble has glimpsed water plumes',
+  Enceladus: () => 'geysers from its south polar "tiger stripes" spray its ocean into space, feeding Saturn\'s E ring',
+  Titan: () => 'methane rain, rivers and lakes; sunlight destroys its methane in ~30 Myr, so something must resupply it, or it will lose its smog and lakes',
+  Saturn: (y) => { const W = [1876, 1903, 1933, 1960, 1990, 2010.9]; const near = W.find(w => y > w && y < w + 1.5); return near ? 'a Great White Spot: a giant thunderstorm wraps around the northern hemisphere (' + Math.floor(near) + ')' : 'a Great White Spot storm erupts about once a Saturn year (~30 years; the last in 2010)'; },
+  Neptune: (y) => y > 1989 && y < 1994.5 ? 'the Great Dark Spot (seen by Voyager 2 in 1989) is drifting and fading; it was gone when Hubble looked in 1994' : 'dark storm spots form and vanish every few years',
+  Uranus: () => 'seasons 21 years long (its axis is tipped over); each pole brightens towards its summer solstice',
+  Triton: () => 'nitrogen geysers rise 8 km from its polar cap (Voyager 2, 1989)',
+  Ganymede: () => 'the only moon with its own magnetic field (and aurora); an ocean between ice layers',
+};
 // how this world is changing (planetevo.js)
 function evoRows(b, rows) {
   const s = b.evoNow, h = b.hist, kgs = (x) => x < 0.01 ? x.toExponential(0) + ' kg/s' : x < 10 ? x.toFixed(x < 1 ? 2 : 1) + ' kg/s' : x < 1e4 ? Math.round(x).toLocaleString('en') + ' kg/s' : (x / 1e3).toPrecision(2) + ' t/s';
   const bar = (P) => P < 1 ? '0' : P < 1e3 ? (P / 1e5).toExponential(1) + ' bar' : P < 1e5 ? (P / 1e5).toFixed(P < 1e4 ? 3 : 2) + ' bar' : (P / 1e5).toPrecision(2) + ' bar';
-  if (b.atmo && !h.giant && h.P0 > 0) {
+  if (b.atmo && !h.giant && h.P0 > 0 && !b.evoOwnAir) {
     const g = C.G * b.mass / (b._r0 * b._r0), Pat = (age) => { const x = historyAt(h, age); return x.Matm * g / (4 * Math.PI * b._r0 * b._r0); };
     const trend = b.evoCollapsed ? 'collapsed: frozen onto the night side (too thin to carry heat around a locked world)' : s.esc > s.out * 1.3 ? 'thinning' : s.out > s.esc * 1.3 ? 'thickening (volcanic gases)' : 'roughly steady';
     rows.push(['Air over time', trend + ' · escaping ' + kgs(s.esc) + (s.out > 0.001 ? ', volcanoes add ' + kgs(s.out) : '')]);
@@ -1048,11 +1088,15 @@ function evoRows(b, rows) {
     rows.push(['Pressure history', [[-3e9, '3 Gyr ago'], [-1e9, '1 Gyr ago'], [1e9, 'in 1 Gyr'], [3e9, 'in 3 Gyr']].filter(([d]) => a + d > 1e7).map(([d, l]) => bar(Pat(a + d)) + ' ' + l).join(' · ')]);
     if (s.Texo > 1500) rows.push(['Upper atmosphere', Math.round(s.Texo).toLocaleString('en') + ' K, heated by the young star\'s X-rays and UV' + (s.esc > 1e3 ? ': escaping hydrodynamically' : '')]);
   }
+  if (b._axis0 && !h.giant) rows.push(['Axial tilt over time', b.evoBigMoon ? 'steadied by its big moon (swings ~1 degree)' : 'swings chaotically by up to ~' + Math.round(5 + 9 * (((b.uid * 2654435761) >>> 0) / 4294967296)) + ' degrees (no big moon to steady it)']);
   if (!h.giant) {
     rows.push(['Magnetic field', s.field ? 'active (shields the air from the stellar wind)' : 'none (the stellar wind strips the upper air)']);
     const vol = s.out / Math.max(h.mE, 1e-3) / (h.plates ? 0.05 : 0.01);
-    rows.push(['Interior', (h.plates ? 'plate tectonics' : 'stagnant lid') + ' · volcanism ' + (b.evoAge < 1e8 ? 'a magma ocean' : vol > 5e3 ? 'intense' : vol > 500 ? 'active' : vol > 50 ? 'waning' : 'nearly extinct')]);
+    rows.push(['Interior', (h.plates ? 'plate tectonics' : 'stagnant lid') + ' · volcanism ' + (b.evoAge < 1e8 ? 'a magma ocean' : vol > 2e4 ? 'intense' : vol > 5e3 ? 'active' : vol > 1500 ? 'waning' : vol > 300 ? 'mostly extinct (rare eruptions)' : 'extinct')]);
   } else rows.push(['Interior', 'contracting and cooling: internal heat ' + Math.round(s.Tint) + ' K' + (s.Tint > 650 ? ' (it glows)' : '')]);
+  if (h.subNep) rows.push(['Envelope', s.env > 1e-4 ? (s.env * 100).toFixed(2) + '% of its mass is hydrogen and helium' + (s.xuv > 1 ? ', boiling off under the young star\'s X-rays' : '') : 'stripped by its star: a bare rocky core (the "radius valley")']);
+  if (b.iceAge >= 3 && h.wet) rows.push(['Climate', 'a snowball: frozen to the equator while its star was fainter']);
+  if (b.life && b.climate && b.climate.life < 0.95 && h.wet) rows.push(['Life', b.climate.life < 0.05 ? 'microbes only: the land is still bare' : 'spreading over the land']);
   if (b.evoMig && b.orbit && b._a0 && b.parent) {
     const m1 = moonA(Object.assign({}, b, { orbit: { a: b._a0, period: b._p0 } }), b.parent, (b.evoAge - h.ageNow) + 1e4);
     const rate = m1 ? (m1.a - b.orbit.a) / 1e4 * 100 : 0;
@@ -1121,12 +1165,15 @@ export function describeBody(b) {
     if (b.air) {
       // Earth's air of the epoch (see earthAir)
       const ppm = Math.round(b.air.co2 * 1e6), f = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
-      rows.push(['Pressure', b.climate && b.climate.dry > 0.5 ? 'rising (steam atmosphere)' : '1 atm']);
+      rows.push(['Pressure', b.climate && b.climate.dry > 0.5 ? 'rising (steam atmosphere)' : b.surfP && Math.abs(b.surfP - 1) > 0.02 ? '~' + b.surfP.toFixed(b.surfP < 10 ? 2 : 0) + ' bar' + (b.surfP < 0.9 ? ' (thinner early air: Som et al. 2016)' : '') : '1 atm']);
+      if (b.system && Math.abs(b.system.tyr || 0) > 1e6 && b.rotPeriod) rows.push(['Days per year', Math.round(365.2422 * 86400 / (b.rotPeriod * 1.0027)).toLocaleString('en') + (b.system.tyr < -3.5e8 && b.system.tyr > -4.2e8 ? ' (Devonian corals record ~400)' : '')]);
       rows.push(['Atmosphere', 'N2 ' + f(Math.max(0, 0.99 - b.air.o2 - b.air.co2)) + ', O2 ' + (b.air.o2 > 0 ? f(b.air.o2) : 'none') + ', CO2 ' + (ppm < 10000 ? ppm.toLocaleString('en') + ' ppm' : f(b.air.co2))]);
     } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P * (b.atmoK || 1) / 101325) + ' atm' + (b.atmoK && b.atmoK < 0.3 ? ' (freezing out onto the surface)' : '')]); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
     if (b.volcano) rows.push(['Sky', 'volcanic haze from ' + b.volcano + ' (vivid sunsets, global cooling)']);
     else if (b.haze > 0.05) rows.push(['Sky', 'orange organic haze (methane-rich air, like Titan)']);
+    if (b.precessRA && b.system && b.system.tyr !== undefined) { const y = 2000 + b.system.tyr; if (y > 1979 && y < 2070) rows.push(['Ozone', 'a hole opens over Antarctica every spring (CFCs), ' + (y < 2000 ? 'deepening' : y < 2066 ? 'slowly healing since the Montreal Protocol (back to 1980 levels ~2066)' : 'healed')]); else if (b.ozoneK < 0.05) rows.push(['Ozone', 'none: no free oxygen, so the surface gets the Sun\'s full ultraviolet']); }
+    if (b.dipPole) rows.push(['North magnetic pole', b.dipPole[0].toFixed(1) + '° N, ' + Math.abs(b.dipPole[1]).toFixed(1) + '° ' + (b.dipPole[1] < 0 ? 'W' : 'E') + ' (it has wandered from Canada towards Siberia since 1900)']);
     if (b.stratWater > 0.5) rows.push(['Stratosphere', '+' + Math.round(b.stratWater) + '% water vapour from Hunga Tonga (2022)']);
     if (b.seaRise !== undefined && Math.abs(b.seaRise) > 0.01 && !b.paleoMyr) rows.push(['Sea level', (b.seaRise > 0 ? '+' : '') + (Math.abs(b.seaRise) < 3 ? b.seaRise.toFixed(2) : Math.round(b.seaRise)) + ' m vs 2000' + (b.iceAge > 0.05 ? ' (ice sheets: ' + Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m)' : '')]);
     else if (b.iceAge > 0.05 && b.iceAge < 2.5) rows.push(['Sea level', Math.round(-125 * Math.min(b.iceAge, 1.1)) + ' m (water locked in ice sheets)']);
@@ -1140,6 +1187,9 @@ export function describeBody(b) {
     }
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
     if (b.evoNote) rows.push(['This era', b.evoNote]);
+    if (b.system && b.system.desc && b.system.desc.sol && SOL_NOTES[b.name]) { const y = 2000 + (b.system.tyr || 0); const n = SOL_NOTES[b.name](y); if (n) rows.push(['Changing', n]); }
+    // giant planets: which clouds can form depends on temperature (Sudarsky et al. 2000)
+    if (b.surface && b.surface.gen === 'gas' && !(b.system && b.system.desc && b.system.desc.sol) && b.temp) { const T = b.temp; rows.push(['Clouds', T < 150 ? 'ammonia ice (class I, like Jupiter)' : T < 300 ? 'water ice (class II)' : T < 800 ? 'too warm for clouds: a deep blue, clear sky (class III)' : T < 1400 ? 'alkali metal haze, dark (class IV)' : 'silicate and iron clouds (class V): it is a hot Jupiter' + (T > 1200 ? ', puffed up by its star\'s heat' : '')]); }
     if (b.hist && b.evoNow && !b.precessRA) evoRows(b, rows);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);

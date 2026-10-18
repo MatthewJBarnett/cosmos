@@ -92,7 +92,10 @@ function dmHist(day, ia) {
 // population (10 a year reach magnitude 9, ~0.6 a year naked-eye; concentrated towards the bulge and the plane), each
 // rising in a couple of days and fading by 2 magnitudes in t2 = 5-60 days, plus famous ones on their real dates.
 const NOVAE = [['Nova Persei 1901', 150.1, -10.1, 1901.15, 0.2, 7], ['Nova Aquilae 1918', 33.2, 0.8, 1918.44, -0.5, 4],
-  ['Nova Puppis 1942', 252.5, -0.3, 1942.87, 0.4, 6], ['Nova Cygni 1975', 89.1, -0.2, 1975.66, 1.8, 2]];
+  ['Nova Puppis 1942', 252.5, -0.3, 1942.87, 0.4, 6], ['Nova Cygni 1975', 89.1, -0.2, 1975.66, 1.8, 2],
+  // T Coronae Borealis, a recurrent nova (a white dwarf feeding off a red giant) every ~80 years: 1866, 1946 and the
+  // outburst expected about now (the date is an estimate)
+  ['T Coronae Borealis (1866)', 42.4, 48.2, 1866.36, 2.0, 4], ['T Coronae Borealis (1946)', 42.4, 48.2, 1946.11, 3.0, 4], ['T Coronae Borealis (expected)', 42.4, 48.2, 2026.95, 2.5, 4]];
 const hash1 = (n) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
 function novaMag(day, mPeak, t2) { if (day < -2.5) return 99; if (day < 0) return mPeak + 4 * (day / 2.5) ** 2; return day < 2 * t2 ? mPeak + 2 * day / t2 : mPeak + 4 + 1.2 * Math.log2(day / (2 * t2) + 1) * 2; }
 function addNovae(out, tyr, win, gq, camLocal) {

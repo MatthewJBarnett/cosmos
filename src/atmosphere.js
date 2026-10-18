@@ -558,7 +558,7 @@ export function atmoUniforms(body) {
   // (the Archean organic haze: brownish, absorbing blue, spread through the lower stratosphere; optical depth ~1 in blue)
   const hz = Math.round((body.haze || 0) * 4) / 4, hM = a.hM * (1 + 1.2 * dq) + 6000 * hz;
   const HS = [5e-5, 4e-5, 2.6e-5], HA = [0.4e-5, 1.6e-5, 5e-5];
-  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh.map(x => x * ak), aHR: a.hR, aMieS: a.mieS.map((x, i) => x * (k + 3 * aq) * ak + HS[i] * hz), aMieA: a.mieA.map((x, i) => x * k * ak + HA[i] * hz), aHM: hM, aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
+  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh.map(x => x * ak), aHR: a.hR, aMieS: a.mieS.map((x, i) => x * (k + 3 * aq) * ak + HS[i] * hz), aMieA: a.mieA.map((x, i) => x * k * ak + HA[i] * hz), aHM: hM, aMieG: a.mieG, aAbs: a.absorb.map(x => x * (body.ozoneK === undefined ? 1 : Math.round(body.ozoneK * 8) / 8)), aAbsH: a.absH, aAbsW: a.absW };
 }
 
 const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y,-Y,+Z,-Z)
@@ -608,7 +608,7 @@ export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
   // (dusty atmospheres are rebuilt when the dust load changes by a step)
-  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4) + 1e6 * Math.round((body.haze || 0) * 4) + 1e8 * (body.atmoVer || 0);
+  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4) + 1e6 * Math.round((body.haze || 0) * 4) + 1e8 * (body.atmoVer || 0) + 1e10 * Math.round((body.ozoneK === undefined ? 1 : body.ozoneK) * 8);
   if (l && (l.dq || 0) !== dq) { gl.deleteTexture(l.trans); gl.deleteTexture(l.multi); gl.deleteTexture(l.irr); if (l.cloud) gl.deleteTexture(l.cloud); luts.delete(body.uid); l = null; }
   if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)) || (l.palCl || 0) !== paleoCloudKey(body))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
@@ -640,7 +640,9 @@ function cycUniform(body, time) {
 }
 export function cloudRotInv(body, rotQ, time) {
   const c = body.atmo && body.atmo.clouds;
-  const drift = c ? Q.axis([0, 1, 0], (time * 2e-6 * (c.kind === 'venus' ? 60 : 1)) % (2 * Math.PI)) : Q.ident();
+  // (Venus-like cloud decks super-rotate: round the planet in ~4 days, 60 times faster than the ground and the same way)
+  const w = c && c.kind === 'venus' ? 2 * Math.PI / (4 * 86400) * Math.sign(body.rotPeriod || 1) : 2e-6;
+  const drift = c ? Q.axis([0, 1, 0], (time * w) % (2 * Math.PI)) : Q.ident();
   return Q.mat3(Q.conj(Q.mul(rotQ, drift)));
 }
 let dummyCube = null;

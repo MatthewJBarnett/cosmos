@@ -15,6 +15,8 @@ const SHOWERS = [
   ['Geminids', 262.2, 112, 33, 150, 35, 0.4],
 ];
 for (const s of SHOWERS) s.dir = eqToEngine(s[2], s[3]);
+// [decimal year of the peak, peak hourly rate]: 13 Nov 1833, 14 Nov 1866, 17 Nov 1966, 18 Nov 1999, 18 Nov 2001
+const LEONID_STORMS = [[1833.8689, 60000], [1866.8723, 6000], [1966.8810, 100000], [1999.8822, 3700], [2001.8822, 3000]];
 
 let active = [], seed = 12345;
 export const meteorCfg = { boost: 1 };    // (tests raise this to see many at once)
@@ -37,7 +39,9 @@ export function updateMeteors(nav, dtReal) {
   const sources = [{ zhr: 8 * dawn, dir: null, v: 30 }];
   for (const s of SHOWERS) {
     let dL = Math.abs(lam - s[1]); if (dL > 180) dL = 360 - dL;
-    const zhr = s[4] * Math.pow(10, -s[6] * dL);
+    let zhr = s[4] * Math.pow(10, -s[6] * dL);
+    // meteor storms: Earth crosses a fresh dust trail of comet Tempel-Tuttle (1833 and 1966: tens of thousands an hour)
+    if (s[0] === 'Leonids') { const y = 2000 + nav.time / 31557600; for (const [ys, peak] of LEONID_STORMS) if (Math.abs(y - ys) < 0.003) zhr = Math.max(zhr, peak * Math.exp(-((((y - ys) * 365.25 * 24) / 1.5) ** 2))); }
     if (zhr > 0.5) sources.push({ zhr, dir: Q.rot(sys.worldQ, s.dir), v: s[5], name: s[0] });
   }
   for (const src of sources) {
