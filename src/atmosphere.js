@@ -608,7 +608,7 @@ export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
   // (dusty atmospheres are rebuilt when the dust load changes by a step)
-  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4) + 1e6 * Math.round((body.haze || 0) * 4);
+  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4) + 1e6 * Math.round((body.haze || 0) * 4) + 1e8 * (body.atmoVer || 0);
   if (l && (l.dq || 0) !== dq) { gl.deleteTexture(l.trans); gl.deleteTexture(l.multi); gl.deleteTexture(l.irr); if (l.cloud) gl.deleteTexture(l.cloud); luts.delete(body.uid); l = null; }
   if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)) || (l.palCl || 0) !== paleoCloudKey(body))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }

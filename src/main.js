@@ -30,7 +30,9 @@ const canvas = document.getElementById('gl');
 let renderer, nav, ui;
 try {
   initGL(canvas);
-  const quality = params.get('q') || 'high';
+  // phones and small tablets: a lighter preset and no supersampling (their pixel density would triple the work)
+  const phone = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900);
+  const quality = params.get('q') || (phone ? 'medium' : 'high');
   // trees cost the most on weak GPUs: fewer and closer on lower presets
   if (quality === 'low') { planetCfg.trees = false; }
   if (quality === 'medium') { planetCfg.treeRange = 1100; planetCfg.treeBudget = 30000; }
@@ -43,7 +45,7 @@ try {
   skyCfg.cubeSize = num('cube', skyCfg.cubeSize); skyCfg.galRange = num('galr', 1);
   atmoCfg.cloudRes = num('cloudres', atmoCfg.cloudRes); atmoCfg.steps = num('asteps', atmoCfg.steps); atmoCfg.cloudSteps = num('csteps', atmoCfg.cloudSteps);
   // start at one render pixel per CSS pixel (temporal AA keeps it sharp); dynamic resolution may go up to 1.5x on fast GPUs
-  rcfg.scaleMax = num('scale', Math.min(window.devicePixelRatio || 1, quality === 'ultra' ? 2 : 1.5)); rcfg.scale = num('scale', Math.min(1, rcfg.scaleMax)); rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
+  rcfg.scaleMax = num('scale', Math.min(window.devicePixelRatio || 1, quality === 'ultra' ? 2 : phone ? 1 : 1.5)); rcfg.scale = num('scale', Math.min(1, rcfg.scaleMax)); rcfg.autoScale = !params.has('scale') && !params.has('test'); rcfg.quality = quality;
   const L = (m) => { if (params.has('log')) console.log('LOG ' + m + ' ' + performance.now().toFixed(0)); }; window.__L = L;
   L('gl'); rcfg.prof = params.has('prof');
   // create every shader program now so the driver compiles them in parallel, instead of stalling mid-flight

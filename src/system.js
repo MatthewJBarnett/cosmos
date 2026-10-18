@@ -12,6 +12,7 @@ import { sunState, orbitScale, moonScale, engulfed, earthPole, earthDay, earthCl
 const fmtYr = (y) => y < 1e3 ? Math.round(y) + ' years' : y < 1e6 ? Math.round(y / 1e3).toLocaleString('en') + ',000 years' : (y / 1e6).toFixed(y < 1e7 ? 1 : 0) + ' million years';
 import { driftMyr } from './tectonics.js';
 import { PALEO_START, paleoMap } from './paleo.js';
+import { evolveBodies, historyAt, moonA } from './planetevo.js';
 import { initEvolution, stellarState, tMS, wdProgenitor, KNOWN_AGE, pulsarPeriod } from './stellarevo.js';
 import { planetPos, moonPos, POLES, eqToEngine, galilean, PRIME, iauNode, earthOrbitAt, JPL } from './ephem.js';
 
@@ -314,8 +315,8 @@ export class StarSystem {
     for (const b of root.children) {
       if (!b.orbit || b.kind === 'star') continue;
       const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
-      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young; if (!!b.gone !== g) changed = true; b.gone = g;
-      for (const c of b.children) { if (!!c.gone !== g) changed = true; c.gone = g; }
+      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young || !!b.evoGone; if (!!b.gone !== g) changed = true; b.gone = g;
+      for (const c of b.children) { const gc = g || !!c.evoGone; if (!!c.gone !== gc) changed = true; c.gone = gc; }
       const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
       b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
       // living, watery worlds respond like Earth: a brightening star dries the oceans and ends the biosphere
@@ -323,6 +324,11 @@ export class StarSystem {
         const S = (root.lum / Math.max(root.evo.L0, 1e-12)) / (scale * scale);
         b.climate = S > 1 ? { S, dry: clamp((S - 1.09) / 0.12, 0, 1), life: 1 - clamp((S - 1.05) / 0.06, 0, 1), ice: 1 - clamp((S - 1.02) / 0.05, 0, 1) } : null;
       }
+    }
+    // every planet and moon evolves: atmosphere, temperature, spin, close orbits, moons' orbits, cooling (planetevo.js)
+    if (root.evo && root.evo.x0 !== null && !sysUn) {
+      const age0 = root.evo.x0 * root.evo.life;
+      evolveBodies(this, tyr, age0, (ty) => { const st = stellarState(root, ty) || {}; return { L: st.unborn ? 0 : st.L || 0, M: st.m || root.evo.m, R: st.R || root.radius }; });
     }
     if (changed || !this._all) { this._all = all; this.bodies = all.filter(b => !b.gone); this.stars = this.bodies.filter(b => b.kind === 'star'); }
     return scale;
@@ -469,6 +475,27 @@ export class StarSystem {
       if (ss.L > 1.5) { for (const b of this.root.children) if (b.orbit && !b.gone) { const T = planetTeq(b.name, tyr, b.albedo || 0.3, b.orbit.a / C.AU) * (b.atmo && b.atmo.P > 5e4 ? 1.2 : 1); b.heatT = T > 700 ? T : 0; } }
       else if (this._heated !== false) { for (const b of this.root.children) b.heatT = 0; }
       this._heated = ss.L > 1.5;
+      // Venus: a possible ocean world until ~1 Gyr ago (Way et al. 2016; a hypothesis: it may never have condensed,
+      // Turbet et al. 2021), a runaway greenhouse that boiled it off and freed the carbonates' CO2, then global volcanic
+      // resurfacing ~750-500 Myr ago; still volcanically active today (Herrick & Hensley 2023)
+      { const v = this.root.children.find(b => b.name === 'Venus');
+        if (v && v._now) {
+          const ago = -tyr / 1e9, era = ago > 4.47 ? 'magma' : ago > 1.0 ? 'ocean' : ago > 0.75 ? 'runaway' : ago > 0.5 ? 'resurfacing' : 'now';
+          if (era !== v.venusEra) {
+            v.venusEra = era; const set = era === 'ocean' ? v._ocean : era === 'resurfacing' ? v._lava : v._now;
+            v.surface = set.surface; v.atmo = set.atmo; v.mapsVersion = (v.mapsVersion || 0) + 1; v.atmoVer = (v.atmoVer || 0) + 1; v.life = false;
+          }
+          const k = era === 'runaway' ? clamp((1.0 - ago) / 0.25, 0, 1) : 0;
+          v.atmoK = era === 'runaway' ? Math.exp(Math.log(0.013) * (1 - k)) * (1 + 1.5 * Math.sin(Math.PI * k)) : 1;
+          v.meanT = era === 'ocean' ? 300 + 15 * clamp((1.5 - ago) / 0.5, 0, 1) : era === 'runaway' ? 750 + 900 * Math.sin(Math.PI * k) : era === 'magma' ? 1800 : planetTeq('Venus', tyr, 0.76, 0.723) * 3.2;
+          v.heatT = era === 'magma' ? 1600 : era === 'resurfacing' ? 0 : v.heatT;
+          v.evoNote = { magma: 'a magma ocean under a steam atmosphere', ocean: 'possibly a temperate ocean world under ~1 bar of nitrogen and CO2 (a hypothesis: Way et al. 2016; Turbet et al. 2021 argue its oceans never condensed)', runaway: 'runaway greenhouse: the oceans are boiling into the air and the carbonate rocks giving up their CO2; the hydrogen escapes to space', resurfacing: 'global volcanic resurfacing: lava floods are repaving most of the planet', now: tyr > -5e8 && tyr < 0.5e9 ? 'a 92 bar CO2 hothouse, still volcanically active; its slow backward spin is held by tides in its thick air' : 'a CO2 hothouse' }[era];
+        } }
+      // the other planets and moons evolve too (Earth, the Moon, Pluto, Phobos and Triton have their own models)
+      evolveBodies(this, tyr, 4.57e9, (ty) => { const s = sunState(ty); return { L: s.L, M: s.M, R: s.R * C.Rsun }; },
+        (b) => ['Earth', 'Moon', 'Pluto', 'Charon', 'Phobos', 'Deimos', 'Triton'].includes(b.name) || b.kind === 'asteroid' || /Comet|ʻOumuamua|'Oumuamua|Borisov|ATLAS/.test(b.name),
+        (b) => ({ Venus: { field: 'never', atmo: b._now && b._now.atmo }, Mercury: { field: 'always' }, Ganymede: { field: 'always' }, Titan: { field: 'never' } })[b.name] || {}, true);
+      { const v = this.root.children.find(b => b.name === 'Venus'); if (v && v.venusEra) { v.temp = v.meanT; if (v.venusEra !== 'runaway') v.atmoK = 1; } }
     } else if (!this.sandbox && !this._snFixed) {
       // every other star ages too: main sequence, giant, then white dwarf, neutron star or black hole
       if (!this._evoInit) {
@@ -610,6 +637,11 @@ function buildSol(sys) {
   venus.surface = surfacePreset('venus', rng, venus);
   venus.atmo = makeAtmosphere(venus, 9.2e6, { CO2: 0.965, N2: 0.035 }, { T: 400, hR: 11200, top: 150000, mieS: [2e-5, 1.9e-5, 1.4e-5], mieA: [3e-7, 1.6e-6, 9e-6], hM: 12000,
     clouds: { base: 48000, top: 68000, cover: 1.0, density: 3.0, color: [1.0, 0.93, 0.72], kind: 'venus' } });
+  // Venus through time (venusEra in system update): keep the present look, and build the ocean-world look
+  venus._now = { surface: venus.surface, atmo: venus.atmo };
+  { const sOc = surfacePreset('terra', rng, venus); Object.assign(sOc, { veg: 0, ocean: 1, sea: 0.05 * sOc.contAmp, city: 0, tempEq: 300 });
+    venus._ocean = { surface: sOc, atmo: makeAtmosphere(venus, 1.2e5, { N2: 0.8, CO2: 0.2 }, { T: 290, clouds: { base: 1500, top: 10000, cover: 0.6, density: 1.2, color: [1, 1, 1], kind: 'earth' } }) };
+    const sLava = Object.assign({}, venus.surface, { lava: 0.35, tempEq: 900 }); venus._lava = { surface: sLava, atmo: venus.atmo }; }
   // Earth
   const earth = P('Earth', 'Terra', 1.00000261, 0.01671123, -0.00001531, 0, 102.93768193, 100.46457166, 1, 6371, 23.9345, 23.4393, 0.3, 288, { poleLon: 90, poleAbs: true, life: true });
   earth.surface = surfacePreset('terra', rng, earth); earth.surface.city = 1; earth.surface.seed = [37.2, 91.7, 13.4]; earth.surface.tempEq = 300;
@@ -1004,6 +1036,33 @@ function makePlanet(sys, rng, name, type, massE, aAU, hostMass, lum, st, parent,
 }
 
 // ---------- Info helpers ----------
+// how this world is changing (planetevo.js)
+function evoRows(b, rows) {
+  const s = b.evoNow, h = b.hist, kgs = (x) => x < 0.01 ? x.toExponential(0) + ' kg/s' : x < 10 ? x.toFixed(x < 1 ? 2 : 1) + ' kg/s' : x < 1e4 ? Math.round(x).toLocaleString('en') + ' kg/s' : (x / 1e3).toPrecision(2) + ' t/s';
+  const bar = (P) => P < 1 ? '0' : P < 1e3 ? (P / 1e5).toExponential(1) + ' bar' : P < 1e5 ? (P / 1e5).toFixed(P < 1e4 ? 3 : 2) + ' bar' : (P / 1e5).toPrecision(2) + ' bar';
+  if (b.atmo && !h.giant && h.P0 > 0) {
+    const g = C.G * b.mass / (b._r0 * b._r0), Pat = (age) => { const x = historyAt(h, age); return x.Matm * g / (4 * Math.PI * b._r0 * b._r0); };
+    const trend = b.evoCollapsed ? 'collapsed: frozen onto the night side (too thin to carry heat around a locked world)' : s.esc > s.out * 1.3 ? 'thinning' : s.out > s.esc * 1.3 ? 'thickening (volcanic gases)' : 'roughly steady';
+    rows.push(['Air over time', trend + ' · escaping ' + kgs(s.esc) + (s.out > 0.001 ? ', volcanoes add ' + kgs(s.out) : '')]);
+    const a = b.evoAge;
+    rows.push(['Pressure history', [[-3e9, '3 Gyr ago'], [-1e9, '1 Gyr ago'], [1e9, 'in 1 Gyr'], [3e9, 'in 3 Gyr']].filter(([d]) => a + d > 1e7).map(([d, l]) => bar(Pat(a + d)) + ' ' + l).join(' · ')]);
+    if (s.Texo > 1500) rows.push(['Upper atmosphere', Math.round(s.Texo).toLocaleString('en') + ' K, heated by the young star\'s X-rays and UV' + (s.esc > 1e3 ? ': escaping hydrodynamically' : '')]);
+  }
+  if (!h.giant) {
+    rows.push(['Magnetic field', s.field ? 'active (shields the air from the stellar wind)' : 'none (the stellar wind strips the upper air)']);
+    const vol = s.out / Math.max(h.mE, 1e-3) / (h.plates ? 0.05 : 0.01);
+    rows.push(['Interior', (h.plates ? 'plate tectonics' : 'stagnant lid') + ' · volcanism ' + (b.evoAge < 1e8 ? 'a magma ocean' : vol > 5e3 ? 'intense' : vol > 500 ? 'active' : vol > 50 ? 'waning' : 'nearly extinct')]);
+  } else rows.push(['Interior', 'contracting and cooling: internal heat ' + Math.round(s.Tint) + ' K' + (s.Tint > 650 ? ' (it glows)' : '')]);
+  if (b.evoMig && b.orbit && b._a0 && b.parent) {
+    const m1 = moonA(Object.assign({}, b, { orbit: { a: b._a0, period: b._p0 } }), b.parent, (b.evoAge - h.ageNow) + 1e4);
+    const rate = m1 ? (m1.a - b.orbit.a) / 1e4 * 100 : 0;
+    rows.push(['Tides', 'orbit ' + (b.evoMig > 0 ? 'widening' : 'shrinking') + ' by ' + Math.abs(rate).toPrecision(2) + ' cm/yr' + (b.evoMig < 0 ? ' (it orbits faster than the planet spins): it will be torn apart' : '')]);
+  }
+  if (b.orbit && b.parent && b.parent.kind === 'star') {
+    const iG = h.gone.indexOf(1);
+    if (iG > 0 && h.ages[iG] > b.evoAge) rows.push(['Tides', 'the star\'s tides are shrinking its orbit: it spirals in within ' + fmtYr(h.ages[iG] - b.evoAge)]);
+  }
+}
 export function surfaceGravity(b) { return b.radius > 0 ? C.G * b.mass / (b.radius * b.radius) : 0; }
 // perihelion passages of Halley's comet (Yeomans & Kiang 1981; astronomical years, so 240 BC is -238.6): 1066 is
 // the one on the Bayeux Tapestry, 1301 the star of Giotto's Adoration, 1759 the return Halley predicted
@@ -1080,6 +1139,8 @@ export function describeBody(b) {
       if (y >= 1830 && y <= 2040) rows.push(['Great Red Spot', (Math.round(L / 500) * 500).toLocaleString('en') + ' km long' + (y > 1885 ? ' (shrinking: ~39,000 km in 1879)' : '') + (y > 2025 ? ', projected' : '')]);
     }
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);
+    if (b.evoNote) rows.push(['This era', b.evoNote]);
+    if (b.hist && b.evoNow && !b.precessRA) evoRows(b, rows);
     if (b.lifeNow) rows.push(['Life', b.lifeNow]);
     else if (b.life) rows.push(['Life', b.climate && b.climate.life < 0.5 ? (b.climate.life > 0.02 ? 'dying out as the star brightens' : 'none (sterilized)') : 'organic, multicellular']);
   }

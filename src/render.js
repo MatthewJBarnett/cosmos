@@ -878,7 +878,11 @@ export class Renderer {
     // should not darken everything else: let it overexpose by up to ~30x. (One in the middle is what you are looking
     // at, and is exposed for.)
     { const srt = Array.from(lum0).sort((a, b) => a - b), N = srt.length, ref = srt[N - 7], top = srt[N - 1];
-      if (top > 30 * Math.max(ref, 1e-30)) {
+      // (with hysteresis: the condition must hold, or fail, for three readings in a row before it switches, so that a
+      // glint flickering across the threshold can't make the exposure pump)
+      const want = rcfg.compactMeter !== false && top > 30 * Math.max(ref, 1e-30);
+      this._cmpN = want === !!this._cmp ? 0 : (this._cmpN || 0) + 1; if (this._cmpN >= 3) { this._cmp = want; this._cmpN = 0; }
+      if (this._cmp && top > 3 * Math.max(ref, 1e-30)) {
         let central = false, cap = Math.max(ref * 3, top / 30);
         for (let i = 0; i < N; i++) if (lum0[i] > cap) { const x = (i % 64) / 63 * 2 - 1, y = Math.floor(i / 64) / 35 * 2 - 1; if (Math.abs(x) < 0.22 && Math.abs(y) < 0.3) central = true; }
         if (!central) for (let i = 0; i < N; i++) if (lum0[i] > cap) { lum0[i] = cap; cells[i][0] = cap; }
@@ -912,9 +916,17 @@ export class Renderer {
     }
     target *= Math.pow(2, rcfg.exposureBias);
     if (this.sync) { this.exposure = Math.exp(Math.log(this.exposure) + (Math.log(target) - Math.log(this.exposure)) * 0.7); return; }
-    const rate = target < this.exposure ? 3.5 : 1.6;
+    // The meter is noisy from frame to frame (a percentile of a 64 x 36 image, anti-aliasing jitter, cloud noise). At low
+    // frame rates (phones) following it frame by frame makes the whole image pump: smooth the target over ~0.35 s, and
+    // hold the exposure while it is within ~0.1 stop of it, as a camera's auto exposure does.
+    const lt = Math.log(target);
+    if (this._lt === undefined || Math.abs(lt - this._lt) > 2.5) this._lt = lt; else this._lt += (lt - this._lt) * (1 - Math.exp(-dt / 0.35));
+    const le = Math.log(this.exposure), diff = this._lt - le;
+    if (Math.abs(diff) < 0.07 && !this._adapting) return;
+    this._adapting = Math.abs(diff) > 0.02;
+    const rate = diff < 0 ? 3.5 : 1.6;
     const k = 1 - Math.exp(-dt * rate);
-    this.exposure = Math.exp(Math.log(this.exposure) + (Math.log(target) - Math.log(this.exposure)) * k);
+    this.exposure = Math.exp(le + diff * k);
   }
 }
 
