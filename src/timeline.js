@@ -36,6 +36,16 @@ export function fmtSimDate(t) {
   const dy = yr - nowYr();
   return fmtSpan(dy) + (dy >= 0 ? ' from now' : ' ago');
 }
+// seconds after the Big Bang, readable from 10^-43 s to months
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+export function sci(x) { const e = Math.floor(Math.log10(x)), m = x / 10 ** e; return (m < 9.95 ? m.toFixed(1) : '10') + ' × 10' + String(m < 9.95 ? e : e + 1).split('').map(c => SUP[c]).join(''); }
+export function fmtEarly(t) {
+  if (t < 0.01) { const e = Math.floor(Math.log10(t)), m = t / 10 ** e; return (m < 9.95 ? m.toFixed(1) + ' × ' : '') + '10' + String(m < 9.95 ? e : e + 1).split('').map(c => SUP[c]).join('') + ' s'; }
+  if (t < 120) return (t < 10 ? t.toFixed(2) : Math.round(t)) + ' s';
+  if (t < 7200) return (t / 60).toFixed(t < 600 ? 1 : 0) + ' minutes';
+  if (t < 2 * 86400) return (t / 3600).toFixed(1) + ' hours';
+  return Math.round(t / 86400) + ' days';
+}
 export function fmtRate(r) {
   const a = Math.abs(r), s = r < 0 ? '−' : '';
   if (a === 1) return s + 'real time';
@@ -76,7 +86,16 @@ export function buildEvents() {
   add({ id: 'acen', maxRate: 300000.0, t: 27600, title: 'Alpha Centauri at its closest', text: 'Our nearest neighbours pass 2.9 light years from the Sun and shine at magnitude −1.9, rivalling Sirius.', view: { star: 'Rigil Kentaurus', from: 'sun' }, rate: YEAR * 300 });
   // the past: the young universe, the Galaxy, the Sun and Earth
   const BB = -13.79e9;
-  add({ id: 'nucleo', t: BB + 1 / 1e4, title: 'Big Bang nucleosynthesis', text: 'In the first twenty minutes protons and neutrons fuse into the nuclei of helium, deuterium and lithium. The universe is a white-hot opaque plasma.', view: { cosmos: true }, rate: 1 });
+  // the first moments (tBB: seconds after the Big Bang; the early-universe clock runs in powers of ten)
+  const E = (o) => add(Object.assign({ t: BB, view: { early: true } }, o));
+  E({ id: 'planck', tBB: 1e-43, title: 'The Planck era', text: 'At 10^-43 seconds the known laws of physics give out: gravity itself should be quantum, and no tested theory describes what happens here. The clock starts at the Planck time.', rate: 1e6 });
+  E({ id: 'inflation', tBB: 1e-36, est: true, title: 'Inflation', text: 'In about 10^-32 seconds space expands by a factor of ~10^26 (60 doublings and more), driven by the energy of an "inflaton" field. Everything we will ever see was once a patch smaller than a proton. Quantum jitters in the field are stretched to cosmic size and frozen: they are the seeds of every galaxy.', rate: 10 });
+  E({ id: 'reheating', tBB: 1e-32, est: true, title: 'Reheating: the hot Big Bang', text: 'The inflaton decays and its energy becomes a seething plasma of every kind of particle at ~10^25 K. From here on the universe expands and cools as radiation.', rate: 1e3 });
+  E({ id: 'electroweak', tBB: 1e-11, title: 'The electroweak transition', text: 'Below ~160 GeV (10^15 K) the Higgs field takes a value everywhere: W and Z bosons, quarks and electrons gain mass, and the weak and electromagnetic forces part ways. Somewhere before now (we do not know how), a tiny excess of matter over antimatter, about one part in a billion, was set.', rate: 1e3 });
+  E({ id: 'qcd', tBB: 2e-5, title: 'Quarks bind into protons and neutrons', text: 'At ~150 MeV (2 x 10^12 K) the quark-gluon plasma condenses into hadrons. As it cools further, protons and antiprotons annihilate, leaving the one-in-a-billion excess of matter: every atom that will ever exist.', rate: 1e3 });
+  E({ id: 'nudecouple', tBB: 1, title: 'Neutrinos decouple', text: 'At ~1 MeV (10^10 K) neutrinos stop interacting and stream freely: a cosmic neutrino background, now at 1.95 K, still fills space. Weak reactions can no longer keep neutrons and protons in balance: about one baryon in six is a neutron, and free neutrons now decay with a 15 minute lifetime.', rate: 100 });
+  E({ id: 'annihilation', tBB: 10, title: 'Electrons and positrons annihilate', text: 'As the temperature drops below the electron mass, electron-positron pairs annihilate into light, heating the photons relative to the neutrinos (by (11/4)^1/3). A slight excess of electrons survives, one for every proton.', rate: 30 });
+  E({ id: 'nucleo', tBB: 180, title: 'The first nuclei: helium is made', text: 'Below ~0.07 MeV (8 x 10^8 K) deuterium is no longer blasted apart by photons, and within minutes almost every surviving neutron is locked into helium-4. By 20 minutes the universe is ~75% hydrogen and ~25% helium by mass, with traces of deuterium, helium-3 and lithium. (Computed here with a 12-reaction network; watch the panel.)', rate: 1 });
   add({ id: 'cmb', t: BB + 3.8e5, title: 'The universe becomes transparent', text: 'At about 3,000 K electrons join nuclei to make atoms and light travels freely for the first time. Stretched by expansion, that orange glow is the cosmic microwave background we see today at 2.7 K.', view: { cosmos: true }, rate: YEAR * 2e4 });
   add({ id: 'dawn', t: BB + 4.0e8, est: true, title: 'Cosmic dawn', text: 'After a hundred million dark years the first stars ignite in small dark matter halos; by now the first small, blue galaxies are lighting up (the James Webb Space Telescope sees them at redshifts above 10), and their ultraviolet light is reionizing the universe.', view: { cosmos: true }, rate: YEAR * 3e7 });
   add({ id: 'mwform', t: -13.0e9, est: true, title: 'The Milky Way forms', text: 'Gas and smaller galaxies collect in our dark matter halo; the oldest stars of the Milky Way date from about now. The thin disk where the Sun will be born grows over the next few billion years.', view: { galaxy: 'top' }, rate: YEAR * 1e8 });
@@ -132,12 +151,17 @@ export function buildEvents() {
   add({ id: 'sunlike', t: now + 3e10, est: true, title: 'Sun-like stars are dying out', text: 'With no gas left to form new stars, every star brighter than the Sun has burned out. The sky holds orange and red dwarfs and fading white dwarfs.', view: { lg: 'sun' }, rate: YEAR * 1e9 });
   add({ id: 'laststars', t: now + 9e13, est: true, title: 'The last stars fade', text: 'The longest-lived red dwarfs exhaust their hydrogen after about 100 trillion years. The stelliferous era ends; only stellar remnants and black holes remain.', view: { lg: 'sun' }, rate: YEAR * 1e12 });
   add({ id: 'horizon', t: now + 1.5e11, est: true, title: 'The sky beyond the Local Group goes dark', text: 'Accelerating expansion carries every other galaxy beyond our event horizon; their light redshifts away.', view: { universe: true }, rate: YEAR * 1e9 });
-  return ev.sort((a, b) => a.t - b.t);
+  // order by time since the Big Bang (the earliest events all share one J2000 date)
+  for (const e of ev) e.k = e.tBB !== undefined ? e.tBB : (e.t - BB) * YEAR;
+  return ev.sort((a, b) => a.k - b.k);
 }
 
 export class Timeline {
   constructor(nav, ui) { this.nav = nav; this.ui = ui; this.events = buildEvents(); this.auto = true; this.lastTyr = nav.time / YEAR; this.fired = new Set(); }
-  next(tyr = this.nav.time / YEAR) { return this.events.find(e => e.t > tyr); }
+  // the current moment in seconds since the Big Bang (the early clock when it is running)
+  nowKey() { const nav = this.nav; return nav.early ? nav.early.t : nav.time + 13.79e9 * YEAR; }
+  next() { const k = this.nowKey(); return this.events.find(e => e.k > k * (1 + 1e-9) + 1e-60); }
+  prev() { const k = this.nowKey(); return this.events.filter(e => e.k < k * (1 - 1e-9)).pop(); }
   // called every frame: slow down ahead of an event so it plays at a watchable rate, then announce it
   update(dt) {
     const nav = this.nav, tyr = nav.time / YEAR, prev = this.lastTyr; this.lastTyr = tyr;
@@ -148,8 +172,9 @@ export class Timeline {
       if (nav.rate !== R.set) this.resume = null;
       else if ((nav.rate > 0 ? tyr >= R.e.t : tyr <= R.e.t)) { R.hold -= dt; if (R.hold <= 0) { nav.rate = R.rate; this.resume = null; this.ui.toast('Resuming ' + fmtRate(R.rate)); } }
     }
-    const fwd = nav.rate > 0;
+    const fwd = nav.rate > 0, k = this.nowKey(), pk = this.lastK === undefined ? k : this.lastK; this.lastK = k;
     for (const e of this.events) {
+      if (e.tBB !== undefined) { if (((pk < e.k && k >= e.k) || (pk > e.k && k <= e.k)) && !this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast(e.title); } continue; }
       // announce events we just passed
       if ((prev < e.t && tyr >= e.t) || (prev > e.t && tyr <= e.t)) { if (!this.fired.has(e.id)) { this.fired.add(e.id); this.ui.toast((e.est ? 'About now: ' : '') + e.title); } }
       if (!this.auto) continue;
@@ -170,6 +195,13 @@ export class Timeline {
   // jump to just before an event and set up its view
   go(e) {
     const nav = this.nav; this.resume = null;
+    if (e.tBB !== undefined) {
+      // start a third of a decade before it on the early clock
+      nav.setEarly(Math.max(e.tBB / 2.2, 5.4e-44)); nav.rate = e.rate; nav.paused = false; nav.atPlanck = false;
+      this.fired.delete(e.id); this.lastTyr = nav.time / YEAR; this.lastK = this.nowKey();
+      if (this.onGo) this.onGo(e);
+      return;
+    }
     nav.time = (e.t - Math.min(e.rate / YEAR * 4, Math.max(1e-3, Math.abs(e.t) * 1e-9 + 0.02))) * YEAR;
     nav.rate = e.rate; nav.paused = false;
     this.fired.delete(e.id); this.lastTyr = nav.time / YEAR;

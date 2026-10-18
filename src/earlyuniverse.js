@@ -197,3 +197,35 @@ const Treh = () => { const TMeV = Math.sqrt(2.42 / INF_END / Math.sqrt(106.75));
 function bbnState(t) { const tab = getBBN(); if (t >= tab[tab.length - 1].t) { const l = tab[tab.length - 1]; return { T: l.T * Math.sqrt(l.t / t) }; }
   let lo = 0, hi = tab.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tab[m].t < t) lo = m; else hi = m; }
   const u = Math.log(t / tab[lo].t) / Math.log(tab[hi].t / tab[lo].t); return { T: Math.exp(Math.log(tab[lo].T) + (Math.log(tab[hi].T) - Math.log(tab[lo].T)) * u) }; }
+
+// what is going on at t (s): a name, a line of explanation, the particles present, and how big today's observable
+// universe (~93 billion light years across) was
+export function earlyEra(t) {
+  const s = earlyState(t), T = s.T, E = T / K_MeV;            // MeV
+  let name, text;
+  if (s.phase === 'planck') { name = 'The Planck era'; text = 'quantum gravity: no tested theory applies'; }
+  else if (s.phase === 'inflation') { name = 'Inflation'; text = `space doubles every ~10⁻³⁴ s (${s.efolds.toFixed(0)} of ${N_EFOLDS} e-folds); quantum fluctuations are stretched past the horizon and frozen`; }
+  else if (t < 1e-30) { name = 'Reheating'; text = 'the inflaton decays into a hot plasma of every particle'; }
+  else if (E > 160e3) { name = 'Electroweak unification'; text = 'all Standard Model particles are massless and in equilibrium; the weak and electromagnetic forces are one'; }
+  else if (E > 150) { name = 'Quark-gluon plasma'; text = 'the Higgs field has switched on: particles have mass; quarks and gluons roam free'; }
+  else if (E > 100) { name = 'The hadron era'; text = 'quarks are bound into protons, neutrons and pions; antimatter annihilates, leaving one particle in a billion'; }
+  else if (E > 0.8) { name = 'The lepton era'; text = 'neutrinos, electrons, positrons and photons in equilibrium; neutrons and protons convert into each other'; }
+  else if (t > 150 && t < 1500) { name = 'Big Bang nucleosynthesis'; text = 'deuterium survives at last and is built into helium-4 within minutes'; }
+  else if (E > 0.07) { name = 'Weak freeze-out'; text = 'neutrinos decouple; neutrons stop being made and start to decay; electron-positron pairs annihilate'; }
+  else if (t < 1500) { name = 'Big Bang nucleosynthesis'; text = 'deuterium survives at last and is built into helium-4 within minutes'; }
+  else { name = 'The plasma era'; text = 'nuclei, electrons and light, too hot for atoms; the composition is now fixed for hundreds of millions of years'; }
+  const sp = [];
+  if (s.phase === 'radiation') {
+    sp.push('photons');
+    if (E > 160e3) sp.push('W, Z, Higgs, all quarks and leptons (massless)');
+    else if (E > 150) sp.push('quarks', 'gluons', 'leptons', 'neutrinos', E > 80e3 ? 'W, Z' : '');
+    else if (E > 100) sp.push('protons, neutrons', 'pions', 'muons', 'electrons, positrons', 'neutrinos');
+    else if (E > 0.05) sp.push('protons, neutrons', 'electrons, positrons', 'neutrinos');
+    else sp.push('nuclei (H, He, traces of D, 3He, Li)', 'electrons', 'neutrinos (free-streaming)');
+  } else if (s.phase === 'inflation') sp.push('the inflaton field');
+  // scale factor: radiation era a = (T_cmb / T)(3.91 / g*s)^(1/3); during inflation a_end e^(N - 60)
+  const aOf = (TK) => 2.7255 / TK * Math.cbrt(3.91 / gStar(TK / K_MeV / 1000));
+  const aEnd = aOf(Treh());
+  const a = s.phase === 'radiation' ? aOf(T) : s.phase === 'inflation' ? aEnd * Math.exp(s.efolds - N_EFOLDS) : aEnd * Math.exp(-N_EFOLDS);
+  return { name, text, T, E, phase: s.phase, efolds: s.efolds, species: sp.filter(Boolean), a, size: 8.8e26 * a };   // size in metres
+}

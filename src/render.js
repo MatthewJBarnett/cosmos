@@ -199,6 +199,32 @@ export function makeNoise3D() {
 
 // label of the pass that starts after each marker
 const NEXT = { bake: 'setup', pre: 'galaxies', galaxies: 'galaxy sky', galsky: 'stars', stars: 'nebulae + planets', planets: 'rings, points', 'rings+pts': 'atmosphere', atmo: 'orbits, black holes', 'orbits+bh': 'temporal AA', taa: 'post', post: 'end' };
+// the very early universe, full screen: the Planck foam, the endless zoom of inflation (each octave of fluctuation
+// freezing as it leaves the horizon), and the hot plasma glowing at its temperature with its frozen density ripples
+// (real ripples are 1 part in 100,000; drawn ~1000x stronger so they can be seen)
+const EARLY_FS = `in vec2 vUV; out vec4 o;
+uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov; uniform float uPhase, uN, uTime, uHot; uniform vec3 uCol;
+float fbm(vec3 p){ float a = 0.5, s = 0.; for (int i = 0; i < 5; i++) { s += a*(texture(uNoise3, p).r - 0.5); p *= 2.03; a *= 0.5; } return s; }
+void main(){
+  vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.));
+  vec3 c;
+  if (uPhase < 0.5) {
+    float n = fbm(d*3. + vec3(uTime*0.4, uTime*0.31, -uTime*0.27)) + 0.5*fbm(d*11. - uTime*0.9);
+    c = vec3(0.92, 0.88, 1.0)*(0.55 + 1.1*n);
+  } else if (uPhase < 1.5) {
+    float z = uN*0.35, s = 0., fz = floor(z);
+    for (int k = 0; k < 6; k++) {
+      float lv = float(k) - fract(z), w = smoothstep(0., 1.2, lv)*smoothstep(6., 4., lv);
+      vec3 q = d*exp2(lv)*0.11 + vec3((float(k) + fz)*0.137, (float(k) + fz)*0.071, 0.);
+      s += w*(texture(uNoise3, q).r + 0.5*texture(uNoise3, q*2.1).r - 0.75);
+    }
+    c = mix(vec3(0.03, 0.02, 0.09), vec3(0.42, 0.33, 0.95), smoothstep(-0.35, 0.45, s));
+  } else {
+    float n = fbm(d*2.2);
+    c = uCol*(0.75 + 0.25*uHot)*(1. + 0.08*n);
+  }
+  o = vec4(c*0.8, 1.);
+}`;
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -648,7 +674,17 @@ export class Renderer {
     gl.depthMask(true);
     // the early universe glows: before recombination (~380,000 years) everything is an opaque plasma, and for a few
     // million years afterwards the cosmic background is still hot enough to see (dull red below ~800 K)
-    if (cosmo.T > 420) {
+    if (cosmo.early) {
+      // the first moments (display-referred: brightness spans 30 orders of magnitude, so it is shown at a fixed level)
+      if (!this.pEarly) this.pEarly = new Program('early-universe', FS_VS, EARLY_FS);
+      const e = cosmo.early, c0 = bbColor(Math.min(Math.max(e.T, 1000), 40000)), y = 0.2126 * c0[0] + 0.7152 * c0[1] + 0.0722 * c0[2];
+      this.dimAdapt = true;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
+      gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+      this.pEarly.use().set({ uRot: camRot, uTanFov: [tanX, tanY], uNoise3: this.noise3, uPhase: e.phase === 'planck' ? 0 : e.phase === 'inflation' ? 1 : 2, uN: e.efolds || 0,
+        uCol: c0.map(v => v / y), uTime: (performance.now() / 1000) % 1000, uHot: clamp(Math.log10(Math.max(e.T, 1)) / 32, 0, 1) });
+      drawFS();
+    } else if (cosmo.T > 420) {
       if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; void main(){ o = vec4(uCol, 0.); }`);
       const T = Math.min(cosmo.T, 1e9), c0 = bbColor(Math.min(T, 40000)), k = clamp((1600 - T) / 700, 0, 1);
       // (below ~1000 K a glow is a dull deep red)

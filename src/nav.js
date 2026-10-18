@@ -12,7 +12,8 @@ import { StarSystem, starName } from './system.js';
 import { planetState } from './planet.js';
 import { descPosP, updateWorld, YEAR, world } from './galdyn.js';
 import { GLOBULARS, globularNebulae } from './globulars.js';
-import { apparentPosU } from './cosmology.js';
+import { apparentPosU, cosmo } from './cosmology.js';
+import { earlyState, T_PLANCK } from './earlyuniverse.js';
 import { visibleGalaxyCells } from './sky.js';
 
 const PC = C.PC, MPC = C.PC * 1e6;
@@ -78,6 +79,11 @@ export function targetName(t) {
   if (t.type === 'nebula') return t.neb.name;
   return galaxyName(t.galaxy);
 }
+
+// the Big Bang in simulation seconds (since J2000), and how long the early clock is used
+export const BB_S = -13.79e9 * YEAR, EARLY_MAX = 1e7;
+// decades of time per real second in the early universe, from the rate setting
+export const earlyDecades = (rate) => Math.sign(rate) * clamp(0.1 + 0.15 * Math.log10(Math.max(Math.abs(rate), 1)), 0.05, 3);
 
 export class Nav {
   constructor() {
@@ -332,6 +338,8 @@ export class Nav {
     if (rl < b.radius + (b._groundH || 0) + 50) { this.orbit = null; this.vel = [0, 0, 0]; }
   }
 
+  // jump to t seconds after the Big Bang on the early clock
+  setEarly(t) { this.early = { t: Math.max(t, T_PLANCK) }; this.time = BB_S + this.early.t; this.early.set = this.time; }
   // ----- per frame -----
   update(dt, input) {
     // (the anchor's position and rotation before anything moves this frame, for following it)
@@ -342,8 +350,20 @@ export class Nav {
     // (flying down to land at a chosen local time, or to a planet's sunlit side: hold a fast clock until arrival, or
     // the hour, or the side of the planet facing the Sun, would be random)
     const landing = (this.goto && (this.goto.land || (this.goto.target && this.goto.target.type === 'body'))) || this.pendingLand;
-    const dAdv = this.paused || (landing && Math.abs(this.rate) > 600) ? 0 : dt * this.rate * this.gamma;
-    this.time += dAdv;
+    let dAdv = this.paused || (landing && Math.abs(this.rate) > 600) ? 0 : dt * this.rate * this.gamma;
+    // the first ~4 months: a clock in seconds since the Big Bang (J2000 seconds only resolve ~1 minute there), running
+    // logarithmically, from ~0.1 decades per second at real time up to a few decades per second at fast rates
+    if (this.early && Math.abs(this.time - this.early.set) > 1) this.early = this.time - BB_S < EARLY_MAX ? { t: Math.max(this.time - BB_S, T_PLANCK) } : null;
+    if (this.early) {
+      if (!this.paused) this.early.t *= Math.pow(10, earlyDecades(this.rate) * dt);
+      if (this.early.t <= T_PLANCK * 1.0001 && this.rate < 0) { this.early.t = T_PLANCK; this.paused = true; this.atPlanck = true; }
+      if (this.early.t > EARLY_MAX && this.rate > 0) { this.time = BB_S + this.early.t; this.early = null; }
+      else { this.time = BB_S + this.early.t; dAdv = 0; }
+    } else {
+      this.time += dAdv;
+      if (this.time < BB_S + EARLY_MAX) { this.early = { t: Math.max(this.time - BB_S, T_PLANCK) }; this.time = BB_S + this.early.t; }
+    }
+    if (this.early) this.early.set = this.time;
     const an0 = this.anchor;
     // time-lapse near a planet: faster than about a sixth of an orbit per second its phase and seasons would flicker
     // from frame to frame; advance in whole orbits instead so the lit face holds still while the ages pass
@@ -375,6 +395,9 @@ export class Nav {
     } else this._lock = null;
     if (this._yl) this._yl.lastSet = this.time;
     updateWorld(this.time, this.paused ? 0 : dt * this.rate / YEAR);
+    // (the very early universe: its own temperature and state)
+    cosmo.early = this.early ? earlyState(this.early.t) : null;
+    if (cosmo.early) cosmo.T = cosmo.early.T;
     if (this.pendingLand) { const p = this.pendingLand; p.t += dt; const ms = bodyMaps(p.body); if ((ms && !ms.preview) || p.t > 30) { this.pendingLand = null; if (p.opt.dir0) p.opt.dir = Q.rot(p.body.wrot, p.opt.dir0); this.land(p.body, Object.assign({}, p.opt, { noWait: true })); } }
     // start loading surface maps of the selection early
     if (this.selected && this.selected.type === 'body' && this.selected.body.maps) bodyMaps(this.selected.body);
