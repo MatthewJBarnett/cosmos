@@ -11,6 +11,7 @@ const tl = await imp('timeline.js');
 const { galDir } = await imp('universe.js');
 const { EXTRA_STARS } = await imp('realsystems.js');
 const sysm = await imp('system.js');
+const eu = await imp('earlyuniverse.js');
 
 let pass = 0, fail = 0;
 function check(name, val, ref, tol, unit = '') {
@@ -126,6 +127,14 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
     check("'Oumuamua at perihelion (AU)", Math.hypot(...sysm.keplerPos(o, 17.688 * YR)) / AU, '0.255', 0.002, ' AU');
     check("'Oumuamua speed far from the Sun (km/s)", Math.sqrt(GM * (e - 1) / q) / 1e3, '26.3 (Micheli et al. 2018)', 0.5, ' km/s'); }
   check('Age of the universe at z = 1 (Gyr)', cos.tauOfA(0.5), '5.9 (Planck 2018 LCDM)', 0.15, ' Gyr');
+  { const f = eu.bbnAt(1e5), tab = eu.getBBN(), last = tab[tab.length - 1];
+    check('BBN: helium-4 mass fraction Yp', f.Yp, '0.245 +- 0.003 (Aver et al. 2021; Planck+BBN 0.247)', (v) => v > 0.238 && v < 0.252);
+    check('BBN: deuterium D/H', f.DH * 1e5, '2.53 +- 0.03 e-5 (Cooke et al. 2018)', (v) => v > 2.1 && v < 3.1, 'e-5');
+    check('BBN: helium-3 3He/H', f.He3H * 1e5, '~1.0 e-5 (BBN prediction; Bania et al. 2002 <1.1)', (v) => v > 0.8 && v < 1.3, 'e-5');
+    check('BBN: lithium-7 7Li/H', f.Li7H * 1e10, '4.7 +- 0.7 e-10 (BBN prediction; stars show 1.6: the lithium problem)', (v) => v > 3.5 && v < 6, 'e-10');
+    check('Neutrino / photon temperature after e+- annihilation', last.Tn / last.T, '(4/11)^1/3 = 0.7138', (v) => Math.abs(v - 0.7138) < 0.002);
+    check('Neutron fraction at freeze-out (t = 10 s)', eu.bbnAt(10).nFrac, '~1/6 (freeze-out near 0.8 MeV)', (v) => v > 0.15 && v < 0.18);
+    check('Temperature 1 s after the Big Bang (K)', eu.earlyState(1).T / 1e10, '~1e10 K', (v) => v > 0.8 && v < 1.3, 'e10 K'); }
   check('Star formation 10 Gyr ago vs today (cosmic noon)', gd.sfrRel(-10e9), '~2-3x (Madau & Dickinson 2014)', (v) => v > 2 && v < 4);
   check('LMC merges with the Milky Way (Gyr)', lgo.LMC_ORBIT.merged / 1e3, '2.4 +- 0.8 (Cautun et al. 2019)', (v) => v > 1.6 && v < 3.2);
   check('LMC distance 1.5 Gyr ago (kpc)', Math.hypot(...lgo.lmcAt(-1500)), '> 200 (first infall)', (v) => v > 200, ' kpc');
