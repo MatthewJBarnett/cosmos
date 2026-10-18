@@ -99,6 +99,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | O, N, K | Orbits, labels, constellation figures |
 | `[` `]` | Exposure |
 | Z, X | Zoom the field of view |
+| Shift+X | Dark matter: each galaxy's halo (projected NFW profile) |
 | F2, F3, P | Hide the interface, GPU timings per pass, save a screenshot |
 | H | Help |
 
@@ -312,6 +313,27 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   and the Gaia-Enceladus merger.
 - **Other light, continued:** planets glow by their own heat in the far infrared and microwaves (night sides
   included); giant elliptical galaxies show radio jets and lobes; giant exoplanets list their cloud class (Sudarsky).
+- **Planets, continued:** strongly irradiated hot Jupiters are inflated (up to ~1.55x above Teq 1000 K) and puff up
+  further as their star brightens or they spiral in; plate-tectonic worlds' mountains rise and fall on a ~0.4-0.7 Gyr
+  supercontinent cycle; sea level on wet worlds falls as water is carried into the mantle and drops ~400 m in a
+  snowball; orbits in multi-planet systems precess and their eccentricities and tilts swing (Laplace-Lagrange rates
+  from every neighbour), and a planet around one star of a binary, tilted more than 39 degrees to the pair, runs
+  Kozai-Lidov cycles; planets in binary systems now evolve at all (they were skipped before). A planet swallowed by
+  its star while the clock runs forward makes the star flare for a moment and says so (Mercury, Venus and Earth ~7.6
+  Gyr from now).
+- **Earth, continued:** city lights spread from the brightest city cores around 1900 to small towns by the 1970s and
+  turn whiter with LEDs after 2010; ocean tides from the Moon and the Sun move the shorelines twice a day; the
+  timeline plays Doggerland and Beringia drowning as the ice sheets melt.
+- **Stars, continued:** neutron stars follow a two-stage cooling curve (neutrinos for ~100,000 years, then photons)
+  with glitches while young and magnetar outbursts for a minority; stars that overflow their Roche lobes in close
+  binaries say so (Algol-type mass transfer, X-ray binaries, cataclysmic variables, common envelopes); stars above 20
+  solar masses end as Wolf-Rayet stars inside a wind-blown bubble before collapsing; Delta Cephei, Eta Aquilae, Beta
+  Doradus, l Carinae, Polaris (with its shrinking and recovering amplitude) and RR Lyrae pulsate with their measured
+  periods and epochs.
+- **Galaxies, continued:** the Sagittarius stream (debris along the dwarf's computed orbit, ahead and behind it,
+  phase-mixing after it is gone); in radio, the Magellanic Stream trailing the Clouds and high-velocity clouds
+  raining onto the disk; galaxy clusters' hot gas in X-ray (a beta model around giant ellipticals) and their
+  Sunyaev-Zel'dovich shadow on the microwave background; dark matter halos on demand (Shift+X).
 - **Precessing black holes (sandbox):** spins can point any way. The 1.5PN spin-orbit acceleration is applied in full
   vector form (Kidder 1995, covariant spin condition) and each spin precesses about the orbital angular momentum, so a
   tilted binary's orbital plane wobbles around the total angular momentum, which keeps its direction to ~1° (a physics
@@ -585,6 +607,15 @@ the Archean haze, the Sagittarius dwarf's orbit and Hawking evaporation times.
   re-blending (a faint seam in the Milky Way band, or a few galaxies that then fade); it settles within a second.
 - Exposure is metered on the brightest part of the frame; a small bright object off-centre may overexpose instead,
   but a large bright one (the full Moon nearby, the Sun) still darkens the stars.
-- Open clusters don't disperse (the star catalogue fades out a few million years from now, long before they would),
-  and the Sagittarius stream isn't drawn (at its real surface brightness it would be invisible).
+- Open clusters don't disperse (the star catalogue fades out a few million years from now, long before they would).
+  The Sagittarius stream is drawn far brighter than real (at its true surface brightness it would be invisible).
+- Secular orbit changes use the simplest Laplace-Lagrange rates and smooth stand-ins for the eccentricity swings and
+  Kozai cycles, not an integration; planet-planet scattering and resonances are not modelled.
+- Tides are the equilibrium tide with a fixed coastal amplification, not real tide tables; the change shows only near
+  the shore.
+- Not done from the list of 100: planet-planet scattering and resonances, impact scars on Earth (Vredefort, Sudbury),
+  biomes shifting with future climate, farmland and deforestation as visuals, new stars switching on in Orion,
+  dispersing open clusters, gravitational lensing arcs, catalogue galaxies (2MASS), an N-body cosmic web, and spectral
+  rendering of the bands. Eta Carinae has no catalogue counterpart near its true position, so its recorded light
+  curve applies to nothing.
 - Observing bands are qualitative false colour from simple per-object models, not radiative transfer.
