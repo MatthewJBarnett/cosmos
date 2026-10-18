@@ -779,7 +779,8 @@ export function planetState(body) {
   const palNow = body.paleoMap > 0 && maps ? (paleoState(body.paleoMap) || { myr: 0 }).myr : 0;
   if (s && s.maps && body.paleoMap !== undefined && (Math.abs(palNow - (s.paleoMyr || 0)) > 0.6 || Math.abs((body.paleoRot || 0) - (s.paleoRot || 0)) > 0.01) && age > 1500) stale = true;
   if (s && Math.abs((body.greenSahara || 0) - (s.greenSahara || 0)) > 0.12 && age > 2000) stale = true;
-  if (s && Math.abs((body.wildK || 0) - (s.wildK || 0)) > 0.12 && age > 2000) stale = true;          // (forests before farming)     // (the Green Sahara)
+  if (s && Math.abs((body.wildK || 0) - (s.wildK || 0)) > 0.12 && age > 2000) stale = true;
+  if (s && body.surface && s.tempEq !== undefined && Math.abs((body.surface.tempEq || 0) - s.tempEq) > 4 && age > 2000) stale = true;   // (biomes shifting with climate)          // (forests before farming)     // (the Green Sahara)
   if (s && Math.abs((body.pDrift || 0) - (s.pDrift || 0)) >= 4 && age > 1500) stale = true;     // (procedural plates drift)
   if (s && Math.abs((body.whiteSpot ? body.whiteSpot[1] : 0) - (s.whiteSpot ? s.whiteSpot[1] : 0)) > 0.15 && age > 1500) stale = true;     // (Saturn's storms)
   if (s && body.mtnK !== undefined && Math.abs(body.mtnK - (s.mtnK === undefined ? 1 : s.mtnK)) > 0.12 && age > 1500) stale = true;     // (erosion)
@@ -787,7 +788,7 @@ export function planetState(body) {
   if (s && body.grsK !== undefined && Math.abs(body.grsK - (s.grsK || 1)) > 0.03 && age > 1500) stale = true;     // (Jupiter's Great Red Spot)
   if (stale && s.prev) { s.prev.dispose(); s.prev = null; }        // (still catching up from the last one: skip it)
   const prev = stale ? s : null; if (stale) s = null;
-  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.wildK = body.wildK || 0; s.pDrift = body.pDrift || 0; s.craterK = body.craterK; s.whiteSpot = body.whiteSpot; s.mtnK = body.mtnK; s.prev = prev; states.set(body.uid, s); }
+  if (!s) { s = new PlanetState(body); s.maps = maps; s.bakeR = body.radius; s.bakeSpots = body.surface ? body.surface.spots || 0 : 0; s.mapsVersion = body.mapsVersion || 0; s.born = performance.now(); s.season = body.season || 0; s.paleoMyr = palNow; s.paleoRot = body.paleoRot || 0; s.grsK = body.grsK; s.greenSahara = body.greenSahara || 0; s.wildK = body.wildK || 0; s.tempEq = body.surface ? body.surface.tempEq : undefined; s.pDrift = body.pDrift || 0; s.craterK = body.craterK; s.whiteSpot = body.whiteSpot; s.mtnK = body.mtnK; s.prev = prev; states.set(body.uid, s); }
   return s;
 }
 export function totalChunks() { let n = 0; for (const s of states.values()) n += s.count; return n; }

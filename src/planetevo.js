@@ -249,6 +249,11 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
     }
     // (temperatures anchored to the body's actual present value: the simple greenhouse is only used for changes)
     if (b.hist.Ts && !giant && !b.precessRA && b._temp0) { const T = Math.max(3, s.Ts + b._temp0 - b.hist.Ts[b.hist.iNow]); b.temp = T; b.meanT = T; }
+    // biomes follow the climate: snow lines, ice caps, forest and desert belts shift with the surface temperature (5 K steps)
+    if (b.surface && b.surface.gen === 'terra' && !b.maps && !b.precessRA && b._temp0 && b.surface.tempEq !== undefined && !(sys.desc && sys.desc.sol)) {
+      if (b._tEq0 === undefined) b._tEq0 = b.surface.tempEq;
+      b.surface.tempEq = b._tEq0 + clamp(Math.round((b.temp - b._temp0) / 5) * 5, -120, 200);
+    }
     if (!isMoon && b._rot0) b.rotPeriod = s.rot;
     // orbit: hot Jupiters spiral in
     if (!noOrbit && !isMoon && b.orbit && b._a0 && s.a !== b._a0) {
