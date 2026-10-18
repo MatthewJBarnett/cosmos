@@ -80,7 +80,7 @@ const COMP_FS = `
 in vec2 vUV;
 uniform sampler2D uScene, uDepth;
 uniform sampler3D uNoise3, uWorley3;
-uniform samplerCube uCloudMap; uniform sampler2D uCloudTex2; uniform vec4 uCyc[4]; uniform int uNumCyc;
+uniform samplerCube uCloudMap; uniform sampler2D uCloudTex2; uniform vec4 uCyc[8]; uniform int uNumCyc;
 ${WEATHER_GLSL}
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
@@ -146,9 +146,25 @@ vec3 auroraEmission(vec3 p, float alt, vec3 sunDir){
 // tropical cyclones: a clear eye, a dense eyewall and spiral rain bands (anticlockwise in the north), w = strength*hemisphere
 float cycloneCover(vec3 dir){
   float c = 0.;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 8; i++) {
     if (i >= uNumCyc) break;
     vec3 cn = uCyc[i].xyz; float st = abs(uCyc[i].w), hs = sign(uCyc[i].w);
+    if (st > 1.5) {
+      // a mid-latitude low (|w| = 2 + strength): a comma-shaped head wound cyclonically around the centre, a cold front
+      // trailing ~2,000 km equatorward and west, a shorter warm front to the east (mirrored in the south)
+      st -= 2.; if (acos(clamp(dot(dir, cn), -1., 1.)) > 0.45) continue;
+      vec3 ea = normalize(cross(vec3(0., 1., 0.), cn)), no = cross(cn, ea);
+      vec2 q = vec2(dot(dir - cn, ea), dot(dir - cn, no)*hs);
+      float nz = textureLod(uNoise3, dir*31. + float(i)*0.37, 0.).r, r = length(q), th = atan(q.y, q.x);
+      float spiral = 0.5 + 0.5*cos(th - log(max(r, 0.004)/0.02)*1.6 + (nz - 0.5)*2.);
+      float head = smoothstep(0.12, 0.04, r)*smoothstep(0.25, 0.65, spiral)*smoothstep(0.004, 0.015, r);
+      vec2 f1 = vec2(-0.12, -0.32); float s = clamp(dot(q, f1)/dot(f1, f1), 0., 1.);
+      float front = smoothstep(0.03 + 0.02*s, 0.006, length(q - f1*s - vec2(0.06*sin(s*3.1416), 0.)) + (nz - 0.5)*0.02)*smoothstep(1., 0.75, s)*smoothstep(0., 0.1, s);
+      vec2 w1 = vec2(0.17, -0.05); float sw = clamp(dot(q, w1)/dot(w1, w1), 0., 1.);
+      float warm = smoothstep(0.035, 0.01, length(q - w1*sw) + (nz - 0.5)*0.015)*smoothstep(1., 0.65, sw)*0.85;
+      c = max(c, st*clamp(max(head, max(front, warm)), 0., 1.));
+      continue;
+    }
     float d = acos(clamp(dot(dir, cn), -1., 1.)); if (d > 0.16) continue;
     vec3 e1 = normalize(cross(cn, vec3(0., 1., 0.))), e2 = cross(cn, e1);
     float th = atan(dot(dir, e2), dot(dir, e1));
@@ -617,9 +633,9 @@ export function getAtmoLUT(body) {
 // planet rotation including the slow drift of the cloud layer relative to the ground
 // storm centres move with the ground; the cloud layer drifts slowly against it: express them in the cloud frame
 function cycUniform(body, time) {
-  const out = new Float32Array(16); if (!body.cyclones) return out;
+  const out = new Float32Array(32); if (!body.cyclones) return out;
   const c = body.atmo && body.atmo.clouds, drift = c ? Q.axis([0, 1, 0], (time * 2e-6) % (2 * Math.PI)) : Q.ident(), inv = Q.conj(drift);
-  body.cyclones.slice(0, 4).forEach((cy, i) => { const d = Q.rot(inv, [cy[0], cy[1], cy[2]]); out.set([d[0], d[1], d[2], cy[3]], i * 4); });
+  body.cyclones.slice(0, 8).forEach((cy, i) => { const d = Q.rot(inv, [cy[0], cy[1], cy[2]]); out.set([d[0], d[1], d[2], cy[3]], i * 4); });
   return out;
 }
 export function cloudRotInv(body, rotQ, time) {
@@ -645,7 +661,7 @@ export function drawAtmosphere(body, o) {
     uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0], uAurB: body.auroraB || 1,
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds && !(body.climate && body.climate.dry > 0.98) ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density * (body.climate ? 1 - body.climate.dry : 1) : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,
-    uCyc: cycUniform(body, o.time), uNumCyc: body.cyclones ? Math.min(4, body.cyclones.length) : 0, uWx: weatherUniform(body, o.time),
+    uCyc: cycUniform(body, o.time), uNumCyc: body.cyclones ? Math.min(8, body.cyclones.length) : 0, uWx: weatherUniform(body, o.time),
   });
   drawFS();
 }

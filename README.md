@@ -293,7 +293,9 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
 - **Weather that moves:** Earth's observed cloud map drifts with the zonal winds (trades west, westerlies east,
   polar easterlies) as two copies that fade in and out over three days at new longitudes, so cloud systems form,
   travel and dissipate while the ITCZ, the subtropical clear belts and the storm tracks stay put (shadows on the
-  ground follow). Tropical cyclones are drawn on top as before.
+  ground follow). On top, storms: tropical cyclones in their basins and seasons, and mid-latitude lows along the
+  North Atlantic, North Pacific and Southern Ocean storm tracks (comma-shaped heads with cold and warm fronts, carried
+  east at ~12° a day, living about six days, stronger in winter).
 - **Ice sheets with thickness:** ice-age ice sheets rise as domes up to ~3.3 km thick (a Vialov profile from the
   margin, grounded on land and shallow shelves), with smooth surfaces; you can land on them.
 - **Supercontinents (illustrative):** beyond the 540 Myr of PALEOMAP maps, and more than 100 Myr into the future, the

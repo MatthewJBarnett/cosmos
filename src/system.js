@@ -49,6 +49,29 @@ function tropicalCyclones(t, solarLon, climate) {
   return out.length ? out : null;
 }
 
+// Mid-latitude lows along the storm tracks (the North Atlantic and North Pacific, and all round the Southern Ocean),
+// stronger in each hemisphere's winter: born every few days, carried east by the westerlies at ~12 degrees a day while
+// drifting poleward, deepening for two days and filling over the next four. Up to four at a time; statistical.
+const TRACKS = [[38, -72, 1], [38, 142, 1], [-45, -40, -1], [-45, 50, -1], [-45, 140, -1], [-45, -130, -1]];
+function extratropicalCyclones(t, solarLon, climate) {
+  if (climate && (climate.dry > 0.3 || climate.magma > 0 || climate.snowball)) return [];
+  const day = t / 86400, out = [];
+  for (let k = 0; k < TRACKS.length && out.length < 4; k++) {
+    const [la0, lo0, hs] = TRACKS[k], winter = hs > 0 ? 0.55 + 0.45 * Math.cos((solarLon - 270) * D2R) : 0.6 + 0.4 * Math.cos((solarLon - 90) * D2R);
+    const n0 = Math.floor(day / 2.5);
+    for (let dn = -3; dn <= 0 && out.length < 4; dn++) {
+      const n = n0 + dn, h = Math.abs(Math.sin(n * 91.7 + k * 31.3) * 24634.6345) % 1;
+      if (h > 0.55 * winter) continue;
+      const age = day - (n + (h * 5.17) % 1) * 2.5; if (age < 0 || age > 6) continue;
+      const lat = la0 + hs * (1.2 * age + 3 * ((h * 7.3) % 1)), lon = lo0 + 12 * age + 10 * ((h * 3.1) % 1);
+      const str = Math.min(1, age / 2) * Math.min(1, (6 - age) / 3) * (0.6 + 0.4 * ((h * 11.3) % 1));
+      const la = lat * D2R, lo = lon * D2R;
+      out.push([Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), hs * (2 + Math.max(str, 0.01))]);
+    }
+  }
+  return out;
+}
+
 // ---------- Kepler ----------
 // an orbit whose elements are given in the plane of the sky (visual binaries, the S-stars): x north, y east, z away
 export function skyToFrame(sky, r) { const x = r[0], y = -r[2], z = r[1]; return [sky[0][0] * x + sky[1][0] * y + sky[2][0] * z, sky[0][1] * x + sky[1][1] * y + sky[2][1] * z, sky[0][2] * x + sky[1][2] * y + sky[2][2] * z]; }
@@ -509,7 +532,7 @@ export class StarSystem {
         // glacial cycles paced by the orbit (Milankovitch); none once the brightening Sun has melted the ice
         // (no weather clouds over a magma ocean or once the oceans have boiled away)
         b.noClouds = b.climate.magma > 0 || b.climate.dry > 0.9;
-        b.cyclones = tropicalCyclones(t, b.solarLon || 0, b.climate);
+        { const tc = tropicalCyclones(t, b.solarLon || 0, b.climate) || [], ec = extratropicalCyclones(t, b.solarLon || 0, b.climate); b.cyclones = tc.length + ec.length ? tc.concat(ec) : null; }
         // the Chicxulub impact, 66.043 Myr ago (Renne et al. 2013), at 21.4 N 89.5 W today; in the PALEOMAP frame the
         // globe shows then, Yucatan sat at about 24.4 N 66.5 W
         { const ageH = (t / YEAR - KPG_YR) * 8766; if (ageH > 0 && ageH < 8766 * 15) { const la = 24.4 * D2R, lo = -66.5 * D2R; b.impact = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), ageH]; if (ageH < 30) b.noClouds = true; } else b.impact = null;
