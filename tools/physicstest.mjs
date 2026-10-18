@@ -44,6 +44,19 @@ const G = 6.674e-11, c = 299792458, YEAR = 31557600, AU = 1.495978707e11;
   check('Aligned spins merge later (orbital hang-up)', e.t / 15.15, '> 1 (vs non-spinning)', (v) => v > 1.1);
 }
 {
+  // tilted spins: the orbital plane and spins precess about the total angular momentum, which keeps its direction
+  const G = 6.674e-11, c = 299792458, sim = new NBody();
+  binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, separationForTime(36 * MSUN, 29 * MSUN, 12), { chi1: 0.9, chi2: 0.9, sv1: [0.779, 0.45, 0], sv2: [-0.675, -0.45, 0.39] });
+  const Jdir = () => { const [p, q] = sim.bodies, M = p.m + q.m, mu = p.m * q.m / M, r = [0, 1, 2].map(i => p.x[i] - q.x[i]), v = [0, 1, 2].map(i => p.v[i] - q.v[i]);
+    const J = [mu * (r[1] * v[2] - r[2] * v[1]), mu * (r[2] * v[0] - r[0] * v[2]), mu * (r[0] * v[1] - r[1] * v[0])].map((x, i) => x + (p.sv[i] * p.m * p.m + q.sv[i] * q.m * q.m) * G / c), l = Math.hypot(...J);
+    return J.map(x => x / l); };
+  const Lhat = () => { const [p, q] = sim.bodies, r = [0, 1, 2].map(i => p.x[i] - q.x[i]), v = [0, 1, 2].map(i => p.v[i] - q.v[i]), L = [r[1] * v[2] - r[2] * v[1], r[2] * v[0] - r[0] * v[2], r[0] * v[1] - r[1] * v[0]], l = Math.hypot(...L); return L.map(x => x / l); };
+  const J0 = Jdir(); let maxTilt = 0, drift = 0;
+  while (!sim.events.length && sim.t < 12) { sim.advance(0.05, 1e6); if (sim.bodies.length < 2) break; const J = Jdir(), L = Lhat(); drift = Math.max(drift, Math.acos(Math.min(1, J[0] * J0[0] + J[1] * J0[1] + J[2] * J0[2])) * 57.3); maxTilt = Math.max(maxTilt, Math.acos(Math.min(1, L[1])) * 57.3); }
+  check('Precessing spins: total angular momentum direction drift (deg)', drift, '< 2 (conserved at 1.5PN)', (v) => v < 2);
+  check('Precessing spins: orbital plane wobble (deg)', maxTilt, '5-30 (S comparable to L)', (v) => v > 5 && v < 30);
+}
+{
   const sim = new NBody(); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, separationForTime(40 * MSUN, 5 * MSUN, 5));
   while (!sim.events.length && sim.t < 60) sim.advance(0.05, 1e6);
   check('q = 1/8 merger recoil', sim.events[0].kick / 1e3, '~80 km/s (Gonzalez et al. 2007 fit)', 25, ' km/s');

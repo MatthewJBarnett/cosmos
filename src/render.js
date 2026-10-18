@@ -251,7 +251,7 @@ void main(){
 // remnants' faint warmth (only in the far infrared and microwaves: black dwarfs held at ~60 K by dark matter), and the
 // flash of the galaxy's black hole as it finally evaporates
 const LATE_FS = `in vec2 vUV; out vec4 o;
-uniform mat3 uRot; uniform vec2 uTanFov; uniform float uRed, uRem, uFlash, uPix; uniform vec3 uCen; uniform int uBand;
+uniform mat3 uRot; uniform vec2 uTanFov; uniform float uRed, uRem, uFlash, uPix; uniform vec3 uCen, uFlashDir; uniform int uBand;
 float h31(vec3 p){ p = fract(p*vec3(443.897, 441.423, 437.195)); p += dot(p, p.yzx + 19.19); return fract((p.x + p.y)*p.z); }
 // one candidate point per cell of a cube-face grid of directions; returns the summed point brightness
 float pts(vec3 d, float n, float prob, float seed){
@@ -273,7 +273,7 @@ void main(){
   vec3 c = vec3(0.);
   if (uRed > 0.) c += vec3(1., 0.32, 0.12)*pts(d, 9., 0.035*uRed*(0.3 + 2.*cen), 0.)*0.6;
   if ((uBand == 3 || uBand == 4) && uRem > 0.) c += vec3(1., 0.55, 0.3)*pts(d, 70., 0.3*min(uRem, 1.)*(0.2 + 2.*cen), 5.)*0.25*sqrt(uRem);
-  if (uFlash > 0.) { float a = acos(clamp(dot(d, uCen), -1., 1.))/uPix; c += vec3(0.8, 0.88, 1.)*uFlash*(exp(-a*a*0.15)*4. + 0.25*exp(-a/40.)); }
+  if (uFlash > 0.) { float a = acos(clamp(dot(d, uFlashDir), -1., 1.))/uPix; c += vec3(0.8, 0.88, 1.)*uFlash*(exp(-a*a*0.15)*4. + 0.25*exp(-a/40.)); }
   o = vec4(c, 1.);
 }`;
 export class Renderer {
@@ -752,10 +752,12 @@ export class Renderer {
     } else if (nav.late) {
       if (!this.pLate) this.pLate = new Program('far-future', FS_VS, LATE_FS);
       const v = lateEra(nav.late.y).vis;
+      // (the flash appears where you are looking when it starts, then stays put)
+      if (v.flash > 0 && !nav.late.fd) nav.late.fd = Q.rot(nav.q, V.norm([0.12 * tanX, 0.05 * tanY, -1])); else if (!v.flash) nav.late.fd = null;
       this.dimAdapt = true;
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
       gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-      this.pLate.use().set({ uRot: camRot, uTanFov: [tanX, tanY], uRed: v.red, uRem: v.remnants, uFlash: v.flash, uPix: 2 * tanY / h, uCen: [0.31, -0.12, -0.94] });
+      this.pLate.use().set({ uRot: camRot, uTanFov: [tanX, tanY], uRed: v.red, uRem: v.remnants, uFlash: v.flash, uPix: 2 * tanY / h, uCen: [0.31, -0.12, -0.94], uFlashDir: nav.late.fd || [0, 0, -1] });
       drawFS();
     } else if (cosmo.T > 420) {
       // (with the frozen density ripples on it: really 1 part in 100,000, drawn ~5,000x stronger)

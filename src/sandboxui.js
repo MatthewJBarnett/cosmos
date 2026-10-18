@@ -146,7 +146,11 @@ export class SandboxUI {
     const st = sb.stats();
     this.q('sbClock').textContent = 'T = ' + fmtT(st.t) + (sb.lag ? ' · simulation can\'t keep up' : '');
     let html = '';
-    if (st.pair) {
+    if (st.sph) {
+      const s = st.sph;
+      html += `<div><b>Smoothed-particle hydrodynamics</b> · ${s.n || '…'} particles${s.status ? ' · ' + s.status : ''} · computed to ${fmtT(Math.max(s.computed, 0))}</div>`;
+      if (s.disk !== undefined) html += `<div>Material in orbit: ${s.disk.toFixed(1)} lunar masses (${s.beyond.toFixed(1)} beyond the Roche limit) · ${Math.round(s.hot * 100)}% of the rock above 4,000 K</div>`;
+    } else if (st.pair) {
       html += `<div><b>${st.pair[0]}</b> – <b>${st.pair[1]}</b></div>`;
       html += `<div>Separation ${fmtDist(st.r)} · relative speed ${fmtSpeed(st.v)} (${(st.v / C.c).toFixed(3)} c)</div>`;
       if (st.period) html += `<div>Orbital period ${fmtT(st.period)} · GW frequency ${fmtF(st.fgw)}</div>`;

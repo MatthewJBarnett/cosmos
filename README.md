@@ -268,6 +268,19 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   σ₈ grows with the linear growth factor; Population III stars (30-300 M☉, ~100,000 K, 2-6 Myr) light up in small
   halos from ~100 Myr, dying as pair-instability supernovae or collapsing to black holes; reionization follows the
   Planck tanh history (midpoint z = 7.7), and in visible light galaxies beyond z ~ 5 drop out behind the Lyman break.
+- **Precessing black holes (sandbox):** spins can point any way. The 1.5PN spin-orbit acceleration is applied in full
+  vector form (Kidder 1995, covariant spin condition) and each spin precesses about the orbital angular momentum, so a
+  tilted binary's orbital plane wobbles around the total angular momentum, which keeps its direction to ~1° (a physics
+  test). The shadows turn with their spins; in-plane spins add a superkick along the orbital axis (up to ~3,700 km/s).
+- **Gas in the Andromeda collision:** a sixth of each disk is gas that dissipates: it relaxes towards circular rotation
+  in its own disk and, crossing the other galaxy's gas layer, shocks and is dragged into that disk's motion within ~10
+  Myr ("sticky particles"). Bridges, gas-rich tails and inflow to the centre follow, and shocked gas glows pink with
+  the star formation it triggers (fading over ~40 Myr).
+- **The Moon-forming impact, simulated (sandbox):** smoothed-particle hydrodynamics in a Web Worker: ~1,600 particles
+  of rock (cubic spline kernel, adaptive smoothing lengths, a stiff equation of state without tension plus thermal
+  pressure, Monaghan viscosity, softened direct-sum gravity, each planet relaxed first). The sandbox plays back what has
+  been computed (the clock waits for it) and reports the mass in orbit and beyond the Roche limit. The scripted debris
+  version is still there for a quick look.
 - **The cosmic web grows:** every procedural galaxy carries a Zel'dovich displacement (up the density gradient of the
   web, plus infall in clusters) scaled by the linear growth factor between the observer's epoch and when its light
   left, so the distant (earlier) universe looks less sharply clustered; about a quarter of spirals and three fifths

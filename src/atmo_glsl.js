@@ -161,8 +161,9 @@ vec4 wxCube(samplerCube tex, vec3 dir){
   }
   return v;
 }`;
+const NOWX = typeof location !== 'undefined' && /[?&]nowx/.test(location.search);   // (debug: the static map)
 export function weatherUniform(body, time) {
-  if (!body.precessRA || (body.climate && (body.climate.snowball || body.climate.dry > 0.5))) return [0, 0, 0, 0];
+  if (NOWX || !body.precessRA || (body.climate && (body.climate.snowball || body.climate.dry > 0.5))) return [0, 0, 0, 0];
   const P = 3, x = (time % (86400 * P * 1e6)) / 86400 / P, k1 = Math.floor(x), k2 = Math.floor(x + 0.5);
   const h = (k) => { const v = Math.sin(k * 127.1 + 311.7) * 43758.5453; return (v - Math.floor(v)) * 2 * Math.PI; };
   return [x - k1, h(k1), h(k2 + 7919), P];

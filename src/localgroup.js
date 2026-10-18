@@ -49,8 +49,25 @@ vec3 accGal(vec3 p, vec3 c, mat3 R, vec4 H, vec4 B, vec4 D){
 }
 vec3 accAll(vec3 p){ return accGal(p, uC0, uR0, uH0, uB0, uD0) + accGal(p, uC1, uR1, uH1, uB1, uD1); }`;
 const STEP_FS = `in vec2 vUV; layout(location=0) out vec4 oP; layout(location=1) out vec4 oV;
-uniform sampler2D uPos, uVel; uniform float uDt; uniform vec3 uC0b, uC1b;
+uniform sampler2D uPos, uVel; uniform float uDt; uniform vec3 uC0b, uC1b, uV0, uV1;
 ${ACC}
+// Gas (type 3) is "sticky": besides gravity it dissipates. In its own disk it relaxes gently towards circular rotation;
+// where it plunges through the other galaxy's gas layer the clouds collide, shock and are dragged towards that disk's
+// motion within ~10 Myr. The shocks trigger star formation (vel.w carries it: galaxy index + 0.5 x shock strength),
+// fading over ~40 Myr. So gas bridges, tidal tails and the inflow that feeds the central starburst emerge.
+const float KMS_ = 1.02271e-3;
+void sticky(int g, vec3 p, inout vec3 v, int own, inout float sh){
+  vec3 c = g == 0 ? uC0b : uC1b; mat3 R = g == 0 ? uR0 : uR1; vec3 vc0 = g == 0 ? uV0 : uV1;
+  vec3 l = R*(p - c); float Rr = length(l.xz);
+  float inDisk = smoothstep(1.0, 0.25, abs(l.y))*smoothstep(28., 16., Rr);
+  if (inDisk <= 0.) return;
+  vec3 aL = R*(g == 0 ? accGal(p, uC0b, uR0, uH0, uB0, uD0) : accGal(p, uC1b, uR1, uH1, uB1, uD1));
+  float vc = sqrt(max(-(aL.x*l.x + aL.z*l.z), 0.));
+  vec3 vt = transpose(R)*(vec3(-l.z, 0., l.x)/max(Rr, 1e-3)*vc) + vc0, dv = v - vt;
+  float f = 1. - exp(-(g == own ? 1./300. : 1./10.)*inDisk*abs(uDt));
+  v -= dv*f;
+  if (g != own) sh = max(sh, clamp(length(dv)/(250.*KMS_), 0., 1.)*smoothstep(0.05, 0.4, inDisk));
+}
 void main(){
   ivec2 ij = ivec2(gl_FragCoord.xy);
   vec4 P = texelFetch(uPos, ij, 0), Vv = texelFetch(uVel, ij, 0);
@@ -60,10 +77,16 @@ void main(){
   // second half kick with the centres at the end of the step (passed as uC0b, uC1b)
   vec3 a = accGal(p, uC0b, uR0, uH0, uB0, uD0) + accGal(p, uC1b, uR1, uH1, uB1, uD1);
   v += a*(0.5*uDt);
-  oP = vec4(p, P.w); oV = vec4(v, Vv.w);
+  float w = Vv.w;
+  if (P.w >= 30. && uDt > 0.) {
+    int own = int(floor(Vv.w + 1e-3)); float sh = fract(Vv.w)*2.*exp(-uDt/40.);
+    sticky(0, p, v, own, sh); sticky(1, p, v, own, sh);
+    w = float(own) + 0.5*min(sh, 0.998);
+  }
+  oP = vec4(p, P.w); oV = vec4(v, w);
 }`;
 // particles as soft points (outside views) and into a sky cube (inside views)
-const PART_VS = `uniform sampler2D uPos; uniform int uSW, uHalf; uniform mat4 uViewProj; uniform vec3 uCam; uniform float uExposure, uPxSA, uPxPerRad, uMaxPx, uNear;
+const PART_VS = `uniform sampler2D uPos, uVel; uniform int uSW, uHalf; uniform mat4 uViewProj; uniform vec3 uCam; uniform float uExposure, uPxSA, uPxPerRad, uMaxPx, uNear;
 uniform vec2 uLum; uniform vec2 uW; uniform float uBurst;
 out vec3 vCol; out float vSig;
 vec3 bb(float t){ return t < 5000. ? vec3(1.0, 0.72, 0.46) : t < 9000. ? vec3(1.0, 0.9, 0.78) : vec3(0.7, 0.82, 1.0); }
@@ -76,11 +99,13 @@ void main(){
   float L = gal == 0 ? uLum.x : uLum.y; float w = gal == 0 ? uW.x : uW.y;
   // young stars brighten in the starbursts that follow each close passage
   // (young stars carry a larger share of the disk's blue light: x2, old disk stars x0.8, same total)
-  float flux = L*wgt*(type > 1.5 ? 2.*uBurst : type > 0.5 ? 0.8 : 1.)/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
+  // (gas glows pink where its shocks are forming stars: H-alpha from the new H II regions)
+  float shock = type > 2.5 ? fract(texelFetch(uVel, ij, 0).w)*2. : 0.;
+  float flux = L*wgt*(type > 2.5 ? 0.06 + 2.5*shock : 1.14*(type > 1.5 ? 2.*uBurst : type > 0.5 ? 0.8 : 1.))/(d*d*4.2543e16)*w*smoothstep(uNear*0.4, uNear, d);
   float h = type < 0.5 ? 0.4 : 0.8;      // smoothing length (kpc), about the particle spacing
   float sig = clamp(h/d*uPxPerRad*0.5, 0.7, uMaxPx);
   float I = flux/uPxSA*uExposure;
-  vSig = sig; vCol = (type < 0.5 ? vec3(1.0, 0.74, 0.48) : type < 1.5 ? vec3(1.0, 0.88, 0.76) : vec3(0.62, 0.78, 1.0))*min(I/(6.2832*sig*sig), 50.);
+  vSig = sig; vCol = (type < 0.5 ? vec3(1.0, 0.74, 0.48) : type < 1.5 ? vec3(1.0, 0.88, 0.76) : type < 2.5 ? vec3(0.62, 0.78, 1.0) : mix(vec3(0.9, 0.35, 0.45), vec3(1.0, 0.45, 0.6), shock))*min(I/(6.2832*sig*sig), 50.);
   gl_Position = uViewProj*vec4(rel, 1.); gl_Position.z = 0.;
   gl_PointSize = I/(6.2832*sig*sig) < 1e-4 ? 0. : ceil(sig*5.);
   if (gl_PointSize == 0.) gl_Position = vec4(2., 2., 2., 1.);
@@ -165,6 +190,9 @@ export class LocalGroup {
           // clockwise seen from the disk's north (like the Milky Way)
           vl = [-pl[2] / Math.max(R, 1e-3) * vc + gauss(rnd) * sr, gauss(rnd) * sr * 0.5, pl[0] / Math.max(R, 1e-3) * vc + gauss(rnd) * sr];
           type = rnd() < 0.18 ? 2 : 1;
+          // a sixth of the disk particles are gas: a thinner, colder, more extended layer
+          if (rnd() < 0.16) { type = 3; const Rg = R * 1.25, phg = ph; pl = [Rg * Math.cos(phg), gauss(rnd) * 0.08, Rg * Math.sin(phg)]; const vg = vcirc(ui, Math.max(Rg, 0.2)), sg = 7 * KMS;
+            vl = [-pl[2] / Math.max(Rg, 1e-3) * vg + gauss(rnd) * sg, gauss(rnd) * sg * 0.5, pl[0] / Math.max(Rg, 1e-3) * vg + gauss(rnd) * sg]; }
         }
         const pw = mat3tmul(ui.R, pl), vw = mat3tmul(ui.R, vl);
         // w: type * 10 + luminosity weight
@@ -185,7 +213,7 @@ export class LocalGroup {
     const c0 = centresAt(this.t), c1 = centresAt(this.t + dt), src = this.cur, dst = 1 - src;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb[dst]); gl.viewport(0, 0, SW, SH);
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-    this.pStep.use().set({ uPos: this.pos[src], uVel: this.vel[src], uDt: dt, uC0: c0.mw, uC1: c0.m31, uC0b: c1.mw, uC1b: c1.m31,
+    this.pStep.use().set({ uPos: this.pos[src], uVel: this.vel[src], uDt: dt, uC0: c0.mw, uC1: c0.m31, uC0b: c1.mw, uC1b: c1.m31, uV0: c1.vmw, uV1: c1.vm31,
       uR0: new Float32Array(U[0].R), uR1: new Float32Array(U[1].R), uH0: U[0].H, uH1: U[1].H, uB0: U[0].B, uB1: U[1].B, uD0: U[0].D, uD1: U[1].D });
     drawFS();
     this.cur = dst;
@@ -222,7 +250,7 @@ export class LocalGroup {
   drawPoints(camCOM, viewProj, o, wMW, wM31, nearKpc) {
     if (!this.ready) return;
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
-    this.pPart.use().set({ uPos: this.pos[this.cur], uSW: SW, uHalf: HALF, uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
+    this.pPart.use().set({ uPos: this.pos[this.cur], uVel: this.vel[this.cur], uSW: SW, uHalf: HALF, uViewProj: viewProj, uCam: camCOM, uExposure: o.exposure * (o.boost || 1), uPxSA: o.pxSA, uPxPerRad: o.pxPerRad, uMaxPx: o.maxPx || 6,
       uLum: [GAL.mw.L / HALF * popFade(NOW_TYR + (this.tReal || this.t) * 1e6), GAL.m31.L / HALF * popFade(NOW_TYR + (this.tReal || this.t) * 1e6)], uW: [wMW, wM31], uNear: nearKpc || 0.5, uBurst: this.burst(this.t) });
     gl.bindVertexArray(this.vao); gl.drawArrays(gl.POINTS, 0, NP);
   }

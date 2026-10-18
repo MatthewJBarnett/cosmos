@@ -13,6 +13,7 @@ import { LOGDEPTH_VS, LOGDEPTH_FS } from './planet.js';
 import { beam } from './exotic.js';
 import { NBody, makeBody, binary, separationForTime, circularBinary, petersTime, radiusFor, MSUN } from './nbody.js';
 import { planetPos } from './ephem.js';
+import { SPHRun } from './sph.js';
 
 const G = C.G, c = C.c, AU = C.AU, DAY = 86400;
 export const SANDBOX_POS = [SUN_POS[0] + 0.7, SUN_POS[1] + 0.4, SUN_POS[2] + 0.5];
@@ -34,6 +35,8 @@ export const PRESETS = [
     setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉)', n2: 'Black hole B (29 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
   { id: 'spinning', name: 'Rapidly spinning black holes (aligned spins)', text: 'The same 36 and 29 solar masses, both spinning at 90% of the maximum in the direction of the orbit. Spin-orbit coupling holds them apart longer ("orbital hang-up"): more orbits, almost twice the energy radiated, and a remnant spinning at 0.94.',
     setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉, χ 0.9)', n2: 'Black hole B (29 M☉, χ 0.9)', chi1: 0.9, chi2: 0.9 }); return { rate: 0.3, scale: a, grid: true }; } },
+  { id: 'precessing', name: 'Precessing black holes (tilted spins)', text: 'The same 36 and 29 solar masses spinning at 90% of the maximum, but tilted 60 and 120 degrees from the orbit. Spin-orbit coupling makes both spins and the orbital plane precess around the total angular momentum: the orbit wobbles like a top and the waves swell and fade with the changing view. Spins in the orbital plane can kick the remnant at thousands of km/s.',
+    setup(sim) { const a = separationForTime(36 * MSUN, 29 * MSUN, 12); binary(sim, 'bh', 36 * MSUN, 'bh', 29 * MSUN, a, { n1: 'Black hole A (36 M☉, χ 0.9, tilted 60°)', n2: 'Black hole B (29 M☉, χ 0.9, tilted 120°)', chi1: 0.9, chi2: 0.9, sv1: [0.779, 0.45, 0], sv2: [-0.675, -0.45, 0.39] }); return { rate: 0.3, scale: a, grid: true }; } },
   { id: 'unequal', name: 'Unequal black holes (8 : 1)', text: 'A 40 and a 5 solar mass black hole. Unequal masses radiate momentum asymmetrically: the remnant is kicked at tens of km/s.',
     setup(sim) { const a = separationForTime(40 * MSUN, 5 * MSUN, 10); binary(sim, 'bh', 40 * MSUN, 'bh', 5 * MSUN, a, { n1: 'Black hole (40 M☉)', n2: 'Black hole (5 M☉)' }); return { rate: 0.25, scale: a, grid: true }; } },
   { id: 'headon', name: 'Two black holes released from rest', text: 'Two 30 solar mass black holes 20,000 km apart, at rest. They fall straight together and merge head-on: with no orbital angular momentum only ~0.06% of the mass is radiated and the remnant does not spin.',
@@ -112,6 +115,17 @@ export const PRESETS = [
       sim.add(makeBody('planet', m2, r.map(x => x * m1 / M), u.map(x => x * m1 / M), { name: 'Theia' }));
       return { rate: 20, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, later: [{ t: 1.4 * 3600, rate: 120 }, { t: 8 * 3600, rate: 1800 }, { t: 3 * DAY, rate: 3 * 3600 }] };
     } },
+  { id: 'theiasph', name: 'Moon-forming impact, simulated (SPH)', text: 'The same collision computed with smoothed-particle hydrodynamics: the two planets are ~1,600 particles of rock that push back when squeezed, heat up in shocks and pull on one another. Theia shears along the proto-Earth, an arm of mantle is flung ahead and winds into a hot disk. Coarse next to research runs (millions of particles), so details differ, but no outcome is scripted. It computes in the background: the clock waits for it.',
+    setup(sim) {
+      const ME = C.Mearth, m1 = 0.89 * ME, m2 = 0.11 * ME, M = m1 + m2, R1 = radiusFor('planet', m1), R2 = radiusFor('planet', m2), d = R1 + R2;
+      sim.pn = false;
+      const vinf = 4e3, vimp = Math.sqrt(vinf * vinf + 2 * G * M / d), L = d * vimp * Math.SQRT1_2, D = 2.4 * R1;
+      const vD = Math.sqrt(vinf * vinf + 2 * G * M / D), vt = L / D, vr = -Math.sqrt(vD * vD - vt * vt);
+      const r = [D * 0.8, 0, D * 0.6], rh = r.map(x => x / D), th = [-rh[2], 0, rh[0]], u = rh.map((x, k) => x * vr + th[k] * vt);
+      const sph = { m1, R1, n1: 1400, m2, R2, n2: 175, relax: 60, tMax: 3 * DAY,
+        x1: r.map(x => -x * m2 / M), v1: u.map(x => -x * m2 / M), x2: r.map(x => x * m1 / M), v2: u.map(x => x * m1 / M) };
+      return { rate: 30, scale: 3.5 * R1, cam: 2.9, grid: false, light: { dir: [-0.55, 0.45, 0.7] }, sph, later: [{ t: 6 * 3600, rate: 600 }, { t: 30 * 3600, rate: 3600 }] };
+    } },
   { id: 'wdia', name: 'White dwarfs collide (Type Ia supernova)', text: 'Two carbon-oxygen white dwarfs of 0.9 and 0.7 solar masses fall together, as can happen in triple systems and dense star clusters. The collision detonates the carbon: a Type Ia supernova, billions of times brighter than the Sun for weeks, its light coming from radioactive nickel decaying to cobalt and iron. Nothing is left behind.',
     setup(sim) {
       const m1 = 0.9 * MSUN, m2 = 0.7 * MSUN, M = m1 + m2, d = 6e7, vt = 0.12 * Math.sqrt(G * M / d);
@@ -142,7 +156,9 @@ export class Sandbox {
     this.lightStar = null;
     this.sim = new NBody(); this.map.clear(); this.trails.clear(); this.deadTrails = []; this.snaps = []; this.events = [];
     this.sim.onEvent = (e) => { this.events.push(e); if (this.onEvent) this.onEvent(e); };
+    if (this.sph) { this.sph.stop(); this.sph = null; }
     const r = p.setup(this.sim); this.preset = p; this.cfg = r;
+    if (r.sph) this.sph = new SPHRun(r.sph);
     this.scale = r.scale; this.grid = r.grid; this.later = (r.later || []).slice();
     this.gridR = null; this.com0 = this.com();
     this.sync(); this.snapshot();
@@ -157,6 +173,13 @@ export class Sandbox {
     let dt = t - this.navT; this.navT = t;
     // the clock can jump (dates set by hand); a step is limited by maxSteps anyway, but don't try to integrate eons
     if (Math.abs(dt) > 1e15) dt = 0;
+    // (a hydrodynamic run computes in a worker: play back what it has, and wait for it)
+    if (this.sph) {
+      const nt = Math.max(0, this.sim.t + dt), lim = Math.max(this.sph.latest, 0);
+      this.lag = nt > lim + 1; this.sim.t = Math.min(nt, lim);
+      if (this.later.length && this.sim.t > this.later[0].t) { const l = this.later.shift(); if (this.onRate) this.onRate(l.rate); }
+      this.sync(); return;
+    }
     const prevCom = this.follow ? this.com() : null;
     if (dt > 0) {
       const got = this.sim.advance(dt, this.maxSteps || 25000);
@@ -192,6 +215,9 @@ export class Sandbox {
       b.rotQ = Q.mul(b.axisQ, Q.axis([0, 1, 0], b.rotAngle || 0)); b.wrot = Q.mul(this.worldQ, b.rotQ);
       if (pb.kind === 'bh') {
         b.radius = pb.R; b.spin = pb.chi || 0;
+        // (a precessing spin: the shadow and disk turn with the spin axis)
+        if (pb.sv) { const sl = Math.hypot(...pb.sv); b.spin = sl;
+          if (sl > 1e-6) { const sd = pb.sv.map(x => x / sl), x = V.norm(V.cross(Math.abs(sd[1]) < 0.99 ? [0, 1, 0] : [1, 0, 0], sd)); b.axisQ = Q.fromBasis(x, sd, V.cross(x, sd)); b.rotQ = Q.mul(b.axisQ, Q.axis([0, 1, 0], b.rotAngle || 0)); b.wrot = Q.mul(this.worldQ, b.rotQ); } }
         // accretion from tidal debris lights a disk: rate relative to Eddington
         const P = this.sim.particles;
         const mdot = P && P.bhId === pb.id ? P.mdot(this.sim.t) : 0;
@@ -266,6 +292,21 @@ export class Sandbox {
   // numbers for the panel
   stats() {
     const B = this.sim.bodies, out = { n: B.length, t: this.sim.t };
+    if (this.sph) {
+      // the disk: particles on bound orbits around the merged planet whose periapsis clears its surface; the Moon can
+      // gather from what lies outside the Roche limit (~2.9 Earth radii)
+      const S = this.sph, f = S.frame(this.sim.t);
+      out.sph = { status: S.status, computed: S.latest, n: S.n || 0 };
+      if (f && S.mp) {
+        const n = f.n; let cx = 0, cy = 0, cz = 0, cnt = 0;
+        for (let i = 0; i < n; i++) { const r = Math.hypot(f.x[i * 3], f.x[i * 3 + 1], f.x[i * 3 + 2]); if (r < 2e7) { cx += f.x[i * 3]; cy += f.x[i * 3 + 1]; cz += f.x[i * 3 + 2]; cnt++; } }
+        cx /= cnt || 1; cy /= cnt || 1; cz /= cnt || 1;
+        let inside = 0, outside = 0, hot = 0;
+        for (let i = 0; i < n; i++) { const r = Math.hypot(f.x[i * 3] - cx, f.x[i * 3 + 1] - cy, f.x[i * 3 + 2] - cz); if (r > 7e6 && r < 1e8) { if (r > 1.85e7) outside++; else inside++; } if (f.T[i] > 4000) hot++; }
+        out.sph.disk = (inside + outside) * S.mp / 7.35e22; out.sph.beyond = outside * S.mp / 7.35e22; out.sph.hot = hot / n;
+      }
+      return out;
+    }
     let best = null;
     for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
       const r = Math.hypot(B[i].x[0] - B[j].x[0], B[i].x[1] - B[j].x[1], B[i].x[2] - B[j].x[2]);
@@ -476,15 +517,42 @@ export function drawDebris(sb, nav, o) {
     const rel = V.sub(Q.rot(sb.worldQ, x), nav.S), d = Math.max(V.len(rel), R * 1.2), dir = V.len(rel) > 1 ? V.norm(rel) : Q.rot(nav.q, [0, 0, -1]);
     blobs.push([...V.mul(dir, d), col[0] / y, col[1] / y, col[2] / y, L / ((d / AU) ** 2), R]);
   }
-  if ((!P || !P.n) && !blobs.length) return;
+  // a hydrodynamic giant impact: rock particles, lit by the Sun on the outside, glowing where shocks have heated them
+  const S = sb.sph, F = S && S.mat ? S.frame(sb.sim.t) : null, sphPts = [];
+  if (F) {
+    const n = F.n, X = F.x, mat = S.mat, L = V.norm(sb.cfg && sb.cfg.light ? sb.cfg.light.dir : [0, 1, 0]);
+    // each body's centre and radius (the bulk of its particles)
+    const cen = [[0, 0, 0, 0], [0, 0, 0, 0]];
+    for (let i = 0; i < n; i++) { const c = cen[mat[i]]; c[0] += X[i * 3]; c[1] += X[i * 3 + 1]; c[2] += X[i * 3 + 2]; c[3]++; }
+    for (const c of cen) if (c[3]) { c[0] /= c[3]; c[1] /= c[3]; c[2] /= c[3]; }
+    const Rb = [S.cfg.R1, S.cfg.R2], size = 0.6 * Math.cbrt(S.mp / 4500), area = Math.PI * size * size, camL = Q.rot(Q.conj(sb.worldQ), nav.S);
+    for (let i = 0; i < n; i++) {
+      const c = cen[mat[i]], px = X[i * 3], py = X[i * 3 + 1], pz = X[i * 3 + 2];
+      const dx = px - c[0], dy = py - c[1], dz = pz - c[2], r = Math.hypot(dx, dy, dz), R = Rb[mat[i]];
+      let lit = 0.6;
+      if (r < 1.15 * R) {
+        if (r < 0.72 * R) continue;                                   // (inside: hidden by the surface)
+        const nx = dx / r, ny = dy / r, nz = dz / r, tc = [camL[0] - px, camL[1] - py, camL[2] - pz], tl = Math.hypot(...tc);
+        if ((nx * tc[0] + ny * tc[1] + nz * tc[2]) / tl < -0.15) continue;   // (far side)
+        lit = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
+      }
+      const T = F.T[i], cc = bbColor(Math.min(T, 4e4)), mx = Math.max(...cc), rock = mat[i] ? [0.62, 0.55, 0.5] : [0.55, 0.5, 0.47];
+      const glow = C.sigma * T ** 4 * area / C.Lsun * visFrac(T) / visFrac(5772), refl = 0.15 * area * 1361 * lit / C.Lsun;
+      const tot = glow + refl, col = [0, 1, 2].map(k => (cc[k] / mx * glow + rock[k] * refl * 1.6) / Math.max(tot, 1e-30));
+      const w = Q.rot(sb.worldQ, [px, py, pz]), rel = [w[0] - nav.S[0], w[1] - nav.S[1], w[2] - nav.S[2]], dAU = Math.hypot(...rel) / AU;
+      sphPts.push([rel[0], rel[1], rel[2], col[0], col[1], col[2], tot / (dAU * dAU), size]);
+    }
+  }
+  if ((!P || !P.n) && !blobs.length && !sphPts.length) return;
   if (!pDeb) pDeb = new Program('debris', DEB_VS, DEB_FS);
   if (!debVAO) {
     debVAO = gl.createVertexArray(); gl.bindVertexArray(debVAO); debBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, debBuf);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 32, 28); gl.bindVertexArray(null);
   }
-  const data = new Float32Array(((P ? P.n : 0) + blobs.length) * 8); let n = 0;
+  const data = new Float32Array(((P ? P.n : 0) + blobs.length + sphPts.length) * 8); let n = 0;
   for (const bl of blobs) data.set(bl, (n++) * 8);
+  for (const sp of sphPts) data.set(sp, (n++) * 8);
   if (P && P.n && P.kind === 'impact') {
     // giant impact debris: silicate vapour and magma droplets glowing at a few thousand K, cooling over weeks
     const age = sb.sim.t - P.tImp, cool = Math.max(0.5, Math.exp(-age / (25 * DAY))), host = sb.sim.bodies.find(b => b.id === P.bhId) || P.bh;

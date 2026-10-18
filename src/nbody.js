@@ -62,18 +62,29 @@ export class NBody {
         Bcoef += (8 / 5) * eta * GMr * (6 * v2 - 2 * GMr - 15 * rd * rd) / c5;
         const k = -G * M / r2;
         let ax = k * (Acoef * nx + Bcoef * vx), ay = k * (Acoef * ny + Bcoef * vy), az = k * (Acoef * nz + Bcoef * vz);
-        // 1.5PN spin-orbit coupling for spins aligned with the orbital angular momentum (Kidder 1995 eq. 2.2c)
-        if (bi.chi || bj.chi) {
+        // 1.5PN spin-orbit coupling (Kidder 1995 eq. 2.2c). Spins in any direction (sv: the dimensionless spin vector)
+        // also push the orbit out of its plane: the plane precesses about the total angular momentum
+        if (bi.sv || bj.sv) {
+          const f1 = G * bi.m * bi.m / c, f2 = G * bj.m * bj.m / c, z = [0, 0, 0], u1 = bi.sv || z, u2 = bj.sv || z, dm = (bi.m - bj.m) / M;
+          const S = [0, 1, 2].map(k => u1[k] * f1 + u2[k] * f2), D = [0, 1, 2].map(k => M * (u2[k] * f2 / bj.m - u1[k] * f1 / bi.m));
+          // (Kidder's coefficients for the covariant spin supplementary condition: with them the total angular momentum
+          // L + S1 + S2 keeps its direction to ~0.5% through the inspiral, as the precession equation below assumes)
+          const A2 = [0, 1, 2].map(k => 2 * S[k] + dm * D[k]), B4 = [0, 1, 2].map(k => 7 * S[k] + 3 * dm * D[k]), A3 = [0, 1, 2].map(k => 3 * S[k] + dm * D[k]);
+          const nv = [ny * vz - nz * vy, nz * vx - nx * vz, nx * vy - ny * vx], nxvA = nv[0] * A2[0] + nv[1] * A2[1] + nv[2] * A2[2];
+          const vB = [vy * B4[2] - vz * B4[1], vz * B4[0] - vx * B4[2], vx * B4[1] - vy * B4[0]], nA = [ny * A3[2] - nz * A3[1], nz * A3[0] - nx * A3[2], nx * A3[1] - ny * A3[0]];
+          const ks = G / (c2 * r2 * r);
+          ax += ks * (6 * nx * nxvA - vB[0] + 3 * rd * nA[0]); ay += ks * (6 * ny * nxvA - vB[1] + 3 * rd * nA[1]); az += ks * (6 * nz * nxvA - vB[2] + 3 * rd * nA[2]);
+        } else if (bi.chi || bj.chi) {
           let lx = ny * vz - nz * vy, ly = nz * vx - nx * vz, lz = nx * vy - ny * vx; const ll = Math.hypot(lx, ly, lz) || 1; lx /= ll; ly /= ll; lz /= ll;
           const s1 = (bi.chi || 0) * G * bi.m * bi.m / c, s2 = (bj.chi || 0) * G * bj.m * bj.m / c;      // spin angular momenta (aligned)
           const Sx = (s1 + s2), dm = (bi.m - bj.m) / M, Dl = M * (s2 / bj.m - s1 / bi.m);
-          const A2 = 2 * Sx + dm * Dl, B4 = 4 * Sx + 3 * dm * Dl;               // magnitudes along L
+          const A2 = 2 * Sx + dm * Dl, B4 = 7 * Sx + 3 * dm * Dl, A3 = 3 * Sx + dm * Dl;     // magnitudes along L
           const nxv = (ny * vz - nz * vy) * lx + (nz * vx - nx * vz) * ly + (nx * vy - ny * vx) * lz;   // (n x v) . L
           const vxl = [vy * lz - vz * ly, vz * lx - vx * lz, vx * ly - vy * lx], nxl = [ny * lz - nz * ly, nz * lx - nx * lz, nx * ly - ny * lx];
           const ks = G / (c2 * r2 * r);
-          ax += ks * (6 * nx * nxv * A2 - vxl[0] * B4 + 3 * rd * nxl[0] * A2);
-          ay += ks * (6 * ny * nxv * A2 - vxl[1] * B4 + 3 * rd * nxl[1] * A2);
-          az += ks * (6 * nz * nxv * A2 - vxl[2] * B4 + 3 * rd * nxl[2] * A2);
+          ax += ks * (6 * nx * nxv * A2 - vxl[0] * B4 + 3 * rd * nxl[0] * A3);
+          ay += ks * (6 * ny * nxv * A2 - vxl[1] * B4 + 3 * rd * nxl[1] * A3);
+          az += ks * (6 * nz * nxv * A2 - vxl[2] * B4 + 3 * rd * nxl[2] * A3);
         }
         // relative acceleration shared by mass ratio
         const fi = bj.m / M, fj = bi.m / M;
@@ -114,7 +125,24 @@ export class NBody {
       }
       b.a = k4v[i];
     }
+    this.precessSpins(h);
     this.t += h; this.steps++;
+  }
+  // leading-order spin precession about the orbital angular momentum (Kidder 1995 eq. 2.4, spin-orbit part):
+  // dS1/dt = (G / c^2 r^3) (2 + 3 m2 / 2 m1) L_N x S1, with L_N = mu r x v
+  precessSpins(h) {
+    const B = this.bodies;
+    for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+      const bi = B[i], bj = B[j]; if (!(bi.sv || bj.sv) || !(compact(bi) && compact(bj))) continue;
+      const r = [bi.x[0] - bj.x[0], bi.x[1] - bj.x[1], bi.x[2] - bj.x[2]], v = [bi.v[0] - bj.v[0], bi.v[1] - bj.v[1], bi.v[2] - bj.v[2]];
+      const rr = Math.hypot(...r), mu = bi.m * bj.m / (bi.m + bj.m), L = [mu * (r[1] * v[2] - r[2] * v[1]), mu * (r[2] * v[0] - r[0] * v[2]), mu * (r[0] * v[1] - r[1] * v[0])];
+      const k = G / (c2 * rr ** 3) * h;
+      const rot = (s, w) => { if (!s) return; const om = [L[0] * w, L[1] * w, L[2] * w], a = Math.hypot(...om); if (!(a > 0)) return;
+        // rotate s about om by angle a (Rodrigues), keeping its length
+        const e = om.map(x => x / a), ca = Math.cos(a), sa = Math.sin(a), d = e[0] * s[0] + e[1] * s[1] + e[2] * s[2], cx = [e[1] * s[2] - e[2] * s[1], e[2] * s[0] - e[0] * s[2], e[0] * s[1] - e[1] * s[0]];
+        for (let q = 0; q < 3; q++) s[q] = s[q] * ca + cx[q] * sa + e[q] * d * (1 - ca); };
+      rot(bi.sv, k * (2 + 1.5 * bj.m / bi.m)); rot(bj.sv, k * (2 + 1.5 * bi.m / bj.m));
+    }
   }
   // advance by dt (s), at most maxSteps steps. Returns the time actually advanced.
   advance(dt, maxSteps = 20000) {
@@ -180,7 +208,14 @@ export class NBody {
       // 2007), blended towards head-on values (Sperhake et al.: ~0.06% of the mass radiated, no spin) as L -> 0
       // aligned spins: final spin from Rezzolla et al. 2008, more energy radiated for prograde spins, and the
       // in-plane recoil from spin asymmetry (Lousto & Zlochower) added to the mass-asymmetry kick
-      const [b1, b2] = a.m >= b.m ? [a, b] : [b, a], q = b2.m / b1.m, c1 = b1.chi || 0, c2s = b2.chi || 0;
+      // (precessing spins: the components along the orbital angular momentum enter the fits; the in-plane parts give
+      // the "superkick" along it, up to ~3,700 km/s for equal masses with opposite in-plane spins (Campanelli et al. 2007))
+      const Lv0 = [0, 1, 2].map(k => [rv[1] * vv[2] - rv[2] * vv[1], rv[2] * vv[0] - rv[0] * vv[2], rv[0] * vv[1] - rv[1] * vv[0]][k] / (Lr || 1));
+      const along = (x) => x.sv ? x.sv[0] * Lv0[0] + x.sv[1] * Lv0[1] + x.sv[2] * Lv0[2] : x.chi || 0;
+      const inpl = (x) => x.sv ? x.sv.map((s, k) => s - along(x) * Lv0[k]) : [0, 0, 0];
+      const [b1, b2] = a.m >= b.m ? [a, b] : [b, a], q = b2.m / b1.m, c1 = along(b1), c2s = along(b2);
+      { const p1 = inpl(b1), p2 = inpl(b2), dp = Math.hypot(p2[0] - q * p1[0], p2[1] - q * p1[1], p2[2] - q * p1[2]);
+        if (dp > 0.01) this._superkick = { v: 3.7e6 * 16 * eta * eta * dp / (1 + q) * Math.abs(Math.cos(this.t * 7.3 + 1.1)), dir: Lv0 }; }
       const ct = (c1 + c2s * q * q) / (1 + q * q), chiEff = (b1.m * c1 + b2.m * c2s) / M;
       const chiAl = ct - 0.1229 * ct * ct * eta + 0.4537 * ct * eta * eta - 2.8904 * ct * eta + 2 * Math.sqrt(3) * eta - 3.5171 * eta * eta + 2.5763 * eta ** 3;
       const Ef = (0.0559745 * eta + 0.580951 * eta * eta - 0.960673 * eta ** 3 + 3.35241 * eta ** 4) * (1 + 0.6 * chiEff + 0.45 * chiEff * chiEff) * circ * circ + 0.0024 * eta * (1 - circ * circ);
@@ -217,7 +252,9 @@ export class NBody {
     const nrm = [rel[1] * vrel[2] - rel[2] * vrel[1], rel[2] * vrel[0] - rel[0] * vrel[2], rel[0] * vrel[1] - rel[1] * vrel[0]];
     const nl = Math.hypot(...nrm) || 1, rl = Math.hypot(...rel) || 1;
     const dir = [(nrm[1] * rel[2] - nrm[2] * rel[1]) / (nl * rl), (nrm[2] * rel[0] - nrm[0] * rel[2]) / (nl * rl), (nrm[0] * rel[1] - nrm[1] * rel[0]) / (nl * rl)];
-    const v = vcm.map((x, k) => x + dir[k] * kick);
+    const sk = this._superkick; this._superkick = null;
+    const v = vcm.map((x, k) => x + dir[k] * kick + (sk ? sk.dir[k] * sk.v : 0));
+    if (sk) kick = Math.hypot(kick, sk.v);
     const big = a.m >= b.m ? a : b;
     const nb = makeBody(kind, m, xcm, v, { name: kind === 'bh' && bothCompact ? 'Remnant black hole' : giantImpact && big.name === 'Proto-Earth' ? 'Young Earth' : big.name, chi, merged: true });
     if (kind === 'star') { nb.R = radiusFor('star', m); nb.flash = { t, L: 1e4 }; }
@@ -511,7 +548,7 @@ export function circularBinary(m1, m2, r, pn = true, chi1 = 0, chi2 = 0) {
 export function binary(sim, k1, m1, k2, m2, r, opt = {}) {
   const M = m1 + m2, { vt, vr } = circularBinary(m1, m2, r, sim.pn, opt.chi1 || 0, opt.chi2 || 0);
   const e = opt.e || 0, vte = vt * Math.sqrt(1 + e);   // e > 0: start at pericentre
-  const b1 = makeBody(k1, m1, [r * m2 / M, 0, 0], [vr * m2 / M, 0, -vte * m2 / M], { name: opt.n1 || 'A', chi: opt.chi1 || 0 });
-  const b2 = makeBody(k2, m2, [-r * m1 / M, 0, 0], [-vr * m1 / M, 0, vte * m1 / M], { name: opt.n2 || 'B', chi: opt.chi2 || 0 });
+  const b1 = makeBody(k1, m1, [r * m2 / M, 0, 0], [vr * m2 / M, 0, -vte * m2 / M], { name: opt.n1 || 'A', chi: opt.chi1 || 0, sv: opt.sv1 ? opt.sv1.slice() : undefined });
+  const b2 = makeBody(k2, m2, [-r * m1 / M, 0, 0], [-vr * m1 / M, 0, vte * m1 / M], { name: opt.n2 || 'B', chi: opt.chi2 || 0, sv: opt.sv2 ? opt.sv2.slice() : undefined });
   sim.add(b1); sim.add(b2); return [b1, b2];
 }
