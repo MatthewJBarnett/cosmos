@@ -378,15 +378,29 @@ export class StarSystem {
       const mars = all.find(b => b.name === 'Mars');
       // Mars' seasonal polar caps: carbon dioxide frost spreads to ~55 degrees latitude in each winter and sublimates
       // back to the small residual cap by midsummer (the season from the Sun's direction relative to the axis)
+      // Mars' obliquity is not steadied by a big moon: it swings ~±5 degrees on ~120 kyr cycles (modulated over 2.4 Myr)
+      // and averaged ~35 degrees before ~5 Myr ago (Laskar et al. 2004); the axis also precesses every ~170 kyr. Turned
+      // relative to today's IAU axis, so the present is unchanged.
+      if (mars && mars.axisQ) {
+        if (!mars._axis0) mars._axis0 = { q: mars.axisQ, pole: mars.pole, tilt: mars.tilt || 25.19 };
+        const a0 = mars._axis0, eps = marsObliquity(tyr), n = [0, 1, 0];
+        const ax = V.norm(V.cross(n, a0.pole)), qr = Q.mul(Q.axis(n, -2 * Math.PI * tyr / 1.7e5), Q.axis(ax, (eps - a0.tilt) * D2R));
+        mars.axisQ = Q.mul(qr, a0.q); mars.pole = Q.rot(qr, a0.pole); mars.tilt = eps;
+      }
       if (mars && mars.axisQ && this.root) {
         const sd = V.norm(V.sub(this.root.pos, mars.pos)), sz = V.dot(sd, Q.rot(mars.axisQ, [0, 1, 0])) / Math.sin((mars.tilt || 25.19) * D2R);
         const ns = clamp(sz, -1, 1);       // +1 northern summer solstice
-        mars.caps = [72 + 12 * ns, -(72 - 14 * ns)];
+        // (at high obliquity the polar summers are warmer: the caps retreat further)
+        const hi = Math.max(0, (mars.tilt || 25.19) - 25) * 0.7;
+        mars.caps = [Math.min(89, 72 + 12 * ns + hi), -Math.min(89, 72 - 14 * ns + hi)];
       }
       // global dust storms: dust lifted near perihelion (southern summer) can spread around the planet in two weeks and
       // hide the surface for months (optical depth ~0.5 -> 5+). The observed ones: 1971 (Mariner 9 arrived in it), two
       // in 1977, 1982, 2001, 2007 and 2018 (which ended the Opportunity rover); elsewhere about one Mars year in three.
       if (mars) mars.dust = marsDust(2000 + tyr);
+      // Pluto's nitrogen atmosphere sublimates near perihelion (1989) and freezes back onto the surface towards aphelion
+      // (2114): ~1 Pa in 2015 (New Horizons), ~3x thinner in 1988, down to ~1% near aphelion, lagging ~25 years
+      { const pl = all.find(b => b.name === 'Pluto'); if (pl && pl.atmo) { const pp = planetPos('Pluto', t - 25 * C.YEAR); if (pp) { const r = Math.hypot(...pp) / C.AU; pl.atmoK = clamp(Math.exp(-(r - 30.5) / 4), 0.005, 1.5); } } }
       // Halley's comet returns on its real dates (planetary perturbations make the period 74-79 years)
       { const h = all.find(b => b.name === "Halley's Comet"); if (h) halleyOrbit(h.orbit, 2000 + tyr); }
       if (mars) mars.paleoSea = tyr > -4.1e9 && tyr < -3.0e9 ? (tyr < -3.6e9 ? -3800 : -3800 - 3000 * (tyr + 3.6e9) / 0.6e9) : undefined;
@@ -965,6 +979,10 @@ export function halleyOrbit(o, y) {
   o.period = P * C.YEAR; o.a = 17.834 * C.AU * Math.pow(P / 75.32, 2 / 3);
   o.M0 = -2 * Math.PI * ((((HALLEY_TP[i] - 2000) / P) % 1) );
 }
+export function marsObliquity(tyr) {
+  const mean = 25.19 + 10 * clamp((-tyr - 4e6) / 2e6, 0, 1), amp = 5.5 * (0.75 + 0.25 * Math.sin(2 * Math.PI * tyr / 2.4e6 + 1.1));
+  return mean + amp * Math.sin(2 * Math.PI * tyr / 1.2e5);
+}
 const MARS_STORMS = [1971.72, 1977.13, 1977.40, 1982.80, 2001.47, 2007.47, 2018.41];
 export function marsDust(y) {
   const level = (t0) => { const d = (y - t0) * 365.25; return d < 0 || d > 220 ? 0 : d < 15 ? d / 15 : Math.exp(-(d - 15) / 55); };
@@ -1008,7 +1026,7 @@ export function describeBody(b) {
       const ppm = Math.round(b.air.co2 * 1e6), f = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
       rows.push(['Pressure', b.climate && b.climate.dry > 0.5 ? 'rising (steam atmosphere)' : '1 atm']);
       rows.push(['Atmosphere', 'N2 ' + f(Math.max(0, 0.99 - b.air.o2 - b.air.co2)) + ', O2 ' + (b.air.o2 > 0 ? f(b.air.o2) : 'none') + ', CO2 ' + (ppm < 10000 ? ppm.toLocaleString('en') + ' ppm' : f(b.air.co2))]);
-    } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P / 101325) + ' atm']); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
+    } else if (b.atmo) { rows.push(['Pressure', fmt(b.atmo.P * (b.atmoK || 1) / 101325) + ' atm' + (b.atmoK && b.atmoK < 0.3 ? ' (freezing out onto the surface)' : '')]); rows.push(['Atmosphere', Object.entries(b.atmo.comp).sort((a, c) => c[1] - a[1]).map(([k, v]) => k + ' ' + (v * 100).toFixed(v < 0.1 ? 1 : 0) + '%').join(', ')]); }
     else rows.push(['Atmosphere', 'none']);
     if (b.volcano) rows.push(['Sky', 'volcanic haze from ' + b.volcano + ' (vivid sunsets, global cooling)']);
     if (b.dust > 0.1) rows.push(['Weather', 'global dust storm (dust optical depth ~' + (0.5 + 5 * b.dust).toFixed(1) + ')']);

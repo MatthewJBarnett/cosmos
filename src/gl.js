@@ -76,7 +76,10 @@ export class Program {
   use() {
     if (!this.linked && !this.broken) { try { this.finish(); } catch (e) { console.error(e); this.broken = true; } }
     if (this.broken) { gl.useProgram(null); return this; }
-    gl.useProgram(this.p); return this;
+    gl.useProgram(this.p);
+    // (uniforms shared by every shader that declares them: the observing band)
+    if (this.u.uBand) gl.uniform1i(this.u.uBand, GLOBAL_U.uBand);
+    return this;
   }
   // set uniforms from object; textures given as {tex, target}
   set(vals) {
@@ -105,6 +108,10 @@ export class Program {
     return this;
   }
 }
+
+// the observing band: 0 visible, 1 ultraviolet, 2 near-infrared, 3 far-infrared, 4 microwave, 5 radio, 6 X-ray
+export const GLOBAL_U = { uBand: 0 };
+export const BANDS = ['Visible', 'Ultraviolet', 'Near-infrared', 'Far-infrared', 'Microwave', 'Radio', 'X-ray'];
 
 export function unbindTextures(n = 16) {
   for (let u = 0; u < n; u++) { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(gl.TEXTURE_2D, null); }

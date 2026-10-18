@@ -138,6 +138,24 @@ vec3 bbColor(float T){
   float X = x/y, Z = (1.-x-y)/y;
   vec3 c = max(vec3(3.2406*X - 1.5372 - 0.4986*Z, -0.9689*X + 1.8758 + 0.0415*Z, 0.0557*X - 0.2040 + 1.0570*Z), 0.);
   return c / max(c.r, max(c.g, c.b));
+}
+// ---- observing bands (0 visible, 1 UV ~0.2 um, 2 near-IR ~1.6 um, 3 far-IR ~100 um, 4 microwave ~1.5 mm, 5 radio ~21 cm,
+// 6 X-ray): a black body's brightness in the band relative to the visible, normalised so the Sun stays the same
+uniform int uBand;
+float planckL(float lam, float T){ return 1./(pow(lam, 5.)*(exp(min(14388./(lam*max(T, 10.)), 80.)) - 1.) + 1e-30); }
+float bandLam(int b){ return b == 1 ? 0.2 : b == 2 ? 1.6 : b == 3 ? 100. : b == 4 ? 1500. : b == 5 ? 2.1e5 : 0.55; }
+float bandBB(float T){
+  if (uBand == 0) return 1.;
+  if (uBand == 6) return T > 2e5 ? 30. : T > 3e4 ? 0.3 : 0.02;           // X-rays: only very hot surfaces (and coronae, faintly)
+  float l = bandLam(uBand);
+  return (planckL(l, T)/planckL(0.55, T))/(planckL(l, 5772.)/planckL(0.55, 5772.));
+}
+// false colour within a band: hotter sources whiter, cooler ones deeper in the band's hue
+vec3 bandColor(float T, vec3 vis){
+  if (uBand == 0) return vis;
+  float h = clamp(log(max(T, 10.)/3000.)/log(10.), -1., 1.);
+  vec3 base = uBand == 1 ? vec3(0.62, 0.5, 1.0) : uBand == 2 ? vec3(1.0, 0.72, 0.5) : uBand == 3 ? vec3(1.0, 0.45, 0.2) : uBand == 4 ? vec3(0.9, 0.6, 0.4) : uBand == 5 ? vec3(0.45, 1.0, 0.6) : vec3(0.55, 0.85, 1.0);
+  return mix(base, vec3(1.), 0.25 + 0.25*h);
 }`;
 
 // visual (V band) surface brightness of a blackbody relative to the Sun's photosphere: a million kelvin neutron star is

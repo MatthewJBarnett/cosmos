@@ -531,7 +531,9 @@ export function atmoUniforms(body) {
   // (a dust storm multiplies the dust and lifts it higher)
   // (volcanic sulfate on Earth scatters without absorbing)
   const dq = Math.round((body.dust || 0) * 10) / 10, k = 1 + 8 * dq, aq = Math.round((body.aerosol || 0) * 10) / 10;
-  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh, aHR: a.hR, aMieS: a.mieS.map(x => x * (k + 3 * aq)), aMieA: a.mieA.map(x => x * k), aHM: a.hM * (1 + 1.2 * dq), aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
+  // (an atmosphere that thickens and thins with the seasons, like Pluto's: a density factor, in steps)
+  const ak = Math.exp(Math.round(Math.log(body.atmoK || 1) * 4) / 4);
+  return { aRg: Rg, aRt: R0 + a.top, aR0: R0, aRay: a.rayleigh.map(x => x * ak), aHR: a.hR, aMieS: a.mieS.map(x => x * (k + 3 * aq) * ak), aMieA: a.mieA.map(x => x * k * ak), aHM: a.hM * (1 + 1.2 * dq), aMieG: a.mieG, aAbs: a.absorb, aAbsH: a.absH, aAbsW: a.absW };
 }
 
 const CUBE_FACES = [ // columns: right, up, forward for each cube face (+X,-X,+Y,-Y,+Z,-Z)
@@ -581,7 +583,7 @@ export function getAtmoLUT(body) {
   init();
   let l = luts.get(body.uid);
   // (dusty atmospheres are rebuilt when the dust load changes by a step)
-  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10);
+  const dq = Math.round((body.dust || 0) * 10) + 100 * Math.round((body.aerosol || 0) * 10) + 10000 * Math.round(Math.log(body.atmoK || 1) * 4);
   if (l && (l.dq || 0) !== dq) { gl.deleteTexture(l.trans); gl.deleteTexture(l.multi); gl.deleteTexture(l.irr); if (l.cloud) gl.deleteTexture(l.cloud); luts.delete(body.uid); l = null; }
   if (l && body.atmo.clouds && (l.mapsVersion === -1 || (l.mapsVersion >= 0 && l.mapsVersion !== (body.mapsVersion || 0)) || (l.palCl || 0) !== paleoCloudKey(body))) { buildCloudCube(body, l); }
   if (l) { l.last = performance.now(); return l; }
