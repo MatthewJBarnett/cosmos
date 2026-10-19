@@ -873,7 +873,7 @@ export class Renderer {
       uNuBg: band === 7 ? clamp(0.008 + 0.06 * Math.log10(Math.max(T / 2.725, 1)), 0, 1.4) : 0,
       uNs: src.length, uSD: SD, uSP: SP });
     drawFS();
-    if (band === 8) drawGalaxies(nav.camU(), o.viewProj, Object.assign({}, o.common, { skip: near ? MILKY_WAY : null, dmOnly: true, dmScale: 0.4, hideReal: o.hideReal.size ? o.hideReal : null }));
+    if (band === 8 && (cosmo.tau || 13.8) > 0.15) drawGalaxies(nav.camU(), o.viewProj, Object.assign({}, o.common, { skip: near ? MILKY_WAY : null, dmOnly: true, dmScale: 0.4, hideReal: o.hideReal.size ? o.hideReal : null }));
     gl.depthMask(true);
   }
 

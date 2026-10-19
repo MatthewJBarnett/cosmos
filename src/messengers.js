@@ -132,6 +132,7 @@ export function messengerSources(ctx) {
       for (const s of snDirs || []) if (s.t > lastYr && s.t <= tyr) { flashes.push({ dir: s.dir, wall: ctx.wall, frame, amp: 1.8, kind: 'nu' }); messengerNews.msg = s.name + ' collapses: ~10^58 neutrinos carry off 99% of the explosion\'s energy in ten seconds, hours before the light'; }
     }
   }
+  if (lastYr !== null && Math.abs(tyr - lastYr) > 1e3) flashes.length = 0;      // (a jump in time: old events are gone)
   lastYr = tyr;
   while (flashes.length > 24) flashes.shift();
   for (let i = flashes.length - 1; i >= 0; i--) {
