@@ -332,7 +332,10 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   binaries say so (Algol-type mass transfer, X-ray binaries, cataclysmic variables, common envelopes); stars above 20
   solar masses end as Wolf-Rayet stars inside a wind-blown bubble before collapsing; Delta Cephei, Eta Aquilae, Beta
   Doradus, l Carinae, Polaris (with its shrinking and recovering amplitude) and RR Lyrae pulsate with their measured
-  periods and epochs.
+  periods and epochs. Young catalogue stars with measured ages are missing before their birth and switch on over
+  ~100,000 years (theta2 Ori A in the Orion Nebula cluster at 0.6 Myr, sigma Ori at 3 Myr; older ones like Orion's
+  belt are beyond the ~3 Myr the catalogue spans). Procedural worlds' biomes (snow lines, ice caps, vegetation) shift
+  with their evolving climate.
 - **Galaxies, continued:** the Sagittarius stream (debris along the dwarf's computed orbit, ahead and behind it,
   phase-mixing after it is gone); in radio, the Magellanic Stream trailing the Clouds and high-velocity clouds
   raining onto the disk; galaxy clusters' hot gas in X-ray (a beta model around giant ellipticals) and their
@@ -618,7 +621,7 @@ the Archean haze, the Sagittarius dwarf's orbit and Hawking evaporation times.
 - Tides are the equilibrium tide with a fixed coastal amplification, not real tide tables; the change shows only near
   the shore.
 - Not done from the list of 100: planet-planet scattering as an event (only flagged), impact scars on Earth (Vredefort,
-  Sudbury), biomes shifting with future climate, new stars switching on in Orion,
+  Sudbury), biomes shifting on Earth's own future map,
   dispersing open clusters, catalogue galaxies (2MASS), an N-body cosmic web, and spectral
   rendering of the bands. Eta Carinae has no catalogue counterpart near its true position, so its recorded light
   curve applies to nothing.

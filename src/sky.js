@@ -9,7 +9,7 @@ import { CUBE_FACES } from './atmosphere.js';
 import { loadTexture } from './assets.js';
 import { world, wrapPhase, snPhases, SN_CLASSES, SN_LIVE, popLmax, popFade, mwFormation } from './galdyn.js';
 import { COSMO_GLSL, cosmoTexture, cosmo, U_NOW } from './cosmology.js';
-import { variableStars } from './variables.js';
+import { variableStars, youngStars } from './variables.js';
 
 export const skyCfg = { cubeSize: 1024, galBoost: 22, extBoost: 2.5, galSteps: 72, starBoost: 1.0, galRange: 1 };
 export const GAL_I0 = 2.0e-9;   // central face-on disk surface brightness in units of (solar constant / sr)
@@ -44,7 +44,7 @@ uniform mat4 uViewProj; uniform vec3 uOffset; uniform float uExposure, uPxSA, uP
 uniform float uTwinkle, uTime; uniform vec3 uUpLocal;
 // motion: 0 procedural (stream and wrap in the cell), 1 catalogue (straight lines relative to the Sun), 2 fixed
 uniform int uMode; uniform float uCell, uPhase, uWrapFade, uCatK, uSupp, uWeight, uLmax; uniform mat3 uRotC;
-uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[16]; uniform float uVarDm[16]; uniform float uDays, uDtDays;
+uniform float uSNph[6], uSNtau[6]; uniform int uCatDead[8]; uniform int uVarIdx[16]; uniform float uVarDm[16]; uniform int uYoungIdx[24]; uniform float uYoungW[24]; uniform float uDays, uDtDays;
 ${REFRACT_VS}
 ${REL_GLSL}
 out vec3 vCol; out float vSig;
@@ -69,6 +69,7 @@ void main(){
   } else if (uMode == 1) {
     lp = uRotC*(aPos + aVel.xyz*uCatK);
     for (int i = 0; i < 8; i++) if (gl_VertexID == uCatDead[i]) w = 0.;
+    for (int i = 0; i < 24; i++) if (gl_VertexID == uYoungIdx[i]) w *= uYoungW[i];
     for (int i = 0; i < 16; i++) if (gl_VertexID == uVarIdx[i]) w *= exp(-0.9210340372*uVarDm[i]);
   }
   vec3 p = lp + uOffset; float d = length(p);
@@ -418,6 +419,7 @@ export function drawStars(field, camLocal, viewProjLocal, o) {
   p.set({ uViewProj: viewProjLocal, uExposure: o.exposure * mwFormation(tyr), uPxSA: o.pxSA, uPixScale: o.pixScale, uBoost: skyCfg.starBoost, uTwinkle: o.twinkle || 0, uTime: (performance.now() / 1000) % 1000, uUpLocal: o.upLocal || [0, 1, 0], uRefrK: o.refrK || 0, uRefrUp: o.upLocal || [0, 1, 0],
     uBeta: o.betaLocal || [0, 0, 0], uWrapFade: Math.min(1, Math.abs(tyr) / 1000), uLmax: Math.min(popLmax(tyr), 1e21), uSupp: 1 - world.catW, uSNph: new Float32Array(snPhases(tyr)), uSNtau: new Float32Array(SN_CLASSES.map(c => c.tau)), uRotC: new Float32Array(world.rotP),
     uCatDead: new Int32Array(field.deadList || [-1, -1, -1, -1, -1, -1, -1, -1]) });
+  { const y = youngStars(tyr); p.set({ uYoungIdx: y.idx, uYoungW: y.w }); }
   { const v = variableStars(world.time, Math.abs(world.dtyr) * 365.25); p.set({ uVarIdx: v.idx, uVarDm: v.dm, uDays: (world.time / 86400) % 1e5, uDtDays: Math.abs(world.dtyr) * 365.25 }); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);
   let n = 0;

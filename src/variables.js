@@ -43,6 +43,15 @@ function etaCar(y) {
 }
 let etaCarCat = 4.2;
 let resolved = false;
+// the brightest catalogue star within a small cone (cos limit) of a galactic direction, in a distance range, near an
+// expected apparent magnitude; -1 if none
+function findStar(lD, bD, rmin, rmax, mExp, cosLim = 0.99996) {
+  const l = lD * Math.PI / 180, b = bD * Math.PI / 180, u = [Math.cos(b) * Math.cos(l), Math.sin(b), -Math.cos(b) * Math.sin(l)], d = catalog.data;
+  let best = -1, bm = 99;
+  for (let i = 0; i < catalog.count; i++) { const x = d[i * 5], y = d[i * 5 + 1], z = d[i * 5 + 2], r = Math.hypot(x, y, z); if (r < rmin || r > rmax) continue;
+    if ((x * u[0] + y * u[1] + z * u[2]) / r < cosLim) continue; const m = d[i * 5 + 3] + 5 * Math.log10(r / 10); if (m < bm) { bm = m; best = i; } }
+  return best >= 0 && (mExp > 50 || Math.abs(bm - mExp) < 1.2) ? best : -1;
+}
 function resolve() {
   if (resolved || !catalog.ready) return;
   for (const v of VARS) {
@@ -77,4 +86,19 @@ export function variableStars(t, winDays) {
     out.dm[k] = -2.5 * Math.log10(fl / n);
   });
   return out;
+}
+
+// young stars with measured ages (Myr): before their birth they are not in the sky; each switches on over ~100,000 years
+// (the Orion Nebula's brightest stars are younger than a million years: run the clock forward from 2 Myr ago and
+// they switch on; older ones, like Orion's belt, are older than the ~3 Myr that the star catalogue reaches)
+const YOUNG = [['Theta2 Ori A (Orion Nebula cluster)', 0.6, [209.0485, -19.3722, 200, 700, 5.0]],
+  ['Sigma Ori', 3, [206.8163, -17.336, 200, 700, 3.8]], ['Naos', 3.2], ['Meissa', 5], ['Alnilam', 5.7], ['Alnitak', 6.4], ['Mintaka', 7], ['Rigel', 8], ['Betelgeuse', 8.5],
+  ['Deneb', 10], ['Mimosa', 10], ['Acrux', 10], ['Wezen', 10], ['Antares', 11], ['Saiph', 11.6], ['Spica', 12.5], ['Hadar', 14],
+  ['Adhara', 22], ['Bellatrix', 25], ['Canopus', 25]];
+const young = { idx: new Int32Array(24).fill(-1), w: new Float32Array(24).fill(1) };
+let youngResolved = false;
+export function youngStars(tyr) {
+  if (!youngResolved && catalog.ready) { YOUNG.forEach(([n, , f], k) => { if (f) { young.idx[k] = findStar(f[0], f[1], f[2], f[3], f[4], 0.99999995); return; } const x = catalog.named.find(q => q.name === n); young.idx[k] = x ? x.i : -1; }); youngResolved = true; }
+  YOUNG.forEach(([, age], k) => { young.w[k] = Math.min(1, Math.max(0, (tyr + age * 1e6) / 1e5)); });
+  return young;
 }
