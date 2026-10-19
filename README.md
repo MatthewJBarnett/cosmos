@@ -90,7 +90,7 @@ Start somewhere else with `?goto=Saturn&date=2017-06-01` (any name the search bo
 | 0 to 9 | Sun, Mercury ... Pluto |
 | Y | Orbit mode: enter a circular orbit, W A S D R F fire thrusters (Newtonian two-body motion) |
 | Shift+E | Next eclipse: jumps to the next central solar or umbral lunar eclipse and watches it from the centreline (or under the Moon) |
-| I | Observing band: visible, ultraviolet, near-infrared, far-infrared, microwave, radio, X-ray (also a menu in the time bar) |
+| I | Observing band: visible, ultraviolet, near-infrared, far-infrared, microwave, radio, X-ray, then beyond light: neutrinos, dark matter, gravitational waves (also a menu in the time bar) |
 | U | Timeline from the Planck time to 10¹¹⁰ years (the universe turning transparent, the Milky Way forming, ice ages, Betelgeuse, Andromeda, the Sun's death...) with Go buttons and a Jump box that takes `2 Gyr`, `-65 Myr`, `65 million years ago`, `year 3000` or `age 380 kyr` |
 | V | Physics sandbox: black holes, neutron stars, stars and planets under full gravity |
 | M | Relativistic flight: speed below c, with aberration, Doppler shift, beaming and time dilation |
@@ -311,6 +311,23 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   at Mercury, Io, Europa, Enceladus, Titan, Neptune, Uranus, Triton and Ganymede. Events for Carrington, the 1833
   Leonids, Tunguska, Chelyabinsk, ISON, Apophis, the brightest gamma-ray burst, T CrB, Yellowstone, the Siberian Traps
   and the Gaia-Enceladus merger.
+- **Beyond light (bands 7-9, messengers.js):** every way we have observed the universe besides light. Nothing else is
+  drawn in these views (planets are transparent to neutrinos and gravitational waves), brightness is logarithmic and in
+  false colour.
+  - *Neutrinos:* stars by their fusion (2.3% of a Sun-like star's power, ~6% for massive CNO stars; young neutron
+    stars by their cooling), blurred over degrees as Super-Kamiokande sees the Sun, so the Sun shines through the
+    Earth at night; rocky planets glow faintly in geoneutrinos, brighter through their centres (longer path through
+    rock); the galactic plane (IceCube 2023); NGC 1068 and TXS 0506+056; a faint diffuse background; the cosmic
+    neutrino background (1.95 K today, predicted, not yet detected), much hotter in the early universe. Bursts:
+    SN 1987A on 23 February 1987 and each scheduled supernova (Betelgeuse...), and IceCube-170922A, with a notice.
+  - *Dark matter* (known only by its gravity: rotation curves, lensing, the CMB): the Milky Way's NFW halo integrated
+    along every line of sight from wherever you are, so it peaks towards the galactic centre and is faint towards
+    the anticentre, slightly lumpy with subhalos; every other galaxy's halo (projected NFW).
+  - *Gravitational waves:* mergers arrive as expanding ripples at LIGO-Virgo-KAGRA's detection rate (~110 a year),
+    with GW150914 and GW170817 at their real moments and positions; the nanohertz background found by pulsar timing
+    arrays (2023) hums everywhere once supermassive black hole pairs exist; the Galaxy's white dwarf pairs make a
+    foreground along the plane (predicted, for LISA); compact binaries in the current system ripple at twice their
+    orbital frequency (try the sandbox's black holes).
 - **Other light, continued:** planets glow by their own heat in the far infrared and microwaves (night sides
   included); giant elliptical galaxies show radio jets and lobes; giant exoplanets list their cloud class (Sudarsky).
 - **Planets, continued:** strongly irradiated hot Jupiters are inflated (up to ~1.55x above Teq 1000 K) and puff up
