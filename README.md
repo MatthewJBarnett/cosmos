@@ -320,7 +320,10 @@ for each event (untick "Slow down for events" to race through). Dates marked "es
   from every neighbour), and a planet around one star of a binary, tilted more than 39 degrees to the pair, runs
   Kozai-Lidov cycles; planets in binary systems now evolve at all (they were skipped before). The info panel names
   mean-motion resonances with neighbours (TRAPPIST-1's 8:5, 5:3, 3:2 chain; Neptune and Pluto's 3:2) and flags pairs
-  packed within ~6 mutual Hill radii. A planet swallowed by
+  packed within ~6 mutual Hill radii. In ~20% of systems with a giant beyond the frost line a second giant formed too
+  close; early in the system's life one flings the other into interstellar space, leaving the survivor eccentric (run
+  the clock across it and a notice says so). Planets around one star of a binary can now be swallowed, ejected or
+  spiral in (they were missed before). A planet swallowed by
   its star while the clock runs forward makes the star flare for a moment and says so (Mercury, Venus and Earth ~7.6
   Gyr from now).
 - **Earth, continued:** city lights spread from the brightest city cores around 1900 to small towns by the 1970s and
@@ -620,8 +623,7 @@ the Archean haze, the Sagittarius dwarf's orbit and Hawking evaporation times.
   Kozai cycles, not an integration; planet-planet scattering and resonances are not modelled.
 - Tides are the equilibrium tide with a fixed coastal amplification, not real tide tables; the change shows only near
   the shore.
-- Not done from the list of 100: planet-planet scattering as an event (only flagged), impact scars on Earth (Vredefort,
-  Sudbury), biomes shifting on Earth's own future map,
+- Not done from the list of 100: impact scars on Earth (Vredefort, Sudbury), biomes shifting on Earth's own future map,
   dispersing open clusters, catalogue galaxies (2MASS), an N-body cosmic web, and spectral
   rendering of the bands. Eta Carinae has no catalogue counterpart near its true position, so its recorded light
   curve applies to nothing.
