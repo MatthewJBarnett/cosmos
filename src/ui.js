@@ -3,7 +3,8 @@ import { V, Q, C, clamp } from './math.js';
 import { targetName, findByName, searchList, solSystem, systemFor, earlyDecades, EARLY_MAX } from './nav.js';
 import { GLOBAL_U, BANDS } from './gl.js';
 import { darkMatter } from './sky.js';
-const BAND_NOTE = ['', 'hot young stars; dust blocks more', 'old stars, seen through the dust', 'warm dust glows', 'the cosmic microwave background (ripples stretched to full contrast)', 'neutral hydrogen (21 cm) and synchrotron; in the dark ages, the hydrogen fog and its reionization bubbles', 'hot gas, active nuclei, very hot stars'];
+import { MESSENGER_NOTE, messengerNews } from './messengers.js';
+const BAND_NOTE = ['', 'hot young stars; dust blocks more', 'old stars, seen through the dust', 'warm dust glows', 'the cosmic microwave background (ripples stretched to full contrast)', 'neutral hydrogen (21 cm) and synchrotron; in the dark ages, the hydrogen fog and its reionization bubbles', 'hot gas, active nuclei, very hot stars', MESSENGER_NOTE[7], MESSENGER_NOTE[8], MESSENGER_NOTE[9]];
 import { earlyEra, bbnAt, popIIIPoints, xeAt, ionizedIGM } from './earlyuniverse.js';
 import { describeBody } from './system.js';
 import { starName } from './system.js';
@@ -270,7 +271,7 @@ export class UI {
     $('tFast').onclick = () => this.stepRate(1); $('tSlow').onclick = () => this.stepRate(-1);
     $('tRate').onchange = (e) => { const v = +e.target.value; e.target.value = ''; e.target.blur(); if (v) { nav.rate = v * (nav.rate < 0 ? -1 : 1); nav.paused = false; } };
     // the observing band
-    const setBand = (b) => { GLOBAL_U.uBand = b; $('tBand').value = String(b); this.toast(BANDS[b] + (b ? ': ' + BAND_NOTE[b] : '')); };
+    const setBand = (b) => { GLOBAL_U.uBand = b; $('tBand').value = String(b); this.toast(BANDS[b] + (b ? ': ' + BAND_NOTE[b] : ''), b >= 7 ? 4000 : 1400); };
     this.setBand = setBand;
     $('tBand').onchange = (e) => { setBand(+e.target.value); e.target.blur(); };
     $('tRev').onclick = () => { nav.rate = -nav.rate; }; $('tReal').onclick = () => { nav.rate = 1; nav.paused = false; };
@@ -348,7 +349,7 @@ export class UI {
     const label = r.total ? 'Total ' : r.kind === 'solar' ? (r.central ? 'Annular or hybrid ' : 'Partial ') : (r.central ? 'Partial ' : 'Penumbral ');
     this.toast(label + r.kind + ' eclipse, ' + d + ' UTC, from ' + where);
   }
-  toast(msg) { const t = this.root.appendChild(el('div', 'toast', msg)); setTimeout(() => t.classList.add('fade'), 1400); setTimeout(() => t.remove(), 3200); }
+  toast(msg, ms = 1400) { const t = this.root.appendChild(el('div', 'toast', msg)); t.style.maxWidth = 'min(640px, 90vw)'; setTimeout(() => t.classList.add('fade'), ms); setTimeout(() => t.remove(), ms + 1800); }
   // planetographic latitude/longitude of the camera over the anchor body (degrees)
   latLon() {
     const nav = this.nav, b = nav.anchor; if (!b || !b.wrot) return null;
@@ -472,6 +473,8 @@ export class UI {
     if (this.nav.time < -13.79e9 * YEAR) { this.nav.time = -13.79e9 * YEAR; this.nav.paused = true; this.toast('The Big Bang: time cannot run further back'); }
     this.updateTimeline();
     if (this.sbui) this.sbui.update();
+    // neutrino bursts and gravitational wave events crossed in the messenger views (messengers.js)
+    if (messengerNews.msg) { this.toast(messengerNews.msg, 6000); messengerNews.msg = null; }
     // a planet swallowed by its star just now (system.js)
     { const sy = this.nav.system; if (sy && sy.swallowed && sy.swallowed !== this._swSeen) { this._swSeen = sy.swallowed; this.toast(sy.swallowed.name + ' ' + sy.swallowed.how + ' ' + sy.swallowed.star + (sy.swallowed.noFlash ? '' : ': a brief flare as it is torn apart in the star\'s envelope')); } }
     if (this.hidden) return;

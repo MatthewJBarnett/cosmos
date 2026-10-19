@@ -111,7 +111,8 @@ export class Program {
 
 // the observing band: 0 visible, 1 ultraviolet, 2 near-infrared, 3 far-infrared, 4 microwave, 5 radio, 6 X-ray
 export const GLOBAL_U = { uBand: 0 };
-export const BANDS = ['Visible', 'Ultraviolet', 'Near-infrared', 'Far-infrared', 'Microwave', 'Radio', 'X-ray'];
+// (7-9 are not light: other messengers, see messengers.js)
+export const BANDS = ['Visible', 'Ultraviolet', 'Near-infrared', 'Far-infrared', 'Microwave', 'Radio', 'X-ray', 'Neutrinos', 'Dark matter', 'Gravitational waves'];
 
 export function unbindTextures(n = 16) {
   for (let u = 0; u < n; u++) { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(gl.TEXTURE_2D, null); }

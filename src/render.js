@@ -20,6 +20,7 @@ import { planetaryNebula } from './evolution.js';
 import { updateMeteors } from './meteors.js';
 import { drawStars, drawPoints, drawGalaxies, GalaxySky, skyCfg, drawConstellations, drawSkyMap, invalidateRealGalaxies, drawZodiacal } from './sky.js';
 import { catalog } from './assets.js';
+import { MESSENGER_FS, messengerSources } from './messengers.js';
 import { MILKY_WAY, SUN_POS, REAL_GALAXIES } from './universe.js';
 import { drawRings, drawOrbits, drawBelts, drawRingParticles } from './extras.js';
 import { drawBlackHole, drawBlackHoles, drawNebulaeAndFx, drawComets } from './exotic.js';
@@ -386,7 +387,7 @@ export class Renderer {
       insideGal = V.len(cn) < 1.12;
       // near the Sun the photographed sky replaces the model entirely, so the cube needs no updates
       const fullyReal = gal === MILKY_WAY && rcfg.realSky && this.realSkyWeight(camLocal) >= 1 && this.galSky.valid;
-      if (insideGal && !fullyReal) this.galSky.update(gal, cn, this.noise3, this.sync);
+      if (insideGal && !fullyReal && GLOBAL_U.uBand < 7) this.galSky.update(gal, cn, this.noise3, this.sync);
       // galaxy local -> view
       const gq = gal.quat, r3 = Q.mat3(gq), m = new Float32Array(16);
       m[0] = r3[0]; m[1] = r3[1]; m[2] = r3[2]; m[4] = r3[3]; m[5] = r3[4]; m[6] = r3[5]; m[8] = r3[6]; m[9] = r3[7]; m[10] = r3[8]; m[15] = 1;
@@ -415,6 +416,11 @@ export class Renderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrFBO);
     gl.viewport(0, 0, w, h);
     gl.depthMask(true); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // neutrinos, dark matter, gravitational waves: a sky of their own, nothing else drawn (messengers.js)
+    const messenger = GLOBAL_U.uBand >= 7;
+    let nStars = 0; const atmoPasses = [], blackHoles = [];
+    if (messenger) this.renderMessenger({ nav, sys, gal, insideGal, tanX, tanY, viewProj, common, hideReal });
+    else {
     // other observing bands: the sky behind everything. Microwaves: the cosmic background (2.7 K today) with its ripples,
     // contrast-stretched like a Planck map; radio in the dark ages and cosmic dawn: the 21 cm glow of neutral hydrogen,
     // with ionized bubbles growing around the first galaxies until reionization is complete
@@ -462,7 +468,6 @@ export class Renderer {
       }
     }
     T('galsky');
-    let nStars = 0;
     // astronomical refraction for an observer near the surface of a body with an atmosphere
     let refrK = 0, refrUp = [0, 1, 0];
     { const an = nav.anchor;
@@ -562,7 +567,6 @@ export class Renderer {
     drawNebulaeAndFx(nav, { viewProj, viewProjLocal, camLocal, camRot, tanFov: [tanX, tanY], exposure, noise3: this.noise3, time: nav.time, frame: this.frameNo, pxPerRad, extra: sne ? sne.remnants : null });
 
     // system bodies
-    const atmoPasses = [], blackHoles = [];
     if (sys) {
       const points = [];
       const lightFor = (b) => {
@@ -781,6 +785,7 @@ export class Renderer {
       gl.disable(gl.BLEND);
     }
 
+    }
     T('orbits+bh');
     // ---- temporal anti-aliasing ----
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
@@ -846,8 +851,30 @@ export class Renderer {
         if (o.radius / od > sr && sep < o.radius / od - sr * 0.98) { this.meterTop = true; this.eclipseView = true; break; }
       }
     }
-    this.adaptExposure(dt);
+    if (!messenger) this.adaptExposure(dt);     // (the messenger views are display-referred: keep the exposure for coming back)
     this.stats = { stars: nStars, drawn: drawList.length, pending: pendingBakes + (nav.field ? nav.field.busy || 0 : 0), exposure: this.exposure };
+  }
+
+  renderMessenger(o) {
+    const band = GLOBAL_U.uBand, nav = o.nav;
+    if (!this.pMsg) this.pMsg = new Program('messengers', FS_VS, MESSENGER_FS);
+    // the observer in the Milky Way's frame (kpc): its halo and disk are integrated in the shader when we are within
+    // ~250 kpc; beyond that the Milky Way is drawn like any other galaxy
+    const cu = nav.camU(), mwq = MILKY_WAY.quat, loc = V.mul(Q.rot(Q.conj(mwq), V.sub(cu, MILKY_WAY.posU)), 1000), near = V.len(loc) < 250;
+    const src = messengerSources({ nav, sys: o.sys, tyr: world.tyr, mode: band, wall: performance.now(), simSec: nav.time });
+    const SD = new Float32Array(40 * 3), SP = new Float32Array(40 * 4);
+    src.forEach((q, i) => { SD.set(q.dir, i * 3); SP.set([q.amp, q.size, q.kind, q.phase], i * 4); });
+    const T = cosmo.T || 2.725, tauG = cosmo.tau || 13.8;
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    this.pMsg.use().set({ uRot: Q.mat3(nav.q), uToGal: Q.mat3(Q.conj(mwq)), uTanFov: [o.tanX, o.tanY], uMode: band, uNoise3: this.noise3, uTime: (performance.now() / 1000) % 1e4,
+      uCamG: loc, uHalo: band === 8 && near ? 1 : 0, uPlane: near ? (band === 7 ? 0.1 : band === 9 ? 0.08 : 0) : 0,
+      uIso: band === 7 ? 0.012 : 0, uHum: band === 9 ? 0.035 * clamp((tauG - 1) / 2, 0, 1) : 0,
+      // the cosmic neutrino background: 1.95 K today, hotter in the past (before ~1 s, neutrinos and light are one plasma)
+      uNuBg: band === 7 ? clamp(0.008 + 0.06 * Math.log10(Math.max(T / 2.725, 1)), 0, 1.4) : 0,
+      uNs: src.length, uSD: SD, uSP: SP });
+    drawFS();
+    if (band === 8) drawGalaxies(nav.camU(), o.viewProj, Object.assign({}, o.common, { skip: near ? MILKY_WAY : null, dmOnly: true, dmScale: 0.4, hideReal: o.hideReal.size ? o.hideReal : null }));
+    gl.depthMask(true);
   }
 
   noiseDummy() { if (!this._dummy) this._dummy = tex2D(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR, gl.CLAMP_TO_EDGE, new Uint8Array([0, 0, 0, 0])); return this._dummy; }
