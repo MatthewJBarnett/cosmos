@@ -268,6 +268,9 @@ export function evolveBodies(sys, tyr, ageNow, starFn, skip, optFor, noOrbit) {
     // secular evolution: neighbours slowly turn each orbit (perihelion and node) and make its shape and tilt breathe;
     // a distant companion star can drive Kozai-Lidov cycles (eccentricity traded for inclination)
     if (!noOrbit && !isMoon && b.orbit && b._a0) secular(b, tyr, sys);
+    // planet-planet scattering (system.js): before it, the survivor's orbit was nearly circular and its sibling was there
+    if (b._scatter && age < b._scatter.f * ageNow && b.orbit) b.orbit.e = b._scatter.eBefore;
+    if (b._scatterLost) b.evoGone = age >= b._scatterLost.f * ageNow ? 'flung out of the system by ' + b._scatterLost.by : (b.evoGone && b.evoGone.startsWith('flung') ? null : b.evoGone);
     // giants contract and glow while young; rocky planets begin molten
     if (giant) { b.radius = s.Rp; }
     const glow = s.Tint > 650 ? s.Tint : 0;

@@ -473,7 +473,7 @@ export class UI {
     this.updateTimeline();
     if (this.sbui) this.sbui.update();
     // a planet swallowed by its star just now (system.js)
-    { const sy = this.nav.system; if (sy && sy.swallowed && sy.swallowed !== this._swSeen) { this._swSeen = sy.swallowed; this.toast(sy.swallowed.name + ' ' + sy.swallowed.how + ' ' + sy.swallowed.star + ': a brief flare as it is torn apart in the star\'s envelope'); } }
+    { const sy = this.nav.system; if (sy && sy.swallowed && sy.swallowed !== this._swSeen) { this._swSeen = sy.swallowed; this.toast(sy.swallowed.name + ' ' + sy.swallowed.how + ' ' + sy.swallowed.star + (sy.swallowed.noFlash ? '' : ': a brief flare as it is torn apart in the star\'s envelope')); } }
     if (this.hidden) return;
     const nav = this.nav, r = this.r;
     // status

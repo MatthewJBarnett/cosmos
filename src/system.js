@@ -318,22 +318,27 @@ export class StarSystem {
     }
     // planets inside a swollen star are swallowed; planets near a giant are heated until they glow
     const all = this._all || this.bodies, root = this.root;
-    for (const b of root.children) {
+    // (in a binary the root is the barycentre: planets around either star are handled with that star as their host)
+    const plist = root.kind === 'barycenter' ? root.children.flatMap(x => x.kind === 'star' ? x.children : [x]) : root.children;
+    for (const b of plist) {
       if (!b.orbit || b.kind === 'star') continue;
+      const host = b.parent && b.parent.kind === 'star' ? b.parent : root;
       const a = b.orbit.a * scale * (1 - (b.orbit.e || 0));
-      const g = !!(root.evo && a < root.radius * 1.1) || sysUn || young || !!b.evoGone;
+      const g = !!(host.evo && a < host.radius * 1.1) || sysUn || young || !!b.evoGone;
       // (seen happening: a planet swallowed or spiralling in while the clock runs forward gets a flash and a note)
       if (g && !b.gone && !sysUn && !young && this._evTyr !== undefined && tyr > this._evTyr && tyr - this._evTyr < 5e8) {
-        this.swallowed = { name: b.name, star: root.name, how: b.evoGone ? 'spiralled into' : 'was swallowed by', wall: performance.now() };
+        const fl = b.evoGone && b.evoGone.startsWith('flung');
+        this.swallowed = fl ? { name: b.name, star: b._scatterLost.by + ' (a close encounter between giants)', how: 'was flung into interstellar space by', wall: performance.now(), noFlash: true }
+          : { name: b.name, star: host.name, how: b.evoGone ? 'spiralled into' : 'was swallowed by', wall: performance.now() };
         b.swallowedAt = tyr;
       }
       if (!!b.gone !== g) changed = true; b.gone = g;
       for (const c of b.children) { const gc = g || !!c.evoGone; if (!!c.gone !== gc) changed = true; c.gone = gc; }
-      const T = 278.6 * Math.pow(Math.max(root.lum, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
-      b.heatT = T > 700 && root.evo && root.lum > 1.5 * root.evo.L0 ? T : 0;
+      const T = 278.6 * Math.pow(Math.max(host.lum || 0, 0) * (1 - (b.albedo || 0.3)) / Math.pow(b.orbit.a * scale / C.AU, 2), 0.25);
+      b.heatT = T > 700 && host.evo && host.lum > 1.5 * host.evo.L0 ? T : 0;
       // living, watery worlds respond like Earth: a brightening star dries the oceans and ends the biosphere
-      if (b.surface && b.surface.gen === 'terra' && (b.surface.ocean > 0.5 || b.life) && root.evo) {
-        const S = (root.lum / Math.max(root.evo.L0, 1e-12)) / (scale * scale);
+      if (b.surface && b.surface.gen === 'terra' && (b.surface.ocean > 0.5 || b.life) && host.evo) {
+        const S = (host.lum / Math.max(host.evo.L0, 1e-12)) / (scale * scale);
         b.climate = S > 1 ? { S, dry: clamp((S - 1.09) / 0.12, 0, 1), life: 1 - clamp((S - 1.05) / 0.06, 0, 1), ice: 1 - clamp((S - 1.02) / 0.05, 0, 1) } : null;
       }
     }
@@ -551,7 +556,7 @@ export class StarSystem {
       this.oScale = oScale;
       for (const s of this.stars) { if (s._lumBase === undefined || ran) s._lumBase = s.lum; let f = this.flareBoost(s, t, (t - (this._lastT || t)));
         // (a swallowed planet: a flash over a couple of seconds of wall time, whatever the clock rate)
-        if (this.swallowed && s === this.stars[0]) { const w = (performance.now() - this.swallowed.wall) / 1000; if (w < 4) f *= 1 + 4 * Math.min(w / 0.3, 1) * Math.exp(-w / 0.9); }
+        if (this.swallowed && !this.swallowed.noFlash && s === this.stars[0]) { const w = (performance.now() - this.swallowed.wall) / 1000; if (w < 4) f *= 1 + 4 * Math.min(w / 0.3, 1) * Math.exp(-w / 0.9); }
         s.lum = s._lumBase * f; s.flaring = f > 1.05 ? f : 0; }
       this._lastT = t;
     }
@@ -977,6 +982,22 @@ function proceduralPlanets(sys, rng, st, name, planetParent, hostMass, lum, maxA
     }
     a *= rng.range(1.4, 2.1);
   }
+  // planet-planet scattering: in ~20% of systems with a giant beyond the frost line, a second giant formed too close to
+  // it; early on (1-30% of the system's age) their orbits crossed and one was flung out of the system, leaving the
+  // survivor on an eccentric orbit (how most eccentric giants are thought to arise; Chatterjee et al. 2008). Separate
+  // random numbers, so every other body stays as generated.
+  {
+    let hs = 0; for (const ch of name) hs = (hs * 31 + ch.charCodeAt(0)) | 0;
+    const r2 = new RNG(hashCombine(hs >>> 0, 0x5ca7, idx));
+    const giants = (planetParent.children || []).filter(c => c.kind === 'planet' && c.surface && c.surface.gen === 'gas' && c.mass > 40 * C.Mearth && c.orbit.a > frost * C.AU);
+    if (giants.length && r2.chance(0.2)) {
+      const g = r2.pick(giants), eAfter = r2.range(0.25, 0.55), aG = g.orbit.a / C.AU;
+      const lost = makePlanet(sys, r2, name + ' ' + String.fromCharCode(98 + idx), 'gas', g.mass / C.Mearth * r2.range(0.3, 1), aG * r2.range(1.25, 1.45), hostMass, lum, st, planetParent, 'planet');
+      lost.rings = null; lost._scatterLost = { by: g.name, f: r2.range(0.01, 0.3) };
+      g._scatter = { f: lost._scatterLost.f, eBefore: g.orbit.e * 0.3, eAfter, lost: lost.name };
+      g.orbit.e = eAfter;
+    }
+  }
   if (rng.chance(0.5) && nPl > 2) sys.belts.push({ name: name + ' outer belt', inner: a * 1.2 * C.AU, outer: a * 1.8 * C.AU, thick: 0.2, count: 5000, seed: rng.int(1, 9999), parent: planetParent });
 }
 
@@ -1150,6 +1171,8 @@ function evoRows(b, rows) {
     for (const c of [inner, outer]) { if (!c) continue; const a1 = Math.min(c.orbit.a, b.orbit.a), a2 = Math.max(c.orbit.a, b.orbit.a), RH = Math.cbrt((b.mass + c.mass) / (3 * M)) * (a1 + a2) / 2, D = (a2 - a1) / RH; if (!tight || D < tight[0]) tight = [D, c]; }
     if (tight && tight[0] < 6 && !res.length) rows.push(['Stability', 'only ' + tight[0].toFixed(1) + ' mutual Hill radii from ' + tight[1].name + (tight[0] < 3.5 ? ': the orbits cross; one will be scattered out or the two will collide' : ': tightly packed; in systems of several planets this close, orbits can go unstable and scatter over millions to billions of years')]);
   }
+  if (b._scatter) { const tS = b._scatter.f * h.ageNow - b.evoAge; rows.push(['Scattering', tS > 0 ? 'its orbit and ' + b._scatter.lost + '\'s are converging: in ~' + fmtYr(tS) + ' a close encounter will fling one out and leave the other eccentric' : 'it flung its sibling ' + b._scatter.lost + ' out of the system ~' + fmtYr(-tS) + ' ago; the kick left its own orbit eccentric (e = ' + b._scatter.eAfter.toFixed(2) + ')']); }
+  if (b._scatterLost && !b.evoGone) rows.push(['Fate', 'packed too close to ' + b._scatterLost.by + ': in ~' + fmtYr(b._scatterLost.f * h.ageNow - b.evoAge) + ' a close encounter flings it out into interstellar space']);
   if (b.evoKozai) rows.push(['Orbit over time', 'Kozai-Lidov cycles from its companion star: every ' + fmtYr(b.evoKozai.tK) + ' the orbit stretches to e = ' + b.evoKozai.eMax.toFixed(2) + ' while its tilt drops, then back']);
   else if (b.evoSecRate > 0) rows.push(['Orbit over time', 'the other planets turn it (perihelion every ~' + fmtYr(2 * Math.PI / b.evoSecRate) + ') and make its eccentricity and tilt swing; now e = ' + (b.orbit.e || 0).toFixed(3)]);
   if (b._axis0 && !h.giant) rows.push(['Axial tilt over time', b.evoBigMoon ? 'steadied by its big moon (swings ~1 degree)' : 'swings chaotically by up to ~' + Math.round(5 + 9 * (((b.uid * 2654435761) >>> 0) / 4294967296)) + ' degrees (no big moon to steady it)']);
