@@ -1,6 +1,6 @@
 // Deep sky rendering: distant galaxies (ray marched impostors), the host galaxy seen from inside (cubemap),
 // and point light sources (stars, unresolved planets) with photometric brightness.
-import { gl, Program, texCube, fbo, drawFS, FS_VS, makeVAO, GLOBAL_U } from './gl.js';
+import { gl, Program, texCube, fbo, drawFS, FS_VS, FS_VS_SCENE, makeVAO, GLOBAL_U } from './gl.js';
 import { V, Q } from './math.js';
 import { GLSL_GALAXY, GLEVELS, galaxyCell, REAL_GALAXIES, galUniforms } from './universe.js';
 import { GLSL_BB } from './stars.js';
@@ -401,7 +401,7 @@ function init() {
   pGal = new Program('galaxies', GAL_VS.replace('flat out float vPx;', 'flat out float vPx; flat out float vRad;').replace('vPx = px;', 'vPx = px; vRad = aCen.w*mix(1., 0.45, 1. - smoothstep(1., 6., vTauE));'), GAL_FS2);
   pCube = new Program('galcube', FS_VS, CUBE_FS);
   pDM = new Program('darkmatter', DM_VS, DM_FS);
-  pCubeDraw = new Program('galcubedraw', FS_VS, CUBEDRAW_FS);
+  pCubeDraw = new Program('galcubedraw', FS_VS_SCENE, CUBEDRAW_FS);
   quadBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   ptVAO = gl.createVertexArray(); gl.bindVertexArray(ptVAO);
@@ -609,7 +609,7 @@ void main(){
   o = vec4(max(c - 0.0017, 0.)*uScale*keep*(Dop == 1. ? 1. : vbandRatio(4500.*Dop, 4500.)*Dop), 1.);
 }`;
 let pMap = null;
-export function initSkyMapProgram() { if (!pMap) pMap = new Program('skymap', FS_VS, MAP_FS); }
+export function initSkyMapProgram() { if (!pMap) pMap = new Program('skymap', FS_VS_SCENE, MAP_FS); }
 // rotLocalFromView: view -> galaxy local (galactic) axes. weight: 0..1 blend with the procedural sky.
 export function drawSkyMap(rotLocalFromView, tanFov, exposure, weight, betaLocal = null) {
   const e = loadTexture('data/milkyway.jpg', 'color');
@@ -638,7 +638,7 @@ void main(){
   o = vec4(vec3(1.0, 0.93, 0.82)*z*6.9e-12*uScale, 1.);
 }`;
 let pZodi = null;
-export function initZodiProgram() { if (!pZodi) pZodi = new Program('zodiacal', FS_VS, ZODI_FS); }
+export function initZodiProgram() { if (!pZodi) pZodi = new Program('zodiacal', FS_VS_SCENE, ZODI_FS); }
 export function drawZodiacal(rotWorldFromView, tanFov, exposure, sunDir, eclN, rAU) {
   initZodiProgram();
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.DEPTH_TEST);

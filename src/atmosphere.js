@@ -85,6 +85,7 @@ ${WEATHER_GLSL}
 uniform mat3 uCamRot, uPlanetRotInv;
 uniform vec2 uTanFov;
 uniform float uExposure, uTime, uOblate, uFrame, uPixAngle;
+uniform vec2 uJit;   // the frame's sub-pixel jitter (UV): rays follow the jittered geometry they are composited over
 uniform float cBase, cTop, cDens, cHas, cKind, cMapped; uniform vec3 cColor;
 uniform float uAurora, uLightning, uAurB; uniform mat3 uBodyRotInv; uniform vec3 uMagPole;
 uniform sampler2D uLightsTex; uniform float uHasLights;
@@ -238,7 +239,7 @@ void volumetrics(vec2 uv, out vec3 inscatter, out vec3 trans, out float depth, o
   inscatter = vec3(0.); trans = vec3(1.);
   // use exactly the full resolution pixel whose depth we read
   vec2 dsz = vec2(textureSize(uDepth, 0)); ivec2 dpx = ivec2(clamp(uv*dsz, vec2(0.), dsz - 1.)); uv = (vec2(dpx) + 0.5)/dsz;
-  vec2 ndc = uv*2. - 1.;
+  vec2 ndc = (uv - uJit)*2. - 1.;
   vec3 rdc = vec3(ndc*uTanFov, -1.);
   float cosf = 1./length(rdc);
   vec3 rd = normalize(uCamRot*rdc);
@@ -659,7 +660,7 @@ export function drawAtmosphere(body, o) {
   const rf = refractUniforms(body, o);
   (o.half ? pVol : pComp).use().set(l.uniforms).set(o.light).set(rf).set({
     uScene: o.scene, uDepth: o.depth, uNoise3: o.noise3, uCloudMap: l.cloud || dummyCube, uCamRot: o.camRot, uPlanetRotInv: rotInv, uTanFov: o.tanFov,
-    uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
+    uExposure: o.exposure, uPixAngle: o.pixAngle, uTime: o.time % 86400, uFrame: o.frame % 64, uJit: o.jit || [0, 0], uFcoef: o.fcoef, uTransLUT: l.trans, uMultiLUT: l.multi, uIrrLUT: l.irr,
     uAurora: body.aurora || 0, uLightning: body.life && c && c.kind === 'earth' ? 1 : 0, uHasLights: ms && ms.lights && ms.lights.tex ? cityEra(o.time) * (body.climate ? body.climate.life : 1) : 0, uLightsTex: ms && ms.lights && ms.lights.tex ? ms.lights.tex : getDummy2D(), uBodyRotInv: Q.mat3(Q.conj(o.rotQ)), uMagPole: body.magPole || [0, 1, 0], uAurB: body.auroraB || 1,
     cMapped: cmap ? 1 : 0, uCloudTex2: cmap || getDummy2D(), uWorley3: o.worley3 || o.noise3, uOblate: body.oblate || 0, cHas: c && o.clouds && !(body.climate && body.climate.dry > 0.98) ? 1 : 0, cBase: c ? c.base : 0, cTop: c ? c.top : 1, cDens: c ? c.density * (body.climate ? 1 - body.climate.dry : 1) : 0, cColor: c ? c.color : [1, 1, 1], cKind: c && c.kind === 'venus' ? 1 : 0,
     uSteps: atmoCfg.steps, uCloudSteps: atmoCfg.cloudSteps,

@@ -1,6 +1,6 @@
 // Exotic objects and effects: black holes with gravitational lensing and accretion disks, stellar coronae,
 // volumetric nebulae.
-import { gl, Program, drawFS, FS_VS, makeVAO } from './gl.js';
+import { gl, Program, drawFS, FS_VS, FS_VS_SCENE, makeVAO } from './gl.js';
 import { V, Q, C, clamp, mix } from './math.js';
 import { RNG, hashCombine, makeName } from './rng.js';
 import { LOGDEPTH_VS, LOGDEPTH_FS, REFRACT_VS } from './planet.js';
@@ -136,7 +136,7 @@ void main(){
 const skyU = (sk) => sk ? { uSkyCube: sk.tex, uSkyRot: sk.rot, uSkyScale: sk.scale } : { uSkyScale: 0 };
 let pBH;
 export function drawBlackHole(b, o) {
-  if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
+  if (!pBH) pBH = new Program('blackhole', FS_VS_SCENE, BH_FS);
   const rs = b.radius;
   // accretion flickers: hot spots and flares in the inner disk (Sagittarius A* flares several times a day, each about
   // an hour). Averaged out when a frame spans more than a few hours.
@@ -203,7 +203,7 @@ void main(){
 }`;
 let pBHN;
 export function drawBlackHoles(list, o) {
-  if (!pBHN) pBHN = new Program('blackholes', FS_VS, BHN_FS);
+  if (!pBHN) pBHN = new Program('blackholes', FS_VS_SCENE, BHN_FS);
   const h = new Float32Array(16); const n = Math.min(list.length, 4);
   for (let i = 0; i < n; i++) h.set([list[i].rel[0], list[i].rel[1], list[i].rel[2], list[i].radius], i * 4);
   pBHN.use().set({ uScene: o.scene, uCamRot: o.camRot, uCamRotInv: Q.mat3(Q.conj(o.q)), uTanFov: o.tanFov, uHoles: h, uN: n, uStrong: 40, ...skyU(o.sky) });
@@ -435,7 +435,7 @@ export let visibleNebulae = [];
 export function drawNebulaeAndFx(nav, o) {
   visibleNebulae = [];
   if (!nav.galaxy || !nav.field || !o.camLocal) return;
-  if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
+  if (!pNeb) pNeb = new Program('nebula', FS_VS_SCENE, NEB_FS);
   const list = nebulaeNear(nav.galaxy, o.camLocal, nav.field.dens).map(nebulaAt).filter(Boolean);
   if (o.extra) for (const nb of o.extra) list.push(nb);
   const gq = nav.galaxy.quat, vis = [];
@@ -508,9 +508,9 @@ drawNebulaeAndFx.coronae = function (sys, nav, o) {
 
 export function initExoticPrograms() {
   initCometProgram();
-  if (!pBH) pBH = new Program('blackhole', FS_VS, BH_FS);
-  if (!pBHN) pBHN = new Program('blackholes', FS_VS, BHN_FS);
-  if (!pNeb) pNeb = new Program('nebula', FS_VS, NEB_FS);
+  if (!pBH) pBH = new Program('blackhole', FS_VS_SCENE, BH_FS);
+  if (!pBHN) pBHN = new Program('blackholes', FS_VS_SCENE, BHN_FS);
+  if (!pNeb) pNeb = new Program('nebula', FS_VS_SCENE, NEB_FS);
   if (!pBeam) pBeam = new Program('beam', BEAM_VS, BEAM_FS);
   if (!pCor) pCor = new Program('corona', COR_VS, COR_FS);
 }
@@ -561,7 +561,7 @@ void main(){
 }`;
 let pComet = null;
 const cometVolumes = [];
-export function initCometProgram() { if (!pComet) pComet = new Program('comet', FS_VS, COMET_FS); }
+export function initCometProgram() { if (!pComet) pComet = new Program('comet', FS_VS_SCENE, COMET_FS); }
 // called by the renderer after coronae; needs the scene depth
 export function drawComets(sys, nav, o) {
   initCometProgram();

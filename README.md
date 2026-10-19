@@ -549,6 +549,8 @@ The harness runs frames until tile baking and exposure have settled, then saves 
     node tools/eventtest.mjs          # visits every timeline event and sandbox scenario, screenshots each
     node tools/monkey.mjs 60 7        # random flying, time jumps, sandbox scenarios and keys; reports errors
     node tools/glcheck.mjs            # checks every WebGL draw call for errors across events and scenarios
+    node tools/jitter2.mjs out "tex=97&scale=1" 10 && python3 tools/jitter.py out   # frame-to-frame shake of the
+                                      # start view with temporal AA on (SETUP='c.rcfg.taa = false' to compare)
     node tools/lapsetest.mjs          # fast-forward at a planet: the Sun must hold still from frame to frame
 
 The physics checks cover: a GW150914-like merger (final mass 61.9 M☉, spin 0.68, 3.1 M☉ radiated, ringdown

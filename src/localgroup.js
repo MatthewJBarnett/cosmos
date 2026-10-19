@@ -3,7 +3,7 @@
 // whose centres follow the orbit with dynamical friction from lgorbit.js. Integration is leapfrog (kick-drift-kick,
 // time reversible) in ping-pong float textures. The Sun is a tracer particle integrated identically on the CPU.
 // Units: kpc, Myr, solar masses. Frame: centre of mass of the pair, axes of the Milky Way at the present epoch.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, texCube } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, FS_VS_SCENE, texCube } from './gl.js';
 import { V, Q, C, clamp } from './math.js';
 import { GAL, G, KMS, centresAt, relAt, ORBIT, orbitEvents, lmcAt, LMC_ORBIT, sgrAt, SGR_ORBIT } from './lgorbit.js';
 import { REAL_GALAXIES, MILKY_WAY } from './universe.js';
@@ -150,7 +150,7 @@ export class LocalGroup {
     // (programs first so they compile in parallel with the others at start-up)
     this.pStep = new Program('lgstep', FS_VS, STEP_FS);
     this.pPart = new Program('lgparts', PART_VS, PART_FS);
-    this.pCube = new Program('lgcube', FS_VS, CUBEDRAW_FS);
+    this.pCube = new Program('lgcube', FS_VS_SCENE, CUBEDRAW_FS);
     const mk = () => tex2D(SW, SH, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
     this.pos = [mk(), mk()]; this.vel = [mk(), mk()];
     this.fb = [fbo([this.pos[0], this.vel[0]]), fbo([this.pos[1], this.vel[1]])];

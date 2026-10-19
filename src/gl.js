@@ -79,6 +79,8 @@ export class Program {
     gl.useProgram(this.p);
     // (uniforms shared by every shader that declares them: the observing band)
     if (this.u.uBand) gl.uniform1i(this.u.uBand, GLOBAL_U.uBand);
+    // (and the frame's sub-pixel jitter, for passes that trace view rays into the scene: see FS_VS_SCENE)
+    if (this.u.uJitUV) gl.uniform2f(this.u.uJitUV, GLOBAL_U.uJitUV[0], GLOBAL_U.uJitUV[1]);
     return this;
   }
   // set uniforms from object; textures given as {tex, target}
@@ -110,7 +112,7 @@ export class Program {
 }
 
 // the observing band: 0 visible, 1 ultraviolet, 2 near-infrared, 3 far-infrared, 4 microwave, 5 radio, 6 X-ray
-export const GLOBAL_U = { uBand: 0 };
+export const GLOBAL_U = { uBand: 0, uJitUV: [0, 0] };
 // (7-9 are not light: other messengers, see messengers.js)
 export const BANDS = ['Visible', 'Ultraviolet', 'Near-infrared', 'Far-infrared', 'Microwave', 'Radio', 'X-ray', 'Neutrinos', 'Dark matter', 'Gravitational waves'];
 
@@ -170,6 +172,10 @@ export function drawFS() {
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 export const FS_VS = `layout(location=0) in vec2 aPos; out vec2 vUV; void main(){ vUV = aPos*0.5+0.5; gl_Position = vec4(aPos,0.,1.); }`;
+// Full-screen passes that trace view rays into the scene (sky, nebulae, black holes...): their rays follow the same
+// sub-pixel jitter as the rasterized geometry, so temporal anti-aliasing reprojects everything consistently (without
+// it, everything not rasterized shimmers by up to half a pixel and the atmosphere disagrees with the planet's depth)
+export const FS_VS_SCENE = `layout(location=0) in vec2 aPos; out vec2 vUV; uniform vec2 uJitUV; void main(){ vUV = aPos*0.5+0.5 - uJitUV; gl_Position = vec4(aPos,0.,1.); }`;
 
 export function makeVAO(attribs, index = null) {
   // attribs: [{data, size, loc, divisor, type}]

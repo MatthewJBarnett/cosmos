@@ -1,5 +1,5 @@
 // Frame pipeline: HDR scene (sky, stars, system bodies, atmospheres) then bloom, exposure and tone mapping.
-import { gl, Program, tex2D, fbo, drawFS, FS_VS, AsyncRead, GpuTimer, GLOBAL_U } from './gl.js';
+import { gl, Program, tex2D, fbo, drawFS, FS_VS, FS_VS_SCENE, AsyncRead, GpuTimer, GLOBAL_U } from './gl.js';
 import { lateEra } from './farfuture.js';
 import { V, Q, M4, C, clamp } from './math.js';
 import { RNG } from './rng.js';
@@ -329,8 +329,10 @@ export class Renderer {
     // sub-pixel jitter (Halton 2,3) for temporal anti-aliasing
     const useTAA = rcfg.taa && !this.sync;
     const hal = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
-    const jx = useTAA ? hal(this.frameNo % 8 + 1, 2) - 0.5 : 0, jy = useTAA ? hal(this.frameNo % 8 + 1, 3) - 0.5 : 0;
+    const jon = useTAA && rcfg.taaJitter !== false;
+    const jx = jon ? (rcfg.jitConst !== undefined ? rcfg.jitConst : hal(this.frameNo % 8 + 1, 2) - 0.5) : 0, jy = jon ? (rcfg.jitConst !== undefined ? rcfg.jitConst : hal(this.frameNo % 8 + 1, 3) - 0.5) : 0;
     proj[8] -= jx * 2 / w; proj[9] -= jy * 2 / h;
+    GLOBAL_U.uJitUV = [jx / w, jy / h];
     const viewProj = M4.mul(proj, view);
     const camRot = Q.mat3(nav.q);
     const fcoef = 2 / Math.log2(FAR + 1);
@@ -426,7 +428,7 @@ export class Renderer {
     // with ionized bubbles growing around the first galaxies until reionization is complete
     { const band = GLOBAL_U.uBand, zc = 1 / Math.max(cosmo.a, 1e-9) - 1, q21 = band === 5 && zc > 5.5 && zc < 200 && !cosmo.early;
       if ((band === 4 && !cosmo.early) || q21) {
-        if (!this.pBandSky) this.pBandSky = new Program('band-sky', FS_VS, BANDSKY_FS);
+        if (!this.pBandSky) this.pBandSky = new Program('band-sky', FS_VS_SCENE, BANDSKY_FS);
         gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
         this.pBandSky.use().set({ uRot: Q.mat3(nav.q), uTanFov: [tanX, tanY], uNoise3: this.noise3, uMode: q21 ? 1 : 0, uIon: q21 ? ionizedIGM(zc) : 0, uZ: zc });
         drawFS(); gl.depthMask(true);
@@ -701,7 +703,7 @@ export class Renderer {
       const prev = pc && pc.sys === sys && pc.level === nav.level ? { rotInv: Q.mat3(Q.conj(pc.q)), tanFov: pc.tanFov, delta: V.sub(nav.S, pc.S) } : null;
       for (const b of atmoPasses) {
         // (in the far infrared and microwaves the sky does not scatter sunlight: the planets' own heat shows through)
-        if (GLOBAL_U.uBand === 3 || GLOBAL_U.uBand === 4) continue;
+        if (GLOBAL_U.uBand === 3 || GLOBAL_U.uBand === 4 || rcfg.noAtmo) continue;
         const ar = (b.radius + b.atmo.top) / Math.max(b.dist, 1), pr = project(b.rel);
         // scissor to the projected bounding circle
         let sx = 0, sy = 0, sw = w, sh = h;
@@ -714,14 +716,14 @@ export class Renderer {
         }
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.hdrNoDepth); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.copyFBO);
         gl.blitFramebuffer(sx, sy, sx + sw, sy + sh, sx, sy, sx + sw, sy + sh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-        const ao = { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds && !b.noClouds };
+        const ao = { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, jit: [jx / w, jy / h], clouds: rcfg.clouds && !b.noClouds };
         if (b === primary) {
           this.volTAA.draw(b, Object.assign(ao, { w, h, prev, key: b.uid + ':' + w + 'x' + h, outFBO: this.hdrNoDepth, scissor: [sx, sy, sw, sh], noHist: rcfg.volNoHist }));
           continue;
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
         gl.enable(gl.SCISSOR_TEST); gl.scissor(sx, sy, sw, sh); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-        drawAtmosphere(b, { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, clouds: rcfg.clouds && !b.noClouds });
+        drawAtmosphere(b, { worley3: this.worley3, planetRel: b.rel, camRotInv: Q.mat3(Q.conj(nav.q)), scene: this.copyTex, depth: this.depthTex, camRot, tanFov: [tanX, tanY], pixAngle: 1 / pxPerRad, rotQ: b.wrot, light: b._alu || b._lu, exposure, fcoef, time: nav.time, noise3: this.noise3, frame: this.frameNo, jit: [jx / w, jy / h], clouds: rcfg.clouds && !b.noClouds });
         gl.disable(gl.SCISSOR_TEST);
       }
       T('atmo');
@@ -751,7 +753,7 @@ export class Renderer {
     // million years afterwards the cosmic background is still hot enough to see (dull red below ~800 K)
     if (cosmo.early) {
       // the first moments (display-referred: brightness spans 30 orders of magnitude, so it is shown at a fixed level)
-      if (!this.pEarly) this.pEarly = new Program('early-universe', FS_VS, EARLY_FS);
+      if (!this.pEarly) this.pEarly = new Program('early-universe', FS_VS_SCENE, EARLY_FS);
       const e = cosmo.early, c0 = bbColor(Math.min(Math.max(e.T, 1000), 40000)), y = 0.2126 * c0[0] + 0.7152 * c0[1] + 0.0722 * c0[2];
       this.dimAdapt = true;
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdrNoDepth); gl.viewport(0, 0, w, h);
@@ -760,7 +762,7 @@ export class Renderer {
         uCol: c0.map(v => v / y), uTime: (performance.now() / 1000) % 1000, uHot: clamp(Math.log10(Math.max(e.T, 1)) / 32, 0, 1) });
       drawFS();
     } else if (nav.late) {
-      if (!this.pLate) this.pLate = new Program('far-future', FS_VS, LATE_FS);
+      if (!this.pLate) this.pLate = new Program('far-future', FS_VS_SCENE, LATE_FS);
       const v = lateEra(nav.late.y).vis;
       // (the flash appears where you are looking when it starts, then stays put)
       if (v.flash > 0 && !nav.late.fd) nav.late.fd = Q.rot(nav.q, V.norm([0.12 * tanX, 0.05 * tanY, -1])); else if (!v.flash) nav.late.fd = null;
@@ -771,7 +773,7 @@ export class Renderer {
       drawFS();
     } else if (cosmo.T > 420) {
       // (with the frozen density ripples on it: really 1 part in 100,000, drawn ~5,000x stronger)
-      if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS, `in vec2 vUV; out vec4 o; uniform vec3 uCol; uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov;
+      if (!this.pGlow) this.pGlow = new Program('cosmic-glow', FS_VS_SCENE, `in vec2 vUV; out vec4 o; uniform vec3 uCol; uniform sampler3D uNoise3; uniform mat3 uRot; uniform vec2 uTanFov;
         void main(){ vec3 d = normalize(uRot*vec3((vUV*2. - 1.)*uTanFov, -1.)); float n = 0., a = 0.5; vec3 p = d*1.6; for (int i = 0; i < 5; i++) { n += a*(texture(uNoise3, p).r - 0.5); p *= 2.1; a *= 0.5; }
           o = vec4(uCol*(1. + 0.1*n), 0.); }`);
       const T = Math.min(cosmo.T, 1e9), c0 = bbColor(Math.min(T, 40000)), k = clamp((1600 - T) / 700, 0, 1);
@@ -801,7 +803,7 @@ export class Renderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.taaFBO[dst]); gl.viewport(0, 0, w, h);
         this.pTAA.use().set({ uCur: this.hdrTex, uHist: this.taaTex[srcH], uDepth: this.depthTex, uTexel: [1 / w, 1 / h], uTanFov: [tanX, tanY], uPrevTanFov: valid ? pv.tanFov : [tanX, tanY], uJit: [jx / w, jy / h],
           uCamRot: camRot, uPrevInvSky: Q.mat3(Q.conj(valid ? pv.q : nav.q)), uBodyInv: Q.mat3(bInv || Q.ident()), uPrevInvBody: Q.mat3(Q.conj(valid && pv.qB ? pv.qB : Q.ident())),
-          uCamB: cur.camB || [0, 0, 0], uPrevCamB: valid && pv.camB ? pv.camB : [0, 0, 0], uFcoef: fcoef, uValid: valid ? 1 : 0, uHasBody: an ? 1 : 0 });
+          uCamB: cur.camB || [0, 0, 0], uPrevCamB: valid && pv.camB ? pv.camB : [0, 0, 0], uFcoef: fcoef, uValid: valid && !rcfg.taaNoHist ? 1 : 0, uHasBody: an ? 1 : 0 });
         drawFS();
         sceneTex = this.taaTex[dst]; this.taaIdx = srcH; this.taaValid = true;
       } else this.taaValid = false;
@@ -857,7 +859,7 @@ export class Renderer {
 
   renderMessenger(o) {
     const band = GLOBAL_U.uBand, nav = o.nav;
-    if (!this.pMsg) this.pMsg = new Program('messengers', FS_VS, MESSENGER_FS);
+    if (!this.pMsg) this.pMsg = new Program('messengers', FS_VS_SCENE, MESSENGER_FS);
     // the observer in the Milky Way's frame (kpc): its halo and disk are integrated in the shader when we are within
     // ~250 kpc; beyond that the Milky Way is drawn like any other galaxy
     const cu = nav.camU(), mwq = MILKY_WAY.quat, loc = V.mul(Q.rot(Q.conj(mwq), V.sub(cu, MILKY_WAY.posU)), 1000), near = V.len(loc) < 250;
