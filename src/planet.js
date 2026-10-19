@@ -745,8 +745,14 @@ class PlanetState {
 // city lights belong to an era: electric lighting spread from the 1880s; today's map is not extrapolated centuries ahead
 // Earth's tides: Moon and Sun directions in the body frame, with amplitudes (m) giving ~2-3 m spring ranges at the coast
 const TIDE0 = [0, 1, 0, 0];
+const tideCache = [null, null, null, null];
 function tides(body, which) {
   if (body.name !== 'Earth' || !body.wrot || !body.system) return TIDE0;
+  // (once per frame: the uniforms are set for every tile)
+  if (tideCache[which * 2] === body.wrot) return tideCache[which * 2 + 1];
+  const r = tidesNow(body, which); tideCache[which * 2] = body.wrot; tideCache[which * 2 + 1] = r; return r;
+}
+function tidesNow(body, which) {
   const src = which ? body.system.root : (body.children || []).find(c => c.name === 'Moon');
   if (!src || !src.wpos || src.gone) return TIDE0;
   const d = V.norm(Q.rot(Q.conj(body.wrot), V.sub(src.wpos, body.wpos)));
